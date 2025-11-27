@@ -281,10 +281,6 @@ jobs:
                     "value": "${{ secrets.CLIENT_PORT }}"
                   },
                   {
-                    "name": "API_PORT",
-                    "value": "${{ secrets.API_PORT }}"
-                  },
-                  {
                     "name": "MONGO_URI",
                     "value": "${{ secrets.MONGO_URI }}"
                   },

@@ -7,9 +7,10 @@ import { LegalModule } from '../legal/legal.module';
 import { WaitlistModule } from '../waitlist/waitlist.module';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { SessionsModule } from '../sessions/sessions.module';
 
 @Module({
-  imports: [CommonModule, UsersModule, OrganizationsModule, EmailModule, LegalModule, WaitlistModule],
+  imports: [CommonModule, UsersModule, OrganizationsModule, EmailModule, LegalModule, WaitlistModule, SessionsModule],
   providers: [AuthService],
   controllers: [AuthController],
 })

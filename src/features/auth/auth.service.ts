@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import * as bcrypt from 'bcryptjs';
+import * as argon2 from 'argon2';
 import * as crypto from 'crypto';
 import { AuditLogService } from '../../common/services/audit-log.service';
 import { ActorContext, UsersService } from '../users/users.service';
@@ -33,7 +33,7 @@ export class AuthService {
 
   async login(email: string, pass: string) {
     const user = await this.users.findByEmail(email);
-    const isValid = user && (await bcrypt.compare(pass, user.passwordHash));
+    const isValid = user && (await argon2.verify(user.passwordHash, pass));
     await this.audit.log({
       eventType: 'auth.login',
       userId: user?.id,
@@ -93,6 +93,7 @@ export class AuthService {
       );
     }
 
+    let domainLocked = false;
     if (this.waitlist.domainGateEnabled()) {
       const existingDomainOrg = await this.orgs.findByDomain(domain);
       if (existingDomainOrg) {
@@ -103,43 +104,58 @@ export class AuthService {
         });
         throw new ForbiddenException('Your company already has access. Please ask your org admin to invite you.');
       }
+      const claimed = await this.waitlist.acquireDomainClaim(domain);
+      domainLocked = claimed;
+      if (!claimed) {
+        await this.waitlist.logEvent('waitlist.register_blocked_domain_race', { email: normalizedEmail, domain });
+        throw new ForbiddenException('Your company already has access. Please ask your org admin to invite you.');
+      }
     }
 
-    let organizationId = dto.organizationId;
-    let createdOrgId: string | undefined;
-    if (!organizationId) {
-      const orgName = dto.organizationName || `${dto.username}'s Organization`;
-      const org = await this.orgs.create({ name: orgName, primaryDomain: domain });
-      organizationId = org.id || (org as any)._id;
-      createdOrgId = organizationId;
-    } else {
-      await this.orgs.findById(organizationId);
+    try {
+      let organizationId = dto.organizationId;
+      let createdOrgId: string | undefined;
+      if (!organizationId) {
+        const orgName = dto.organizationName || `${dto.username}'s Organization`;
+        const org = await this.orgs.create({ name: orgName, primaryDomain: domain });
+        organizationId = org.id || (org as any)._id;
+        createdOrgId = organizationId;
+      } else {
+        await this.orgs.findById(organizationId);
+      }
+      const { token, hash, expires } = this.generateToken(1000 * 60 * 60 * 24); // 24h
+      const assignedRole = createdOrgId ? Role.OrgOwner : Role.User;
+      const user = await this.users.create({
+        username: dto.username,
+        email: normalizedEmail,
+        password: dto.password,
+        organizationId,
+        role: assignedRole,
+        isOrgOwner: assignedRole === Role.OrgOwner,
+        verificationTokenHash: hash,
+        verificationTokenExpires: expires,
+        isEmailVerified: false,
+      });
+      if (createdOrgId) {
+        await this.orgs.setOwner(createdOrgId, (user as any).id || (user as any)._id);
+      }
+      await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
+      await this.audit.log({
+        eventType: 'auth.register',
+        userId: (user as any).id || (user as any)._id,
+        orgId: organizationId,
+      });
+      await this.email.sendVerificationEmail(dto.email, token, organizationId, dto.username);
+      await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
+      return user;
+    } catch (err) {
+      throw err;
+    } finally {
+      // ensure lock doesn't linger if creation failed silently
+      if (domainLocked) {
+        await this.waitlist.releaseDomainClaim(domain);
+      }
     }
-    const { token, hash, expires } = this.generateToken(1000 * 60 * 60 * 24); // 24h
-    const assignedRole = createdOrgId ? Role.OrgOwner : Role.User;
-    const user = await this.users.create({
-      username: dto.username,
-      email: normalizedEmail,
-      password: dto.password,
-      organizationId,
-      role: assignedRole,
-      isOrgOwner: assignedRole === Role.OrgOwner,
-      verificationTokenHash: hash,
-      verificationTokenExpires: expires,
-      isEmailVerified: false,
-    });
-    if (createdOrgId) {
-      await this.orgs.setOwner(createdOrgId, (user as any).id || (user as any)._id);
-    }
-    await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
-    await this.audit.log({
-      eventType: 'auth.register',
-      userId: (user as any).id || (user as any)._id,
-      orgId: organizationId,
-    });
-    await this.email.sendVerificationEmail(dto.email, token, organizationId, dto.username);
-    await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
-    return user;
   }
 
   async verifyEmail(dto: VerifyEmailDto) {

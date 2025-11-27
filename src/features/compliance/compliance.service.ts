@@ -134,11 +134,11 @@ export class ComplianceService {
   private async loadRecord(entityType: ComplianceEntityType, id: string, orgId?: string) {
     if (!id) throw new BadRequestException('entityId is required');
     const model = await this.resolveModel(entityType, orgId);
-    const record = await model.findById(id);
+    const record = await (model as any).findById(id).exec();
     if (record) return record;
     // Fallback for contacts stored on default connection when a dedicated org is requested
     if (entityType === 'contact' && model !== this.contactModel) {
-      const fallback = await this.contactModel.findById(id);
+      const fallback = await this.contactModel.findById(id).exec();
       if (fallback) return fallback;
     }
     throw new NotFoundException(`${entityType} not found`);

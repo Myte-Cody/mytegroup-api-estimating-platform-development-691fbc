@@ -20,6 +20,8 @@ import { LegalModule } from './features/legal/legal.module';
 import { WaitlistModule } from './features/waitlist/waitlist.module';
 import { APP_GUARD } from '@nestjs/core';
 import { LegalGuard } from './features/legal/legal.guard';
+import { SessionsModule } from './features/sessions/sessions.module';
+import { ContactInquiriesModule } from './features/contact-inquiries/contact-inquiries.module';
 
 @Module({
   imports: [
@@ -41,6 +43,8 @@ import { LegalGuard } from './features/legal/legal.guard';
     RbacModule,
     LegalModule,
     WaitlistModule,
+    SessionsModule,
+    ContactInquiriesModule,
   ],
   providers: [
     {

@@ -256,6 +256,18 @@ jobs:
                   {
                     "name": "PORT",
                     "value": "80"
+                  },
+                  {
+                    "name": "REDIS_URL",
+                    "value": "${{ secrets.REDIS_URL }}"
+                  },
+                  {
+                    "name": "BULLMQ_PREFIX",
+                    "value": "myte"
+                  },
+                  {
+                    "name": "QUEUE_ENABLED",
+                    "value": "true"
                   }
                 ], 
                 "logConfiguration": {

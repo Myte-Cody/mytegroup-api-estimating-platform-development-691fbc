@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Get, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Req, Get, UseGuards, Optional } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -12,14 +12,25 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Role } from '../../common/roles';
 import { OrgScopeGuard } from '../../common/guards/org-scope.guard';
 import { PasswordStrengthDto } from './dto/password-strength.dto';
-import { LegalService } from '../legal/legal.service.ts';
+import { LegalService } from '../legal/legal.service';
+import { SessionsService } from '../sessions/sessions.service';
 @Controller('auth')
 export class AuthController {
-  constructor(private auth: AuthService, private legal: LegalService) {}
+  constructor(private auth: AuthService, private legal: LegalService, @Optional() private sessions?: SessionsService) {}
+
+  private async regenerateSession(req: Request) {
+    return new Promise<void>((resolve, reject) => {
+      req.session.regenerate((err) => {
+        if (err) return reject(err);
+        resolve();
+      });
+    });
+  }
 
   @Post('register')
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
     const user = await this.auth.register(dto);
+    await this.regenerateSession(req);
     (req as any).session.user = {
       id: (user as any)._id || (user as any).id,
       role: user.role,
@@ -27,6 +38,7 @@ export class AuthController {
       orgId: user.organizationId,
       isOrgOwner: (user as any).isOrgOwner,
     };
+    await this.sessions?.registerSession(req.sessionID, (user as any)._id || (user as any).id);
     const status = await this.legal.acceptanceStatus({ id: (user as any).id, orgId: user.organizationId });
     return { user, legalRequired: status.required.length > 0, legalRequiredDocs: status.required };
   }
@@ -34,6 +46,7 @@ export class AuthController {
   @Post('login')
   async login(@Body() body: LoginDto, @Req() req: Request) {
     const user = await this.auth.login(body.email, body.password);
+    await this.regenerateSession(req);
     const normalizedUser: any = {
       ...user,
       id: (user as any)._id || (user as any).id,
@@ -46,6 +59,7 @@ export class AuthController {
       orgId: normalizedUser.organizationId,
       isOrgOwner: normalizedUser.isOrgOwner,
     };
+    await this.sessions?.registerSession(req.sessionID, normalizedUser.id);
     const status = await this.legal.acceptanceStatus({ id: normalizedUser.id, orgId: normalizedUser.organizationId });
     return { user: normalizedUser, legalRequired: status.required.length > 0, legalRequiredDocs: status.required };
   }
@@ -54,7 +68,14 @@ export class AuthController {
   @Post('logout')
   async logout(@Req() req: Request) {
     return new Promise((resolve) => {
-      req.session.destroy(() => resolve({ status: 'ok' }));
+      const userId = req.session.user?.id;
+      const sessionId = req.sessionID;
+      req.session.destroy(async () => {
+        if (userId && sessionId) {
+          await this.sessions?.removeSession(sessionId, userId);
+        }
+        resolve({ status: 'ok' });
+      });
     });
   }
 

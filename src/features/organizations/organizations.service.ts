@@ -183,7 +183,10 @@ export class OrganizationsService {
       orgId: org.id,
       entity: 'Organization',
       entityId: org.id,
-      metadata: { before: this.sanitizeDatastoreSnapshot({ ...org, ...before } as Organization), after: this.sanitizeDatastoreSnapshot(org) },
+      metadata: {
+        before: this.sanitizeDatastoreSnapshot({ ...org, ...before } as unknown as Organization),
+        after: this.sanitizeDatastoreSnapshot(org),
+      },
     });
     return this.asObject(org);
   }

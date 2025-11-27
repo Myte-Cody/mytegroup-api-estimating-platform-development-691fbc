@@ -37,7 +37,24 @@ export const waitlistConfig = {
     requireToken: true, // when true, reject requests without a captcha token
   },
   domainPolicy: {
-    denylist: ['mailinator.com', '10minutemail.com', 'tempmail.com'],
+    // Block disposable and common personal email providers; enforce company domains for waitlist.
+    denylist: [
+      'mailinator.com',
+      '10minutemail.com',
+      'tempmail.com',
+      'gmail.com',
+      'yahoo.com',
+      'yahoo.ca',
+      'outlook.com',
+      'outlook.fr',
+      'hotmail.com',
+      'live.com',
+      'icloud.com',
+      'me.com',
+      'proton.me',
+      'protonmail.com',
+      'aol.com',
+    ],
   },
   invite: {
     enforceGate: true, // when true, registration requires waitlist status=invited

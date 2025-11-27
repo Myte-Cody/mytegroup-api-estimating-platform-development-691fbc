@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import * as bcrypt from 'bcryptjs';
+import * as argon2 from 'argon2';
 import { AuditLogService } from '../../common/services/audit-log.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -113,7 +113,7 @@ export class UsersService {
     if (actor) {
       this.validateRoleChange(actor, roles);
     }
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
     const user = await this.userModel.create({
       username: dto.username,
       email: dto.email,
@@ -219,8 +219,8 @@ export class UsersService {
     );
   }
 
-  async clearResetTokenAndSetPassword(userId: string, newPassword: string) {
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    async clearResetTokenAndSetPassword(userId: string, newPassword: string) {
+      const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
     return this.userModel.findByIdAndUpdate(
       userId,
       {

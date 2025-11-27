@@ -86,6 +86,7 @@ export class BulkController {
         : undefined;
     const formatHint = body?.format === 'csv' || body?.format === 'json' ? body.format : undefined;
     const result = await this.bulk.import(entityType, {
+      entityType,
       orgId,
       actor,
       dryRun: ['true', '1'].includes(String(dryRun || '').toLowerCase()),
@@ -122,6 +123,7 @@ export class BulkController {
     }
     const actor = req?.session?.user || {};
     const result = await this.bulk.export(entityType, {
+      entityType,
       orgId,
       actor,
       format: format === 'csv' ? 'csv' : 'json',

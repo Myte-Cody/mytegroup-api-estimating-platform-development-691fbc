@@ -138,8 +138,8 @@ export class MigrationsService {
     initialProgress?: CollectionProgress;
   }) {
     const { migrationId, key, sourceConn, targetConn, config, orgId, chunkSize, initialProgress } = params;
-    const sourceModel = await this.getModel(sourceConn, config);
-    const targetModel = await this.getModel(targetConn, config);
+    const sourceModel = (await this.getModel(sourceConn, config)) as any;
+    const targetModel = (await this.getModel(targetConn, config)) as any;
     const filter = this.buildFilter(config, orgId);
     const total = await sourceModel.countDocuments(filter);
     let copied = initialProgress?.copied || 0;

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
 import { AuditLogService } from '../../common/services/audit-log.service'
@@ -12,6 +12,10 @@ import { waitlistConfig } from './waitlist.config'
 import { WaitlistEntry, WaitlistStatus, WaitlistVerifyStatus } from './waitlist.schema'
 import { waitlistInviteTemplate, waitlistVerificationTemplate } from '../email/templates'
 import { UsersService } from '../users/users.service'
+import { createRedisClient } from '../../common/redis/redis.client'
+import { RedisRateLimiter } from '../../common/redis/rate-limiter'
+import { createQueue, createQueueScheduler, createWorker } from '../../queues/queue.factory'
+import { opsConfig } from '../../config/ops.config'
 
 export type WaitlistStats = {
   waitlistCount: number
@@ -19,50 +23,27 @@ export type WaitlistStats = {
   freeSeatsPerOrg: number
 }
 
-class SlidingWindowRateLimiter {
-  constructor(private readonly windowMs: number, private readonly max: number) {}
-  private hits = new Map<string, { count: number; expires: number }>()
-
-  allow(key: string) {
-    const now = Date.now()
-    const existing = this.hits.get(key)
-    if (existing && existing.expires > now) {
-      existing.count += 1
-      this.hits.set(key, existing)
-      return existing.count <= this.max
-    }
-    this.hits.set(key, { count: 1, expires: now + this.windowMs })
-    return true
-  }
-}
-
 @Injectable()
 export class WaitlistService {
   private readonly logger = new Logger(WaitlistService.name)
-  private readonly submissionLimiterIp = new SlidingWindowRateLimiter(
-    waitlistConfig.rateLimit.windowMs,
-    waitlistConfig.rateLimit.submissionsPerIp
-  )
-  private readonly submissionLimiterEmail = new SlidingWindowRateLimiter(
-    waitlistConfig.rateLimit.windowMs,
-    waitlistConfig.rateLimit.submissionsPerEmail
-  )
-  private readonly eventLimiterIp = new SlidingWindowRateLimiter(
-    waitlistConfig.rateLimit.windowMs,
-    waitlistConfig.rateLimit.eventsPerIp
-  )
-  private readonly resendLimiterEmail = new SlidingWindowRateLimiter(
-    waitlistConfig.rateLimit.windowMs,
-    waitlistConfig.verification.maxResendsPerWindow || 3
-  )
+  private readonly redis = createRedisClient('waitlist')
+  private readonly limiter = new RedisRateLimiter(this.redis, 'waitlist')
   private readonly domainDeny = new Set(waitlistConfig.domainPolicy.denylist || [])
+  private readonly mailQueue = createQueue('waitlist-mail')
+  private readonly mailScheduler = createQueueScheduler('waitlist-mail')
+  private readonly mailDlq = createQueue('waitlist-mail-dlq')
+  private readonly ops = opsConfig()
+  private lastMailAlertAt = 0
+  private mailWorkerStarted = false
 
   constructor(
     @InjectModel('Waitlist') private readonly model: Model<WaitlistEntry>,
     private readonly audit: AuditLogService,
     private readonly email: EmailService,
     private readonly users: UsersService
-  ) {}
+  ) {
+    this.startMailWorker()
+  }
 
   private normalizeEmail(email: string) {
     return (email || '').trim().toLowerCase()
@@ -123,7 +104,9 @@ export class WaitlistService {
   private ensureDomainAllowed(email: string) {
     const domain = normalizeDomainFromEmail(email) || ''
     if (domain && this.domainDeny.has(domain)) {
-      throw new ForbiddenException('Email domain is not allowed for waitlist')
+      throw new ForbiddenException(
+        'Please use your company email address (no personal providers like Gmail, Outlook, Yahoo, or iCloud).'
+      )
     }
   }
 
@@ -222,28 +205,175 @@ export class WaitlistService {
     return minutes >= startMinutes && minutes <= endMinutes
   }
 
-  assertWaitlistAllowed(email: string, ip?: string) {
+  private async ensureRedis() {
+    if ((this.redis as any).status === 'wait' || (this.redis as any).status === 'close') {
+      try {
+        await this.redis.connect()
+      } catch (err) {
+        if (process.env.NODE_ENV === 'production') {
+          throw new ServiceUnavailableException('Service temporarily unavailable')
+        }
+        this.logger.error(`Redis unavailable: ${err?.message || err}`)
+      }
+    }
+  }
+
+  private verifyCodeKey(email: string) {
+    return `waitlist:verify:code:${email}`
+  }
+
+  private verifyAttemptKey(email: string) {
+    return `waitlist:verify:attempt:${email}`
+  }
+
+  private domainClaimKey(domain: string) {
+    return `waitlist:domain:claim:${domain}`
+  }
+
+  private statsCacheKey() {
+    return 'waitlist:stats'
+  }
+
+  private async assertWaitlistAllowed(email: string, ip?: string) {
+    await this.ensureRedis()
     const normalizedEmail = this.normalizeEmail(email)
     if (!this.isEmailValid(normalizedEmail)) {
       throw new BadRequestException('Invalid email')
     }
-    if (!this.submissionLimiterEmail.allow(`email:${normalizedEmail}`)) {
+    const { windowMs, submissionsPerEmail, submissionsPerIp } = waitlistConfig.rateLimit
+    const emailLimit = await this.limiter.allow(`submit:email:${normalizedEmail}`, submissionsPerEmail, windowMs)
+    if (!emailLimit.allowed) {
       throw new ForbiddenException('Too many submissions for this email; please try again later.')
     }
-    if (ip && !this.submissionLimiterIp.allow(`ip:${ip}`)) {
-      throw new ForbiddenException('Too many submissions from this source; please slow down.')
+    if (ip) {
+      const ipLimit = await this.limiter.allow(`submit:ip:${ip}`, submissionsPerIp, windowMs)
+      if (!ipLimit.allowed) {
+        throw new ForbiddenException('Too many submissions from this source; please slow down.')
+      }
     }
   }
 
-  assertEventAllowed(ip?: string) {
-    if (ip && !this.eventLimiterIp.allow(`ip:${ip}`)) {
+  async assertEventAllowed(ip?: string) {
+    if (!ip) return
+    await this.ensureRedis()
+    const { windowMs, eventsPerIp } = waitlistConfig.rateLimit
+    const res = await this.limiter.allow(`event:ip:${ip}`, eventsPerIp, windowMs)
+    if (!res.allowed) {
       throw new ForbiddenException('Rate limit exceeded')
     }
   }
 
+  private async cacheStats(stats: WaitlistStats) {
+    await this.ensureRedis()
+    await this.redis.set(this.statsCacheKey(), JSON.stringify(stats), 'EX', 60)
+  }
+
+  private async getCachedStats(): Promise<WaitlistStats | null> {
+    await this.ensureRedis()
+    const raw = await this.redis.get(this.statsCacheKey())
+    if (!raw) return null
+    try {
+      return JSON.parse(raw) as WaitlistStats
+    } catch {
+      return null
+    }
+  }
+
+  private async storeVerificationCode(email: string, code: string, ttlMs: number) {
+    await this.ensureRedis()
+    await this.redis.set(this.verifyCodeKey(email), code, 'PX', ttlMs)
+    await this.redis.del(this.verifyAttemptKey(email))
+  }
+
+  private async fetchVerificationCode(email: string) {
+    await this.ensureRedis()
+    return this.redis.get(this.verifyCodeKey(email))
+  }
+
+  private async bumpVerifyAttempt(email: string, ttlMs: number) {
+    await this.ensureRedis()
+    const results = await this.redis.multi().incr(this.verifyAttemptKey(email)).pexpire(this.verifyAttemptKey(email), ttlMs, 'NX').exec()
+    const count = Number(results?.[0]?.[1] ?? 0)
+    return count
+  }
+
+  private async clearVerificationState(email: string) {
+    await this.ensureRedis()
+    await this.redis.del(this.verifyCodeKey(email), this.verifyAttemptKey(email))
+  }
+
+  private startMailWorker() {
+    if (this.mailWorkerStarted) return
+    this.mailWorkerStarted = true
+    this.mailScheduler.waitUntilReady().catch((err) => {
+      this.logger.error(`[waitlist-mail] scheduler failed: ${err?.message || err}`)
+    })
+    const worker = createWorker<{ type: 'verify' | 'invite'; email: string; code?: string; name?: string; domain?: string }>(
+      'waitlist-mail',
+      async (job) => {
+        if ((job.data as any).forceFail) {
+          throw new Error('Forced failure for ops test')
+        }
+        if (job.data.type === 'verify') {
+          const t = waitlistVerificationTemplate({ code: job.data.code || '000000', userName: job.data.name })
+          await this.email.sendMail({ email: job.data.email, subject: t.subject, text: t.text, html: t.html })
+        } else {
+          const registerLink = buildClientUrl('/auth/register')
+          const calendly = 'https://calendly.com/ahmed-mekallach/thought-exchange'
+          const domain = job.data.domain || 'your company'
+          const t = waitlistInviteTemplate({ registerLink, domain, calendly })
+          await this.email.sendMail({ email: job.data.email, subject: t.subject, text: t.text, html: t.html })
+        }
+      }
+    )
+    worker.on('failed', (job, err) => {
+      this.logger.error(`[waitlist-mail] job ${job?.id} failed: ${err?.message || err}`)
+      if (job) {
+        const attempts = job.opts.attempts || 1
+        if (job.attemptsMade >= attempts) {
+          this.mailDlq
+            .add(
+              'failed-mail',
+              { data: job.data, failedReason: err?.message || 'unknown' },
+              { removeOnComplete: true, attempts: 1 }
+            )
+            .then(() => job.remove().catch(() => undefined))
+            .catch((e) => this.logger.error(`[waitlist-mail] failed to enqueue DLQ: ${e?.message || e}`))
+        }
+      }
+      this.maybeSendQueueAlert().catch((e) => this.logger.error(`[waitlist-mail] alert failed: ${e?.message || e}`))
+    })
+  }
+
+  private async maybeSendQueueAlert() {
+    if (!this.ops.alertEmail) return
+    const now = Date.now()
+    if (now - this.lastMailAlertAt < this.ops.queueAlertDebounceMs) return
+    const counts = await this.mailQueue.getJobCounts('waiting', 'failed')
+    const dlqFailed = await this.mailDlq.getFailed(0, 2)
+    const backlog = counts.waiting || 0
+    const failed = counts.failed || 0
+    const shouldAlert = backlog > this.ops.queueAlertThreshold || failed > 0 || (dlqFailed?.length || 0) > 0
+    if (!shouldAlert) return
+
+    const subject = `[ALERT] waitlist-mail queue issues`
+    const bodyText = `Queue waitlist-mail has waiting=${backlog}, failed=${failed}, dlq=${dlqFailed.length || 0}`
+    await this.email.sendMail({
+      email: this.ops.alertEmail,
+      subject,
+      text: bodyText,
+      html: `<p>${bodyText}</p>`,
+    })
+    await this.audit.log({
+      eventType: 'ops.queue_alert',
+      metadata: { queue: 'waitlist-mail', waiting: backlog, failed, dlq: dlqFailed.length || 0 },
+    })
+    this.lastMailAlertAt = now
+  }
+
   async start(dto: StartWaitlistDto, ip?: string) {
     await this.assertCaptcha(dto.captchaToken, ip)
-    this.assertWaitlistAllowed(dto.email, ip)
+    await this.assertWaitlistAllowed(dto.email, ip)
     const now = new Date()
     const normalizedEmail = this.normalizeEmail(dto.email)
     this.ensureDomainAllowed(normalizedEmail)
@@ -264,6 +394,7 @@ export class WaitlistService {
 
     const code = this.generateCode()
     const expires = this.computeExpiry(now)
+    const ttlMs = expires.getTime() - now.getTime()
     const update = {
       name: dto.name,
       role: dto.role,
@@ -309,7 +440,13 @@ export class WaitlistService {
       },
     })
 
-    await this.sendVerificationEmail(normalizedEmail, code, dto.name)
+    await this.storeVerificationCode(normalizedEmail, code, ttlMs)
+
+    await this.mailQueue.add(
+      'verify',
+      { type: 'verify', email: normalizedEmail, code, name: dto.name },
+      { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+    )
 
     return { status: 'verification_sent', entry }
   }
@@ -324,14 +461,22 @@ export class WaitlistService {
 
     const now = new Date()
     const maxAttempts = waitlistConfig.verification.maxAttempts || 5
-    if (entry.verifyAttempts >= maxAttempts) {
-      throw new ForbiddenException('Too many attempts. Request a new code.')
-    }
-    if (!entry.verifyCode || !entry.verifyExpiresAt || entry.verifyExpiresAt.getTime() < now.getTime()) {
+    const code = await this.fetchVerificationCode(normalizedEmail)
+    if (!code || !entry.verifyExpiresAt || entry.verifyExpiresAt.getTime() < now.getTime()) {
+      await this.audit.log({
+        eventType: 'marketing.waitlist_verify_expired',
+        actor: normalizedEmail,
+      })
       throw new BadRequestException('Verification code expired. Please request a new code.')
     }
 
-    if ((entry.verifyCode || '').trim() !== dto.code.trim()) {
+    const attemptCount = await this.bumpVerifyAttempt(normalizedEmail, entry.verifyExpiresAt.getTime() - now.getTime())
+    if (attemptCount > maxAttempts) {
+      await this.model.findOneAndUpdate({ _id: entry._id }, { $inc: { verifyAttemptTotal: 1 } })
+      await this.maybeBlock(entry, 'max_attempts_per_code')
+    }
+
+    if ((code || '').trim() !== dto.code.trim()) {
       const updated = await this.model.findOneAndUpdate(
         { _id: entry._id },
         { $inc: { verifyAttempts: 1, verifyAttemptTotal: 1 } },
@@ -340,8 +485,15 @@ export class WaitlistService {
       if (updated) {
         await this.assertTotalLimits(updated as any)
       }
+      await this.audit.log({
+        eventType: 'marketing.waitlist_verify_invalid',
+        actor: normalizedEmail,
+        metadata: { attemptCount },
+      })
       throw new BadRequestException('Invalid verification code')
     }
+
+    await this.clearVerificationState(normalizedEmail)
 
     const updated = await this.model
       .findOneAndUpdate(
@@ -371,11 +523,14 @@ export class WaitlistService {
   async resend(dto: ResendWaitlistDto, ip?: string) {
     await this.assertCaptcha(dto.captchaToken, ip)
     const normalizedEmail = this.normalizeEmail(dto.email)
-    if (!this.resendLimiterEmail.allow(`resend:${normalizedEmail}`)) {
-      throw new ForbiddenException('Too many resend attempts. Please wait a moment.')
-    }
-    if (ip && !this.resendLimiterEmail.allow(`resend:${normalizedEmail}:${ip}`)) {
-      throw new ForbiddenException('Too many resend attempts. Please wait a moment.')
+    const windowMs = waitlistConfig.rateLimit.windowMs
+    const maxResends = waitlistConfig.verification.maxResendsPerWindow || 3
+    await this.ensureRedis()
+    const byEmail = await this.limiter.allow(`resend:${normalizedEmail}`, maxResends, windowMs)
+    if (!byEmail.allowed) throw new ForbiddenException('Too many resend attempts. Please wait a moment.')
+    if (ip) {
+      const byIp = await this.limiter.allow(`resend:${normalizedEmail}:${ip}`, maxResends, windowMs)
+      if (!byIp.allowed) throw new ForbiddenException('Too many resend attempts. Please wait a moment.')
     }
     const entry = await this.model.findOne({ email: normalizedEmail, archivedAt: null })
     if (!entry) throw new BadRequestException('Not on the waitlist yet')
@@ -391,6 +546,7 @@ export class WaitlistService {
 
     const code = this.generateCode()
     const expires = this.computeExpiry(now)
+    const ttlMs = expires.getTime() - now.getTime()
 
     await this.model.updateOne(
       { _id: entry._id },
@@ -415,7 +571,13 @@ export class WaitlistService {
       actor: normalizedEmail,
     })
 
-    await this.sendVerificationEmail(normalizedEmail, code, entry.name)
+    await this.storeVerificationCode(normalizedEmail, code, ttlMs)
+
+    await this.mailQueue.add(
+      'verify',
+      { type: 'verify', email: normalizedEmail, code, name: entry.name },
+      { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+    )
 
     return { status: 'sent' }
   }
@@ -456,13 +618,18 @@ export class WaitlistService {
   }
 
   async stats(): Promise<WaitlistStats> {
+    const cached = await this.getCachedStats()
+    if (cached) return cached
+
     const waitlistCount = await this.model.countDocuments({ archivedAt: null })
     const waitlistDisplayCount = this.projectedDisplayCount(waitlistCount)
-    return {
+    const stats = {
       waitlistCount,
       waitlistDisplayCount,
       freeSeatsPerOrg: waitlistConfig.marketing.freeSeatsPerOrg,
     }
+    await this.cacheStats(stats)
+    return stats
   }
 
   async logEvent(event: string, meta?: Record<string, any>) {
@@ -470,6 +637,30 @@ export class WaitlistService {
       eventType: 'marketing.event',
       metadata: { event, ...(meta || {}) },
     })
+  }
+
+  async list(params: {
+    status?: string
+    verifyStatus?: string
+    cohortTag?: string
+    emailContains?: string
+    page?: number
+    limit?: number
+  }) {
+    const { status, verifyStatus, cohortTag, emailContains, page = 1, limit = 25 } = params || {}
+    const query: any = { archivedAt: null }
+    if (status) query.status = status
+    if (verifyStatus) query.verifyStatus = verifyStatus
+    if (cohortTag) query.cohortTag = cohortTag
+    if (emailContains) query.email = new RegExp(emailContains, 'i')
+
+    const skip = (page - 1) * limit
+    const [data, total] = await Promise.all([
+      this.model.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      this.model.countDocuments(query),
+    ])
+
+    return { data, total, page, limit }
   }
 
   private async ensureVerified(entry: WaitlistEntry) {
@@ -549,7 +740,11 @@ export class WaitlistService {
     const calendly = 'https://calendly.com/ahmed-mekallach/thought-exchange'
     const domain = normalizeDomainFromEmail(email) || 'your company'
     const t = waitlistInviteTemplate({ registerLink, domain, calendly })
-    await this.email.sendMail({ email, subject: t.subject, text: t.text, html: t.html })
+    await this.mailQueue.add(
+      'invite',
+      { type: 'invite', email, domain },
+      { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+    )
   }
 
   private async sendVerificationEmail(email: string, code: string, userName?: string) {
@@ -615,5 +810,16 @@ export class WaitlistService {
 
   domainGateEnabled() {
     return !!waitlistConfig.invite.domainGateEnabled
+  }
+
+  async acquireDomainClaim(domain: string) {
+    await this.ensureRedis()
+    const res = await this.redis.set(this.domainClaimKey(domain), '1', 'PX', 2 * 60 * 1000, 'NX')
+    return !!res
+  }
+
+  async releaseDomainClaim(domain: string) {
+    await this.ensureRedis()
+    await this.redis.del(this.domainClaimKey(domain))
   }
 }

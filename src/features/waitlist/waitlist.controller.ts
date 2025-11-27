@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { Request } from 'express'
 import { Roles } from '../../common/decorators/roles.decorator'
 import { RolesGuard } from '../../common/guards/roles.guard'
@@ -10,6 +10,7 @@ import { WaitlistEventDto } from './dto/waitlist-event.dto'
 import { StartWaitlistDto } from './dto/start-waitlist.dto'
 import { VerifyWaitlistDto } from './dto/verify-waitlist.dto'
 import { ResendWaitlistDto } from './dto/resend-waitlist.dto'
+import { ListWaitlistDto } from './dto/list-waitlist.dto'
 import { WaitlistService } from './waitlist.service'
 
 @Controller('marketing')
@@ -42,9 +43,17 @@ export class WaitlistController {
 
   @Post('events')
   async events(@Body() dto: WaitlistEventDto, @Req() req: Request) {
-    this.waitlist.assertEventAllowed(req.ip)
+    await this.waitlist.assertEventAllowed(req.ip)
     await this.waitlist.logEvent(dto.event, { meta: dto.meta, source: dto.source, path: dto.path })
     return { status: 'ok' }
+  }
+
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(Role.Admin, Role.OrgOwner, Role.SuperAdmin, Role.PlatformAdmin)
+  @Get('waitlist')
+  async listWaitlist(@Query() query: ListWaitlistDto) {
+    const { page, limit, status, verifyStatus, cohortTag, emailContains } = query
+    return this.waitlist.list({ page, limit, status, verifyStatus, cohortTag, emailContains })
   }
 
   @UseGuards(SessionGuard, RolesGuard)

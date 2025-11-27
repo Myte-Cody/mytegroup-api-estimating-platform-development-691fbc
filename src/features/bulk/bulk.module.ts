@@ -1,6 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import * as rateLimit from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { CommonModule } from '../../common/common.module';
 import { TenancyModule } from '../../common/tenancy/tenancy.module';
 import { ContactSchema } from '../contacts/schemas/contact.schema';

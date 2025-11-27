@@ -171,27 +171,10 @@ export class ContactInquiriesService {
   async sendVerification(dto: VerifyContactInquiryDto, ip?: string) {
     if (dto.trap) return { status: 'ok' }
     const normalizedEmail = this.normalizeEmail(dto.email)
-    const personal = this.isPersonalEmail(normalizedEmail)
     const domain = normalizeDomainFromEmail(normalizedEmail)
 
     await this.assertCaptcha(dto.captchaToken, ip)
     await this.ensureRedis()
-
-    // Auto-verify company domains to reduce friction
-    if (!personal) {
-      await this.audit.log({
-        eventType: 'marketing.contact_verify_start',
-        actor: normalizedEmail,
-        metadata: { domain, personal: false, mode: 'auto-company' },
-      })
-      await this.markEmailVerified(normalizedEmail)
-      await this.audit.log({
-        eventType: 'marketing.contact_verify_success',
-        actor: normalizedEmail,
-        metadata: { domain, personal: false, mode: 'auto-company' },
-      })
-      return { status: 'verified', mode: 'auto' }
-    }
 
     const cooldownMs = (waitlistConfig.verification.resendCooldownMinutes || 2) * 60 * 1000
     const cooldownKey = this.verifyCooldownKey(normalizedEmail)
@@ -227,7 +210,7 @@ export class ContactInquiriesService {
     await this.audit.log({
       eventType: 'marketing.contact_verify_start',
       actor: normalizedEmail,
-      metadata: { domain, personal: true, mode: 'code-send' },
+      metadata: { domain, mode: 'code-send' },
     })
 
     const ttlMinutes = waitlistConfig.verification.ttlMinutes || 30
@@ -249,18 +232,6 @@ export class ContactInquiriesService {
 
   async confirmVerification(dto: ConfirmContactInquiryDto) {
     const normalizedEmail = this.normalizeEmail(dto.email)
-    const personal = this.isPersonalEmail(normalizedEmail)
-
-    if (!personal) {
-      await this.markEmailVerified(normalizedEmail)
-      await this.audit.log({
-        eventType: 'marketing.contact_verify_success',
-        actor: normalizedEmail,
-        metadata: { personal: false, mode: 'auto-confirm' },
-      })
-      return { status: 'verified', mode: 'auto' }
-    }
-
     const code = await this.readVerificationCode(normalizedEmail)
     if (!code) {
       throw new BadRequestException('Verification code is invalid or expired. Request a new one.')
@@ -282,7 +253,7 @@ export class ContactInquiriesService {
     await this.audit.log({
       eventType: 'marketing.contact_verify_success',
       actor: normalizedEmail,
-      metadata: { personal: true, mode: 'code-confirm' },
+      metadata: { mode: 'code-confirm' },
     })
 
     return { status: 'verified' }
@@ -328,14 +299,9 @@ export class ContactInquiriesService {
 
     await this.assertCaptcha(dto.captchaToken, ip)
     await this.assertContactAllowed(normalizedEmail, ip)
-
-    if (personal) {
-      const verified = await this.isEmailVerified(normalizedEmail)
-      if (!verified) {
-        throw new ForbiddenException('Email not verified yet. Please verify before sending.')
-      }
-    } else {
-      await this.markEmailVerified(normalizedEmail)
+    const verified = await this.isEmailVerified(normalizedEmail)
+    if (!verified) {
+      throw new ForbiddenException('Email not verified yet. Please verify before sending.')
     }
 
     const entry = await this.model.create({

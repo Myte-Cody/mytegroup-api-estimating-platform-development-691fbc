@@ -37,15 +37,27 @@ const buildOrigin = (host: string | undefined, port?: number) => {
 export const clientOrigin = buildOrigin(rootHost, defaultClientPort);
 export const apiOrigin = buildOrigin(rootHost, defaultApiPort);
 
-const cookieDomain = process.env.SESSION_COOKIE_DOMAIN || rootHost;
+const rawCookieDomain = process.env.SESSION_COOKIE_DOMAIN || rootHost;
+
+// In dev, force localhost/lax/insecure cookies so that npm run dev
+// (frontend + backend on localhost) always has a working session,
+// regardless of prod-focused env overrides.
+const devMode = !isProduction;
+const cookieDomain = devMode ? 'localhost' : rawCookieDomain;
+const cookieSameSite = devMode
+  ? 'lax'
+  : ((process.env.SESSION_COOKIE_SAMESITE as any) || 'none');
+const cookieSecure = devMode
+  ? false
+  : toBool(process.env.SESSION_COOKIE_SECURE) || true;
 
 export const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'devsecret',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    sameSite: (process.env.SESSION_COOKIE_SAMESITE as any) || (isProduction ? 'none' : 'lax'),
-    secure: toBool(process.env.SESSION_COOKIE_SECURE) || isProduction,
+    sameSite: cookieSameSite,
+    secure: cookieSecure,
     httpOnly: true,
     domain: cookieDomain,
   },

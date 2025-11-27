@@ -218,6 +218,16 @@ export class WaitlistService {
     }
   }
 
+  private contactVerifyStatusKey(email: string) {
+    return `contact:verify:status:${email}`
+  }
+
+  private async isContactEmailVerified(email: string) {
+    await this.ensureRedis()
+    const status = await this.redis.get(this.contactVerifyStatusKey(email))
+    return status === 'verified'
+  }
+
   private verifyCodeKey(email: string) {
     return `waitlist:verify:code:${email}`
   }
@@ -390,6 +400,56 @@ export class WaitlistService {
     if (existing) {
       await this.ensureNotBlocked(existing)
       await this.assertTotalLimits(existing)
+      if (existing.verifyStatus === 'verified') {
+        return { status: 'verified', entry: existing.toObject ? existing.toObject() : existing }
+      }
+    }
+
+    const contactVerified = await this.isContactEmailVerified(normalizedEmail)
+
+    let entry
+    if (contactVerified) {
+      const update = {
+        name: dto.name,
+        role: dto.role,
+        source: dto.source || 'landing',
+        preCreateAccount: !!dto.preCreateAccount,
+        marketingConsent: !!dto.marketingConsent,
+        status: 'pending-cohort' as WaitlistStatus,
+        verifyStatus: 'verified' as WaitlistVerifyStatus,
+        verifyCode: null,
+        verifyExpiresAt: null,
+        verifyAttempts: 0,
+        verifiedAt: now,
+        lastVerifySentAt: now,
+        invitedAt: null,
+        cohortTag: null,
+        updatedAt: now,
+      }
+      entry = await this.model
+        .findOneAndUpdate(
+          { email: normalizedEmail, archivedAt: null },
+          {
+            $set: update,
+            $setOnInsert: {
+              email: normalizedEmail,
+              createdAt: now,
+              verifyResends: 0,
+              verifyAttemptTotal: 0,
+              inviteFailureCount: 0,
+            },
+          },
+          { upsert: true, new: true }
+        )
+        .lean()
+
+      await this.audit.log({
+        eventType: 'marketing.waitlist_join_contact_verified',
+        actor: normalizedEmail,
+        metadata: { source: dto.source || 'landing' },
+      })
+
+      return { status: 'verified', entry }
     }
 
     const code = this.generateCode()
@@ -412,7 +472,7 @@ export class WaitlistService {
       cohortTag: null,
       updatedAt: now,
     }
-    const entry = await this.model
+    entry = await this.model
       .findOneAndUpdate(
         { email: normalizedEmail, archivedAt: null },
         {

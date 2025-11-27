@@ -265,6 +265,26 @@ jobs:
                     "value": "80"
                   },
                   {
+                    "name": "ROOT_DOMAIN",
+                    "value": "${{ secrets.ROOT_DOMAIN }}"
+                  },
+                  {
+                    "name": "ROOT_DOMAIN_PROD",
+                    "value": "${{ secrets.ROOT_DOMAIN_PROD }}"
+                  },
+                  {
+                    "name": "ROOT_DOMAIN_DEV",
+                    "value": "${{ secrets.ROOT_DOMAIN_DEV }}"
+                  },
+                  {
+                    "name": "CLIENT_PORT",
+                    "value": "${{ secrets.CLIENT_PORT }}"
+                  },
+                  {
+                    "name": "API_PORT",
+                    "value": "${{ secrets.API_PORT }}"
+                  },
+                  {
                     "name": "MONGO_URI",
                     "value": "${{ secrets.MONGO_URI }}"
                   },
@@ -273,16 +293,152 @@ jobs:
                     "value": "${{ secrets.MONGO_DB }}"
                   },
                   {
+                    "name": "SESSION_SECRET",
+                    "value": "${{ secrets.SESSION_SECRET }}"
+                  },
+                  {
+                    "name": "SESSION_COOKIE_SAMESITE",
+                    "value": "${{ secrets.SESSION_COOKIE_SAMESITE }}"
+                  },
+                  {
+                    "name": "SESSION_COOKIE_SECURE",
+                    "value": "${{ secrets.SESSION_COOKIE_SECURE }}"
+                  },
+                  {
+                    "name": "SESSION_COOKIE_DOMAIN",
+                    "value": "${{ secrets.SESSION_COOKIE_DOMAIN }}"
+                  },
+                  {
+                    "name": "SMTP_SERVER",
+                    "value": "${{ secrets.SMTP_SERVER }}"
+                  },
+                  {
+                    "name": "SMTP_PORT",
+                    "value": "${{ secrets.SMTP_PORT }}"
+                  },
+                  {
+                    "name": "SMTP_USER",
+                    "value": "${{ secrets.SMTP_USER }}"
+                  },
+                  {
+                    "name": "SMTP_PASS",
+                    "value": "${{ secrets.SMTP_PASS }}"
+                  },
+                  {
+                    "name": "SMTP_FROM",
+                    "value": "${{ secrets.SMTP_FROM }}"
+                  },
+                  {
+                    "name": "SMTP_SECURE",
+                    "value": "${{ secrets.SMTP_SECURE }}"
+                  },
+                  {
+                    "name": "SMTP_TEST_MODE",
+                    "value": "${{ secrets.SMTP_TEST_MODE }}"
+                  },
+                  {
+                    "name": "MYTE_API_KEY",
+                    "value": "${{ secrets.MYTE_API_KEY }}"
+                  },
+                  {
+                    "name": "TURNSTILE_SECRET",
+                    "value": "${{ secrets.TURNSTILE_SECRET }}"
+                  },
+                  {
+                    "name": "HCAPTCHA_SECRET",
+                    "value": "${{ secrets.HCAPTCHA_SECRET }}"
+                  },
+                  {
                     "name": "REDIS_URL",
                     "value": "${{ secrets.REDIS_URL }}"
                   },
                   {
+                    "name": "SESSION_TTL_HOURS",
+                    "value": "${{ secrets.SESSION_TTL_HOURS }}"
+                  },
+                  {
                     "name": "BULLMQ_PREFIX",
-                    "value": "myte"
+                    "value": "${{ secrets.BULLMQ_PREFIX }}"
                   },
                   {
                     "name": "QUEUE_ENABLED",
-                    "value": "true"
+                    "value": "${{ secrets.QUEUE_ENABLED }}"
+                  },
+                  {
+                    "name": "OPS_ALERT_EMAIL",
+                    "value": "${{ secrets.OPS_ALERT_EMAIL }}"
+                  },
+                  {
+                    "name": "QUEUE_ALERT_THRESHOLD",
+                    "value": "${{ secrets.QUEUE_ALERT_THRESHOLD }}"
+                  },
+                  {
+                    "name": "QUEUE_ALERT_DEBOUNCE_MS",
+                    "value": "${{ secrets.QUEUE_ALERT_DEBOUNCE_MS }}"
+                  },
+                  {
+                    "name": "QUEUE_DLQ_SAMPLE",
+                    "value": "${{ secrets.QUEUE_DLQ_SAMPLE }}"
+                  },
+                  {
+                    "name": "TENANT_MODE",
+                    "value": "${{ secrets.TENANT_MODE }}"
+                  },
+                  {
+                    "name": "TENANT_DEDICATED_URI_TEMPLATE",
+                    "value": "${{ secrets.TENANT_DEDICATED_URI_TEMPLATE }}"
+                  },
+                  {
+                    "name": "ALLOW_ORG_PROVIDED_URI",
+                    "value": "${{ secrets.ALLOW_ORG_PROVIDED_URI }}"
+                  },
+                  {
+                    "name": "TENANT_DEDICATED_DB_PREFIX",
+                    "value": "${{ secrets.TENANT_DEDICATED_DB_PREFIX }}"
+                  },
+                  {
+                    "name": "STORAGE_PROVIDER",
+                    "value": "${{ secrets.STORAGE_PROVIDER }}"
+                  },
+                  {
+                    "name": "STORAGE_S3_BUCKET",
+                    "value": "${{ secrets.STORAGE_S3_BUCKET }}"
+                  },
+                  {
+                    "name": "STORAGE_S3_REGION",
+                    "value": "${{ secrets.STORAGE_S3_REGION }}"
+                  },
+                  {
+                    "name": "STORAGE_S3_ENDPOINT",
+                    "value": "${{ secrets.STORAGE_S3_ENDPOINT }}"
+                  },
+                  {
+                    "name": "MAX_UPLOAD_BYTES",
+                    "value": "${{ secrets.MAX_UPLOAD_BYTES }}"
+                  },
+                  {
+                    "name": "ALLOW_MIME_TYPES",
+                    "value": "${{ secrets.ALLOW_MIME_TYPES }}"
+                  },
+                  {
+                    "name": "FEATURE_ENABLE_UPLOADS",
+                    "value": "${{ secrets.FEATURE_ENABLE_UPLOADS }}"
+                  },
+                  {
+                    "name": "FEATURE_ENABLE_TEMPLATES_API",
+                    "value": "${{ secrets.FEATURE_ENABLE_TEMPLATES_API }}"
+                  },
+                  {
+                    "name": "FEATURE_ENABLE_CROSS_ORG",
+                    "value": "${{ secrets.FEATURE_ENABLE_CROSS_ORG }}"
+                  },
+                  {
+                    "name": "CLIENT_ORIGIN",
+                    "value": "${{ secrets.CLIENT_ORIGIN }}"
+                  },
+                  {
+                    "name": "CLIENT_ORIGIN_ALT",
+                    "value": "${{ secrets.CLIENT_ORIGIN_ALT }}"
                   }
                 ], 
                 "logConfiguration": {

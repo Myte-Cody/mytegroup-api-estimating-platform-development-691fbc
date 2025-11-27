@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { OrgScopeGuard } from '../../common/guards/org-scope.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { SessionGuard } from '../../common/guards/session.guard';
-import { Role } from '../../common/roles';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Role, resolvePrimaryRole } from '../../common/roles';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { CreateInviteDto } from './dto/create-invite.dto';
 import { InvitesService } from './invites.service';
@@ -19,7 +19,7 @@ export class InvitesController {
   async create(@Body() dto: CreateInviteDto, @Req() req: Request) {
     const orgId = req.session?.user?.orgId;
     const actorId = req.session?.user?.id;
-    const actorRole = req.session?.user?.role as Role;
+    const actorRole = resolvePrimaryRole((req.session?.user?.roles as Role[]) || [req.session?.user?.role as Role]);
     return this.invites.create(orgId, actorId, actorRole, dto);
   }
 

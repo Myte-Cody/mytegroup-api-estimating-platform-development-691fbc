@@ -12,6 +12,14 @@ import { mongoConfig } from './config/app.config';
 import { ContactsModule } from './features/contacts/contacts.module';
 import { TenancyModule } from './common/tenancy/tenancy.module';
 import { InvitesModule } from './features/invites/invites.module';
+import { MigrationsModule } from './features/migrations/migrations.module';
+import { BulkModule } from './features/bulk/bulk.module';
+import { ComplianceModule } from './features/compliance/compliance.module';
+import { RbacModule } from './features/rbac/rbac.module';
+import { LegalModule } from './features/legal/legal.module';
+import { WaitlistModule } from './features/waitlist/waitlist.module';
+import { APP_GUARD } from '@nestjs/core';
+import { LegalGuard } from './features/legal/legal.guard';
 
 @Module({
   imports: [
@@ -27,6 +35,18 @@ import { InvitesModule } from './features/invites/invites.module';
     ProjectsModule,
     ContactsModule,
     InvitesModule,
+    MigrationsModule,
+    BulkModule,
+    ComplianceModule,
+    RbacModule,
+    LegalModule,
+    WaitlistModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: LegalGuard,
+    },
   ],
 })
 export class AppModule {}

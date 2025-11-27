@@ -26,3 +26,4 @@ export const ProjectSchema = new Schema<Project>(
 );
 
 ProjectSchema.index({ organizationId: 1, name: 1 }, { unique: true });
+ProjectSchema.index({ organizationId: 1, archivedAt: 1 });

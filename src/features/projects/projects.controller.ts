@@ -7,42 +7,67 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/roles';
 import { ProjectsService } from './projects.service';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 
 @Controller('projects')
+@UseGuards(SessionGuard, OrgScopeGuard, RolesGuard)
 export class ProjectsController {
   constructor(private svc: ProjectsService) {}
 
-  @UseGuards(SessionGuard, OrgScopeGuard, RolesGuard)
-  @Roles(Role.Admin, Role.SuperAdmin)
+  private getActor(req: Request) {
+    const user = (req as any).user || req.session?.user;
+    return { userId: user?.id, orgId: user?.orgId, role: user?.role as Role | undefined };
+  }
+
+  private parseIncludeArchived(raw?: string) {
+    return raw === 'true' || raw === '1';
+  }
+
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
   @Post()
   create(@Body() dto: CreateProjectDto, @Req() req: Request) {
-    const actor = req.session?.user;
-    return this.svc.create(dto, { orgId: actor?.orgId, role: actor?.role });
+    const actor = this.getActor(req);
+    return this.svc.create(dto, actor);
   }
 
-  @UseGuards(SessionGuard, OrgScopeGuard, RolesGuard)
-  @Roles(Role.Admin, Role.SuperAdmin)
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer, Role.SuperAdmin)
   @Get()
-  list(@Req() req: Request, @Query('organizationId') orgId?: string) {
-    const actor = req.session?.user;
-    const resolvedOrg = actor?.role === Role.SuperAdmin && orgId ? orgId : actor?.orgId;
+  list(
+    @Req() req: Request,
+    @Query('organizationId') orgId?: string,
+    @Query('includeArchived') includeArchived?: string
+  ) {
+    const actor = this.getActor(req);
+    const resolvedOrg = actor.role === Role.SuperAdmin && orgId ? orgId : actor.orgId;
     if (!resolvedOrg) throw new ForbiddenException('Missing organization context');
-    return this.svc.list(resolvedOrg);
+    return this.svc.list(actor, resolvedOrg, this.parseIncludeArchived(includeArchived));
   }
 
-  @UseGuards(SessionGuard, OrgScopeGuard, RolesGuard)
-  @Roles(Role.Admin, Role.SuperAdmin)
-  @Patch(':id/archive')
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer, Role.SuperAdmin)
+  @Get(':id')
+  getById(@Param('id') id: string, @Req() req: Request, @Query('includeArchived') includeArchived?: string) {
+    const actor = this.getActor(req);
+    return this.svc.getById(id, actor, this.parseIncludeArchived(includeArchived));
+  }
+
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateProjectDto, @Req() req: Request) {
+    const actor = this.getActor(req);
+    return this.svc.update(id, dto, actor);
+  }
+
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
+  @Post(':id/archive')
   archive(@Param('id') id: string, @Req() req: Request) {
-    const actor = req.session?.user;
-    return this.svc.archive(id, { orgId: actor?.orgId, role: actor?.role });
+    const actor = this.getActor(req);
+    return this.svc.archive(id, actor);
   }
 
-  @UseGuards(SessionGuard, OrgScopeGuard, RolesGuard)
-  @Roles(Role.Admin, Role.SuperAdmin)
-  @Patch(':id/unarchive')
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
+  @Post(':id/unarchive')
   unarchive(@Param('id') id: string, @Req() req: Request) {
-    const actor = req.session?.user;
-    return this.svc.unarchive(id, { orgId: actor?.orgId, role: actor?.role });
+    const actor = this.getActor(req);
+    return this.svc.unarchive(id, actor);
   }
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { OrgScopeGuard } from '../../common/guards/org-scope.guard';
@@ -10,50 +10,88 @@ import { UpdateContactDto } from './dto/update-contact.dto';
 import { ContactsService } from './contacts.service';
 
 @Controller('contacts')
-@UseGuards(SessionGuard, OrgScopeGuard)
+@UseGuards(SessionGuard, OrgScopeGuard, RolesGuard)
 export class ContactsController {
   constructor(private readonly contacts: ContactsService) {}
 
+  private getActor(req: Request) {
+    const user = (req as any).user || req.session?.user;
+    return { userId: user?.id, orgId: user?.orgId, role: user?.role as Role | undefined };
+  }
+
+  private parseIncludeArchived(raw?: string) {
+    return raw === 'true' || raw === '1';
+  }
+
+  private resolveOrgId(actorOrgId?: string, requestedOrgId?: string) {
+    return requestedOrgId || actorOrgId;
+  }
+
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
   @Get()
-  async list(@Req() req: Request) {
-    const orgId = req.session?.user?.orgId;
+  async list(
+    @Req() req: Request,
+    @Query('organizationId') organizationId?: string,
+    @Query('includeArchived') includeArchived?: string
+  ) {
+    const actor = this.getActor(req);
+    const orgId = this.resolveOrgId(actor.orgId, organizationId);
     if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.list(orgId);
+    return this.contacts.list(actor, orgId, this.parseIncludeArchived(includeArchived));
   }
 
-  @UseGuards(RolesGuard)
-  @Roles(Role.OrgOwner, Role.Admin, Role.SuperAdmin, Role.PM)
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
+  @Get(':id')
+  async getById(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('includeArchived') includeArchived?: string,
+    @Query('organizationId') organizationId?: string
+  ) {
+    const actor = this.getActor(req);
+    const orgId = this.resolveOrgId(actor.orgId, organizationId);
+    if (!orgId && actor.role !== Role.SuperAdmin) throw new BadRequestException('Organization context is required');
+    return this.contacts.getById(actor, id, orgId, this.parseIncludeArchived(includeArchived));
+  }
+
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
   @Post()
-  async create(@Body() dto: CreateContactDto, @Req() req: Request) {
-    const orgId = req.session?.user?.orgId;
+  async create(@Body() dto: CreateContactDto, @Req() req: Request, @Query('organizationId') organizationId?: string) {
+    const actor = this.getActor(req);
+    const orgId = this.resolveOrgId(actor.orgId, organizationId);
     if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.create(orgId, dto);
+    return this.contacts.create(actor, orgId, dto);
   }
 
-  @UseGuards(RolesGuard)
-  @Roles(Role.OrgOwner, Role.Admin, Role.SuperAdmin, Role.PM)
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateContactDto, @Req() req: Request) {
-    const orgId = req.session?.user?.orgId;
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateContactDto,
+    @Req() req: Request,
+    @Query('organizationId') organizationId?: string
+  ) {
+    const actor = this.getActor(req);
+    const orgId = this.resolveOrgId(actor.orgId, organizationId);
     if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.update(orgId, id, dto);
+    return this.contacts.update(actor, orgId, id, dto);
   }
 
-  @UseGuards(RolesGuard)
-  @Roles(Role.OrgOwner, Role.Admin, Role.SuperAdmin)
-  @Patch(':id/archive')
-  async archive(@Param('id') id: string, @Req() req: Request) {
-    const orgId = req.session?.user?.orgId;
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
+  @Post(':id/archive')
+  async archive(@Param('id') id: string, @Req() req: Request, @Query('organizationId') organizationId?: string) {
+    const actor = this.getActor(req);
+    const orgId = this.resolveOrgId(actor.orgId, organizationId);
     if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.archive(orgId, id);
+    return this.contacts.archive(actor, orgId, id);
   }
 
-  @UseGuards(RolesGuard)
-  @Roles(Role.OrgOwner, Role.Admin, Role.SuperAdmin)
-  @Patch(':id/unarchive')
-  async unarchive(@Param('id') id: string, @Req() req: Request) {
-    const orgId = req.session?.user?.orgId;
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
+  @Post(':id/unarchive')
+  async unarchive(@Param('id') id: string, @Req() req: Request, @Query('organizationId') organizationId?: string) {
+    const actor = this.getActor(req);
+    const orgId = this.resolveOrgId(actor.orgId, organizationId);
     if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.unarchive(orgId, id);
+    return this.contacts.unarchive(actor, orgId, id);
   }
 }

@@ -4,18 +4,40 @@ const normalizeOrigin = (val?: string) => {
   if (val.startsWith('http://') || val.startsWith('https://')) return val;
   return `https://${val}`;
 };
-const parseHostname = (val?: string) => {
-  const origin = normalizeOrigin(val);
-  if (!origin) return undefined;
-  try {
-    return new URL(origin).hostname;
-  } catch {
-    return undefined;
-  }
+const stripProtocol = (val?: string) => (val || '').replace(/^https?:\/\//, '').split('/')[0];
+const parseList = (val?: string) =>
+  (val || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+const parseHostPort = (val?: string) => {
+  const cleaned = stripProtocol(val);
+  if (!cleaned) return { host: undefined as string | undefined, port: undefined as number | undefined };
+  const [host, port] = cleaned.split(':');
+  return { host, port: port ? Number(port) : undefined };
 };
 
 export const isProduction = process.env.NODE_ENV === 'production';
-const cookieDomain = process.env.SESSION_COOKIE_DOMAIN || parseHostname(process.env.CLIENT_ORIGIN);
+const protocol = isProduction ? 'https' : 'http';
+const rootDomainRaw = isProduction
+  ? process.env.ROOT_DOMAIN_PROD || process.env.ROOT_DOMAIN
+  : process.env.ROOT_DOMAIN_DEV || process.env.ROOT_DOMAIN;
+const { host: rootHost } = parseHostPort(rootDomainRaw);
+const defaultClientPort = Number(process.env.CLIENT_PORT || (isProduction ? 443 : 6666));
+const defaultApiPort = Number(process.env.API_PORT || process.env.PORT || (isProduction ? 443 : 7070));
+
+const buildOrigin = (host: string | undefined, port?: number) => {
+  const safeHost = host || 'localhost';
+  const portToUse = typeof port === 'number' && !Number.isNaN(port) ? port : undefined;
+  const needsPort = portToUse && ![80, 443].includes(portToUse);
+  const portSegment = needsPort ? `:${portToUse}` : '';
+  return `${protocol}://${safeHost}${portSegment}`;
+};
+
+export const clientOrigin = buildOrigin(rootHost, defaultClientPort);
+export const apiOrigin = buildOrigin(rootHost, defaultApiPort);
+
+const cookieDomain = process.env.SESSION_COOKIE_DOMAIN || rootHost;
 
 export const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'devsecret',
@@ -84,19 +106,34 @@ export const featureFlags = {
 };
 
 export const clientOrigins = () => {
-  const primary = normalizeOrigin(process.env.CLIENT_ORIGIN);
-  const alt = normalizeOrigin(process.env.CLIENT_ORIGIN_ALT);
-  const origins = [primary, alt, 'http://localhost:3000', 'http://localhost:3001'].filter(Boolean) as string[];
+  const origins = [
+    normalizeOrigin(process.env.CLIENT_ORIGIN),
+    normalizeOrigin(process.env.CLIENT_ORIGIN_ALT),
+    normalizeOrigin(process.env.ROOT_DOMAIN_PROD),
+    normalizeOrigin(process.env.ROOT_DOMAIN_DEV),
+    clientOrigin,
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:6666',
+    'http://localhost:4000',
+    'http://localhost:4001',
+  ].filter(Boolean) as string[];
   return Array.from(new Set(origins));
 };
 
-export const clientBaseUrl = () => normalizeOrigin(process.env.CLIENT_ORIGIN) || 'http://localhost:3000';
-export const apiBaseUrl = () => normalizeOrigin(process.env.API_BASE_URL) || clientBaseUrl();
+export const clientBaseUrl = () => clientOrigin;
+export const apiBaseUrl = () => apiOrigin;
 
 export const buildClientUrl = (path: string) => {
   const base = clientBaseUrl();
   const trimmedPath = path.startsWith('/') ? path : `/${path}`;
   return `${base}${trimmedPath}`;
+};
+
+export const apiPort = () => {
+  const raw = Number(process.env.API_PORT || process.env.PORT);
+  if (!Number.isNaN(raw)) return raw;
+  return defaultApiPort;
 };
 
 export const loggingConfig = {
@@ -118,11 +155,17 @@ export const smtpConfig = () => {
   const host = process.env.SMTP_SERVER || 'localhost';
   const authUser = process.env.SMTP_USER || process.env.EMAIL;
   const authPass = process.env.SMTP_PASS || process.env.EMAIL_PASSWORD;
+  const stubTransport = toBool(process.env.SMTP_TEST_MODE) || process.env.NODE_ENV === 'test';
   return {
     host,
     port,
     secure,
     auth: authUser && authPass ? { user: authUser, pass: authPass } : undefined,
     from: process.env.SMTP_FROM || process.env.EMAIL || authUser,
+    stubTransport,
   };
+};
+
+export const emailTestConfig = {
+  allowedRecipients: parseList(process.env.TEST_EMAIL_ALLOWLIST || 'test@example.com'),
 };

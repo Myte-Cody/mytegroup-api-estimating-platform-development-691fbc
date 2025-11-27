@@ -63,4 +63,24 @@ export class TenantConnectionService {
     }
     return connection.model<T>(modelName, schema);
   }
+
+  async resetConnectionForOrg(orgId: string) {
+    if (this.connectionPromises.has(orgId)) {
+      this.connectionPromises.delete(orgId);
+    }
+    const existing = this.connections.get(orgId);
+    if (existing) {
+      try {
+        await existing.close();
+      } catch {
+        // ignore close errors; connection will be re-established on next request
+      }
+      this.connections.delete(orgId);
+    }
+  }
+
+  async testConnection(uri: string, dbName?: string) {
+    const conn = await createConnection(uri, { dbName, maxPoolSize: 1 }).asPromise();
+    await conn.close();
+  }
 }

@@ -12,4 +12,25 @@ export class AuditLogService {
     }
     await this.eventLog.log(event);
   }
+
+  async logMutation(params: {
+    action: string;
+    entity: string;
+    entityId?: string;
+    orgId?: string;
+    userId?: string;
+    metadata?: Record<string, any>;
+    payload?: Record<string, any>;
+  }) {
+    const { action, entity, entityId, orgId, userId, metadata, payload } = params;
+    await this.eventLog.log({
+      eventType: `${entity}.${action}`,
+      entity,
+      entityId,
+      orgId,
+      userId,
+      metadata,
+      payload,
+    });
+  }
 }

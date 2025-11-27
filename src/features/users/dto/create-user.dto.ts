@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsString, Matches } from 'class-validator';
 import { STRONG_PASSWORD_MESSAGE, STRONG_PASSWORD_REGEX } from '../../auth/dto/password-rules';
 import { Role } from '../../../common/roles';
 
@@ -16,6 +16,11 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(Role, { each: true })
+  roles?: Role[];
 
   @IsOptional()
   @IsString()

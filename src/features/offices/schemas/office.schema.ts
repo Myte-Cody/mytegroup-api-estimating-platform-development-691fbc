@@ -24,3 +24,4 @@ export const OfficeSchema = new Schema<Office>(
 );
 
 OfficeSchema.index({ organizationId: 1, name: 1 }, { unique: true });
+OfficeSchema.index({ organizationId: 1, archivedAt: 1 });

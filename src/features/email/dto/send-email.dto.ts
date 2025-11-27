@@ -1,4 +1,4 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsEmail, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class SendEmailDto {
   @IsEmail()
@@ -7,6 +7,31 @@ export class SendEmailDto {
   @IsString()
   subject: string;
 
+  @IsOptional()
   @IsString()
-  body: string;
+  text?: string;
+
+  @IsOptional()
+  @IsString()
+  body?: string;
+
+  @IsOptional()
+  @IsString()
+  html?: string;
+
+  @IsOptional()
+  @IsString()
+  templateName?: string;
+
+  @IsOptional()
+  @IsString()
+  orgId?: string;
+
+  @IsOptional()
+  @IsObject()
+  variables?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  mode?: 'test' | 'live';
 }

@@ -6,8 +6,16 @@ export class UpdateOrganizationDatastoreDto {
   useDedicatedDb?: boolean;
 
   @IsOptional()
+  @IsIn(['shared', 'dedicated'])
+  type?: 'shared' | 'dedicated';
+
+  @IsOptional()
   @IsString()
   databaseUri?: string;
+
+  @IsOptional()
+  @IsString()
+  datastoreUri?: string;
 
   @IsOptional()
   @IsString()

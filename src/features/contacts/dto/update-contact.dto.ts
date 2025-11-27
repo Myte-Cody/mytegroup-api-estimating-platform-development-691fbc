@@ -1,21 +1,29 @@
-import { IsArray, IsEmail, IsEnum, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsArray, IsEmail, IsEnum, IsOptional, IsString, Matches, IsDateString, IsIn } from 'class-validator';
 import { Role } from '../../../common/roles';
+
+const PHONE_REGEX = /^[0-9+()\-.\s]{7,20}$/;
 
 export class UpdateContactDto {
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   name?: string;
 
   @IsOptional()
   @IsEmail()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
   email?: string;
 
   @IsOptional()
   @IsString()
+  @Matches(PHONE_REGEX, { message: 'phone must be a valid phone number' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   phone?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   company?: string;
 
   @IsOptional()
@@ -29,16 +37,19 @@ export class UpdateContactDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   notes?: string;
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   invitedUserId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(['pending', 'accepted'])
   inviteStatus?: 'pending' | 'accepted';
 
   @IsOptional()
+  @IsDateString()
   invitedAt?: Date;
 }

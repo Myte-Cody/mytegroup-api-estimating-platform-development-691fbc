@@ -1,8 +1,12 @@
-import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateOrganizationDto {
   @IsString()
   name: string;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()
@@ -10,7 +14,16 @@ export class CreateOrganizationDto {
 
   @IsOptional()
   @IsString()
+  datastoreUri?: string;
+
+  @IsOptional()
+  @IsString()
   databaseName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  primaryDomain?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -18,5 +31,17 @@ export class CreateOrganizationDto {
 
   @IsOptional()
   @IsIn(['shared', 'dedicated'])
+  datastoreType?: 'shared' | 'dedicated';
+
+  @IsOptional()
+  @IsIn(['shared', 'dedicated'])
   dataResidency?: 'shared' | 'dedicated';
+
+  @IsOptional()
+  @IsBoolean()
+  piiStripped?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  legalHold?: boolean;
 }

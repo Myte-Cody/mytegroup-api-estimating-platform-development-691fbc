@@ -2,7 +2,7 @@ import { Injectable, UnauthorizedException, ForbiddenException, BadRequestExcept
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { AuditLogService } from '../../common/services/audit-log.service';
-import { UsersService } from '../users/users.service';
+import { ActorContext, UsersService } from '../users/users.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
@@ -12,13 +12,16 @@ import { EmailService } from '../email/email.service';
 import { Role } from '../../common/roles';
 import { STRONG_PASSWORD_REGEX } from './dto/password-rules';
 import zxcvbn from 'zxcvbn';
+import { WaitlistService } from '../waitlist/waitlist.service';
+import { normalizeDomainFromEmail } from '../../common/utils/domain.util';
 @Injectable()
 export class AuthService {
   constructor(
     private readonly audit: AuditLogService,
     private readonly users: UsersService,
     private readonly orgs: OrganizationsService,
-    private readonly email: EmailService
+    private readonly email: EmailService,
+    private readonly waitlist: WaitlistService
   ) {}
 
   private generateToken(ttlMs: number) {
@@ -42,7 +45,8 @@ export class AuthService {
     if (user.legalHold) throw new ForbiddenException('User on legal hold');
     if (!user.isEmailVerified) throw new ForbiddenException('Email not verified');
 
-    return this.sanitizeUser(user);
+    const updated = await this.users.markLastLogin(user.id);
+    return this.sanitizeUser(updated || user);
   }
 
   private sanitizeUser(user: any) {
@@ -60,19 +64,52 @@ export class AuthService {
     };
   }
 
-  async listUsers(orgId?: string) {
-    return this.users.scopedFindAll(orgId);
+  async listUsers(orgId?: string, actor?: ActorContext) {
+    const resolvedActor = actor || { orgId };
+    return this.users.list(resolvedActor, { orgId });
   }
 
   async register(dto: RegisterDto) {
     if (!STRONG_PASSWORD_REGEX.test(dto.password)) {
       throw new BadRequestException('Password does not meet strength requirements');
     }
+    const normalizedEmail = dto.email.toLowerCase();
+    const domain = normalizeDomainFromEmail(normalizedEmail);
+    if (!domain) throw new BadRequestException('Invalid email domain');
+
+    const waitlistEntry = await this.waitlist.ensurePending(
+      normalizedEmail,
+      dto.username,
+      dto.role || Role.User,
+      'auth-register'
+    );
+    if (this.waitlist.shouldEnforceInviteGate() && !['invited', 'activated'].includes(waitlistEntry?.status || '')) {
+      await this.waitlist.logEvent('waitlist.register_blocked', {
+        email: normalizedEmail,
+        status: waitlistEntry?.status || 'pending-cohort',
+      });
+      throw new ForbiddenException(
+        'Registration is invite-only right now. You are on the waitlist and we release waves during business hours.'
+      );
+    }
+
+    if (this.waitlist.domainGateEnabled()) {
+      const existingDomainOrg = await this.orgs.findByDomain(domain);
+      if (existingDomainOrg) {
+        await this.waitlist.logEvent('waitlist.register_blocked_domain', {
+          email: normalizedEmail,
+          domain,
+          orgId: (existingDomainOrg as any)._id || (existingDomainOrg as any).id,
+        });
+        throw new ForbiddenException('Your company already has access. Please ask your org admin to invite you.');
+      }
+    }
+
     let organizationId = dto.organizationId;
     let createdOrgId: string | undefined;
     if (!organizationId) {
       const orgName = dto.organizationName || `${dto.username}'s Organization`;
-      const org = await this.orgs.create({ name: orgName });
+      const org = await this.orgs.create({ name: orgName, primaryDomain: domain });
       organizationId = org.id || (org as any)._id;
       createdOrgId = organizationId;
     } else {
@@ -82,7 +119,7 @@ export class AuthService {
     const assignedRole = createdOrgId ? Role.OrgOwner : Role.User;
     const user = await this.users.create({
       username: dto.username,
-      email: dto.email,
+      email: normalizedEmail,
       password: dto.password,
       organizationId,
       role: assignedRole,
@@ -94,12 +131,14 @@ export class AuthService {
     if (createdOrgId) {
       await this.orgs.setOwner(createdOrgId, (user as any).id || (user as any)._id);
     }
+    await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
     await this.audit.log({
       eventType: 'auth.register',
       userId: (user as any).id || (user as any)._id,
       orgId: organizationId,
     });
-    await this.email.sendVerificationEmail(dto.email, token);
+    await this.email.sendVerificationEmail(dto.email, token, organizationId, dto.username);
+    await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
     return user;
   }
 
@@ -127,7 +166,7 @@ export class AuthService {
       userId: user.id,
       orgId: user.organizationId,
     });
-    await this.email.sendPasswordResetEmail(user.email, token);
+    await this.email.sendPasswordResetEmail(user.email, token, user.organizationId as string, user.username);
     return { status: 'ok' };
   }
 

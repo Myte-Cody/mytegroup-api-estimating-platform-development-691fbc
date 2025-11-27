@@ -8,7 +8,7 @@ import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { Invite } from './schemas/invite.schema';
 import { UsersService } from '../users/users.service';
 import { EmailService } from '../email/email.service';
-import { Role } from '../../common/roles';
+import { Role, canAssignRoles, mergeRoles } from '../../common/roles';
 import { ContactsService } from '../contacts/contacts.service';
 
 @Injectable()
@@ -32,11 +32,10 @@ export class InvitesService {
     if (requestedRole === Role.SuperAdmin) {
       throw new ForbiddenException('Cannot invite superadmin');
     }
-    // allow org owners/admins to invite anything except superadmin; others restricted
-    if (![Role.OrgOwner, Role.Admin].includes(actorRole)) {
-      if (requestedRole === Role.OrgOwner || requestedRole === Role.Admin) {
-        throw new ForbiddenException('Insufficient role to invite admin/owner');
-      }
+    const actorRoles = mergeRoles(actorRole, []);
+    const allowed = canAssignRoles(actorRoles, [requestedRole]);
+    if (!allowed) {
+      throw new ForbiddenException('Insufficient role to invite requested access');
     }
   }
 
@@ -81,7 +80,7 @@ export class InvitesService {
       status: 'pending',
       createdByUserId: actorId,
     });
-    await this.email.sendInviteEmail(dto.email, token);
+    await this.email.sendInviteEmail(dto.email, token, orgId);
     await this.audit.log({
       eventType: 'invite.created',
       orgId,
@@ -91,7 +90,12 @@ export class InvitesService {
       metadata: { email: dto.email, role: dto.role },
     });
     if (dto.contactId) {
-      await this.contacts.update(orgId, dto.contactId, { inviteStatus: 'pending', invitedAt: new Date() });
+      await this.contacts.update(
+        { userId: actorId, role: actorRole, orgId },
+        orgId,
+        dto.contactId,
+        { inviteStatus: 'pending', invitedAt: new Date() }
+      );
     }
     return invite.toObject ? invite.toObject() : invite;
   }
@@ -110,7 +114,7 @@ export class InvitesService {
     invite.tokenHash = hash;
     invite.tokenExpires = expires;
     await invite.save();
-    await this.email.sendInviteEmail(invite.email, token);
+    await this.email.sendInviteEmail(invite.email, token, orgId);
     await this.audit.log({
       eventType: 'invite.resent',
       orgId,
@@ -137,7 +141,7 @@ export class InvitesService {
       await invite.save();
       throw new BadRequestException('Invite expired');
     }
-    if (invite.legalHold || invite.archivedAt) throw new ForbiddenException('Invite unavailable');
+    if (invite.archivedAt) throw new ForbiddenException('Invite unavailable');
 
     const user = await this.users.create({
       username: dto.username,
@@ -151,6 +155,7 @@ export class InvitesService {
     invite.status = 'accepted';
     invite.acceptedAt = new Date();
     invite.invitedUserId = (user as any).id || (user as any)._id;
+    invite.tokenHash = null;
     await invite.save();
 
     if (invite.contactId) {

@@ -6,9 +6,10 @@
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",
-    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "start:dev": "cross-env PORT=7070 ts-node-dev --respawn --transpile-only -r dotenv/config src/main.ts",
     "start:prod": "node dist/main.js",
-    "test": "node --test --loader ts-node/register tests/*.test.ts"
+    "dev": "cross-env PORT=7070 ts-node-dev --respawn --transpile-only -r dotenv/config src/main.ts",
+    "test": "node --require ts-node/register/transpile-only --test tests/*.test.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
@@ -20,22 +21,27 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "codex-monorepo-template": "file:..",
+    "express-rate-limit": "^7.5.0",
     "express-session": "^1.17.3",
     "mongoose": "^8.8.1",
     "nodemailer": "^6.9.15",
-    "express-rate-limit": "^7.5.0",
-    "zxcvbn": "^4.4.2",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
+    "@nestjs/testing": "^11.1.9",
     "@types/express-session": "^1.18.0",
     "@types/node": "^24.2.0",
     "@types/passport": "^1.0.17",
     "@types/passport-jwt": "^4.0.1",
+    "cross-env": "^7.0.3",
+    "kill-port": "^2.0.1",
+    "mongodb-memory-server": "^10.1.4",
+    "supertest": "^7.1.4",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.2"

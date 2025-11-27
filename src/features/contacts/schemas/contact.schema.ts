@@ -40,3 +40,4 @@ export const ContactSchema = new Schema<Contact>(
 );
 
 ContactSchema.index({ orgId: 1, email: 1 });
+ContactSchema.index({ orgId: 1, archivedAt: 1 });

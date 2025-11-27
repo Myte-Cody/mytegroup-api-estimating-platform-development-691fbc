@@ -265,6 +265,14 @@ jobs:
                     "value": "80"
                   },
                   {
+                    "name": "MONGO_URI",
+                    "value": "${{ secrets.MONGO_URI }}"
+                  },
+                  {
+                    "name": "MONGO_DB",
+                    "value": "${{ secrets.MONGO_DB }}"
+                  },
+                  {
                     "name": "REDIS_URL",
                     "value": "${{ secrets.REDIS_URL }}"
                   },

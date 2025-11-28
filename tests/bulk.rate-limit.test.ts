@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import { strict as assert } from 'node:assert';
-import * as rateLimit from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 import { getRateLimitExceededBody } from '../src/features/bulk/bulk.rate-limit.ts';
 
 const createLimiter = () =>

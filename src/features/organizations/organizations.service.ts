@@ -232,6 +232,11 @@ export class OrganizationsService {
     return this.orgModel.find({ archivedAt: null });
   }
 
+  async hasAnyOrganization() {
+    const existing = await this.orgModel.exists({ archivedAt: null });
+    return !!existing;
+  }
+
   async archive(id: string, actor?: Actor) {
     const org = await this.getOrgOrThrow(id);
     if (org.legalHold) throw new ForbiddenException('Organization is under legal hold');

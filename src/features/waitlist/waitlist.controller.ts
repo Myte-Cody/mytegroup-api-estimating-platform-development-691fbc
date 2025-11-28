@@ -49,7 +49,7 @@ export class WaitlistController {
   }
 
   @UseGuards(SessionGuard, RolesGuard)
-  @Roles(Role.Admin, Role.OrgOwner, Role.SuperAdmin, Role.PlatformAdmin)
+  @Roles(Role.SuperAdmin, Role.PlatformAdmin)
   @Get('waitlist')
   async listWaitlist(@Query() query: ListWaitlistDto) {
     const { page, limit, status, verifyStatus, cohortTag, emailContains } = query
@@ -57,14 +57,14 @@ export class WaitlistController {
   }
 
   @UseGuards(SessionGuard, RolesGuard)
-  @Roles(Role.Admin, Role.OrgOwner, Role.SuperAdmin, Role.PlatformAdmin)
+  @Roles(Role.SuperAdmin, Role.PlatformAdmin)
   @Post('waitlist/invite-batch')
   async inviteBatch(@Body() dto: InviteBatchDto) {
     return this.waitlist.processInviteBatch(dto.limit, dto.cohortTag)
   }
 
   @UseGuards(SessionGuard, RolesGuard)
-  @Roles(Role.Admin, Role.OrgOwner, Role.SuperAdmin, Role.PlatformAdmin)
+  @Roles(Role.SuperAdmin, Role.PlatformAdmin)
   @Post('waitlist/approve')
   async approve(@Body() dto: ApproveWaitlistDto) {
     await this.waitlist.markInvited(dto.email, dto.cohortTag)

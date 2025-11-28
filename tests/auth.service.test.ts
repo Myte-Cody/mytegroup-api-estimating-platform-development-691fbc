@@ -7,7 +7,14 @@ const { AuthService } = require('../src/features/auth/auth.service.ts');
 const { STRONG_PASSWORD_REGEX } = require('../src/features/auth/dto/password-rules.ts');
 const { Role } = require('../src/common/roles.ts');
 
-const hashPassword = (password) => bcrypt.hashSync(password, 4);
+const argon2 = require('argon2');
+const hashPassword = async (password) => argon2.hash(password);
+
+// Test-only accounts and secrets used across auth tests.
+const TEST_BOOTSTRAP_EMAIL = 'ahmed.mekallach@mytegroup.com';
+const TEST_BOOTSTRAP_PASSWORD = 'Ahmed@123Ahmed@123';
+const TEST_REG_EMAIL = 'regular.user+auth@test.mytegroup.com';
+const TEST_REG_PASSWORD = 'Test@123Test@123';
 
 const makeDeps = (overrides = {}) => {
   const auditEvents = [];
@@ -33,14 +40,24 @@ const makeDeps = (overrides = {}) => {
     sendPasswordResetEmail: async () => null,
     ...overrides.email,
   };
-  const svc = new AuthService(audit, users, orgs, email);
-  return { svc, auditEvents, users };
+  const waitlist = {
+    ensurePending: async () => ({ status: 'invited', cohortTag: 'test' }),
+    shouldEnforceInviteGate: () => false,
+    domainGateEnabled: () => false,
+    acquireDomainClaim: async () => true,
+    releaseDomainClaim: async () => undefined,
+    markActivated: async () => null,
+    logEvent: async () => null,
+    ...overrides.waitlist,
+  };
+  const svc = new AuthService(audit, users, orgs, email, waitlist);
+  return { svc, auditEvents, users, orgs, waitlist };
 };
 
 describe('AuthService login and tokens', () => {
   it('logs in active/verified user and updates lastLogin', async () => {
     const password = 'Str0ng!Passw0rd';
-    const hash = hashPassword(password);
+    const hash = await hashPassword(password);
     const lastLogin = new Date();
     const { svc, auditEvents } = makeDeps({
       users: {
@@ -76,7 +93,7 @@ describe('AuthService login and tokens', () => {
 
   it('rejects archived, legalHold, and unverified users', async () => {
     const password = 'Str0ng!Passw0rd';
-    const hash = hashPassword(password);
+    const hash = await hashPassword(password);
     const baseUser = {
       id: 'u2',
       organizationId: 'org2',
@@ -121,7 +138,7 @@ describe('AuthService login and tokens', () => {
           roles: [Role.User],
           legalHold: true,
           archivedAt: null,
-          passwordHash: hashPassword('Original$Pass123'),
+          passwordHash: await hashPassword('Original$Pass123'),
         }),
       },
     });
@@ -146,7 +163,7 @@ describe('AuthService login and tokens', () => {
             roles: [Role.User],
             legalHold: false,
             archivedAt: null,
-            passwordHash: hashPassword('Old$Pass123'),
+          passwordHash: await hashPassword('Old$Pass123'),
           };
         },
         clearResetTokenAndSetPassword: async (id, newPassword) => {
@@ -193,5 +210,71 @@ describe('AuthService login and tokens', () => {
       users: { findByVerificationToken: async () => null },
     });
     await assert.rejects(() => svc.verifyEmail({ token: 'bad' }), BadRequestException);
+  });
+
+  it('registers bootstrap user for configured email and bypasses invite gate', async () => {
+    const previousBootstrap = process.env.BOOTSTRAP_EMAILS;
+    process.env.BOOTSTRAP_EMAILS = TEST_BOOTSTRAP_EMAIL;
+    const auditEvents = [];
+    const audit = { log: async (evt) => auditEvents.push(evt) };
+
+    const createdUsers = [];
+    const overrides = {
+      users: {
+        create: async (dto) => {
+          createdUsers.push(dto);
+          return { id: 'bootstrap-user', ...dto };
+        },
+      },
+      orgs: {
+        create: async (dto) => ({ id: 'root-org', ...dto }),
+        findById: async (id) => ({ id }),
+        setOwner: async () => null,
+        hasAnyOrganization: async () => false,
+      },
+      email: {
+        // bootstrap path should not send a verification email
+        sendVerificationEmail: async () => {
+          throw new Error('bootstrap should not send verification email');
+        },
+      },
+      waitlist: {
+        ensurePending: async () => ({ status: 'pending-cohort', cohortTag: 'wave-1' }),
+        shouldEnforceInviteGate: () => true,
+        domainGateEnabled: () => false,
+        acquireDomainClaim: async () => true,
+        releaseDomainClaim: async () => undefined,
+        markActivated: async () => null,
+        logEvent: async () => null,
+      },
+    };
+
+    const svc = new AuthService(audit, overrides.users, overrides.orgs, overrides.email, overrides.waitlist);
+
+    const dto = {
+      username: 'Ahmed Mekallach',
+      firstName: 'Ahmed',
+      lastName: 'Mekallach',
+      email: TEST_BOOTSTRAP_EMAIL,
+      password: TEST_BOOTSTRAP_PASSWORD,
+      organizationName: 'Myte Group Inc',
+      legalAccepted: true,
+    };
+
+    const user = await svc.register(dto as any);
+
+    assert.equal(user.id, 'bootstrap-user');
+    assert.equal(user.organizationId, 'root-org');
+    assert.equal(user.role, Role.SuperAdmin);
+    assert.deepEqual(user.roles, [Role.SuperAdmin, Role.PlatformAdmin, Role.OrgOwner]);
+    assert.equal(user.isOrgOwner, true);
+    assert.equal(user.isEmailVerified, true);
+
+    const bootstrapEvent = auditEvents.find((e) => e.eventType === 'auth.bootstrap_org_created');
+    assert.ok(bootstrapEvent);
+    assert.equal(bootstrapEvent.orgId, 'root-org');
+    assert.equal(bootstrapEvent.userId, 'bootstrap-user');
+
+    process.env.BOOTSTRAP_EMAILS = previousBootstrap;
   });
 });

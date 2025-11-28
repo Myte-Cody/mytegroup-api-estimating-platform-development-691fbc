@@ -23,7 +23,11 @@ describe('AuthController', () => {
         acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }),
       } as any
     );
-    const req: any = { session: {} };
+    const req: any = {
+      session: {
+        regenerate: (cb?: (err?: any) => void) => (cb ? cb() : undefined),
+      },
+    };
     const dto = { email: 'owner@example.com', password: 'Str0ng!Passw0rd', username: 'Owner', organizationName: 'Org 1' };
 
     const result = await controller.register(dto as any, req);
@@ -55,7 +59,11 @@ describe('AuthController', () => {
         acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }),
       } as any
     );
-    const req: any = { session: {} };
+    const req: any = {
+      session: {
+        regenerate: (cb?: (err?: any) => void) => (cb ? cb() : undefined),
+      },
+    };
     const body = { email: 'pa@example.com', password: 'Secr3t!Pass123' };
 
     const result = await controller.login(body as any, req);
@@ -75,7 +83,11 @@ describe('AuthController', () => {
       } as any,
       { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any
     );
-    const req: any = { session: {} };
+    const req: any = {
+      session: {
+        regenerate: (cb?: (err?: any) => void) => (cb ? cb() : undefined),
+      },
+    };
 
     await controller.login({ email: 'u@example.com', password: 'pass' } as any, req);
 

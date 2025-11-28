@@ -21,6 +21,7 @@ export type WaitlistStats = {
   waitlistCount: number
   waitlistDisplayCount: number
   freeSeatsPerOrg: number
+  spotsLeftThisWave?: number
 }
 
 @Injectable()
@@ -683,10 +684,25 @@ export class WaitlistService {
 
     const waitlistCount = await this.model.countDocuments({ archivedAt: null })
     const waitlistDisplayCount = this.projectedDisplayCount(waitlistCount)
+
+    let spotsLeftThisWave: number | undefined
+    const waveSize = waitlistConfig.invite.batchLimit
+    const cohortTag = waitlistConfig.invite.cohortTag
+    if (waveSize && cohortTag) {
+      const invitedInWave = await this.model.countDocuments({
+        archivedAt: null,
+        cohortTag,
+        status: { $in: ['invited', 'activated'] },
+      })
+      const remaining = waveSize - invitedInWave
+      spotsLeftThisWave = remaining > 0 ? remaining : 0
+    }
+
     const stats = {
       waitlistCount,
       waitlistDisplayCount,
       freeSeatsPerOrg: waitlistConfig.marketing.freeSeatsPerOrg,
+      spotsLeftThisWave,
     }
     await this.cacheStats(stats)
     return stats

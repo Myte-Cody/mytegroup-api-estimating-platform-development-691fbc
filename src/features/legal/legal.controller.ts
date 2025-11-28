@@ -25,13 +25,11 @@ export class LegalController {
     return this.legal.createDoc(dto, this.actor(req));
   }
 
-  @UseGuards(SessionGuard)
   @Get(':type')
   async latest(@Param('type', new ParseEnumPipe(LegalDocType)) type: LegalDocType) {
     return this.legal.latestDoc(type);
   }
 
-  @UseGuards(SessionGuard)
   @Get(':type/history')
   async history(
     @Param('type', new ParseEnumPipe(LegalDocType)) type: LegalDocType,

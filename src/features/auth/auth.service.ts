@@ -73,17 +73,35 @@ export class AuthService {
     if (!STRONG_PASSWORD_REGEX.test(dto.password)) {
       throw new BadRequestException('Password does not meet strength requirements');
     }
+    if (!dto.legalAccepted) {
+      throw new BadRequestException('You must accept the Privacy Policy and Terms & Conditions to create an account');
+    }
     const normalizedEmail = dto.email.toLowerCase();
     const domain = normalizeDomainFromEmail(normalizedEmail);
     if (!domain) throw new BadRequestException('Invalid email domain');
 
+    const firstName = (dto.firstName || '').trim() || undefined;
+    const lastName = (dto.lastName || '').trim() || undefined;
+    const derivedUsername =
+      (dto.username || '').trim() ||
+      [firstName, lastName].filter(Boolean).join(' ') ||
+      normalizedEmail.split('@')[0];
+
+    const bootstrapEmails = (process.env.BOOTSTRAP_EMAILS || '')
+      .split(',')
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
+    const isBootstrapCandidate = bootstrapEmails.includes(normalizedEmail);
+    const hasExistingOrg = isBootstrapCandidate ? await this.orgs.hasAnyOrganization() : true;
+    const isBootstrap = isBootstrapCandidate && !hasExistingOrg;
+
     const waitlistEntry = await this.waitlist.ensurePending(
       normalizedEmail,
-      dto.username,
+      derivedUsername,
       dto.role || Role.User,
       'auth-register'
     );
-    if (this.waitlist.shouldEnforceInviteGate() && !['invited', 'activated'].includes(waitlistEntry?.status || '')) {
+    if (!isBootstrap && this.waitlist.shouldEnforceInviteGate() && !['invited', 'activated'].includes(waitlistEntry?.status || '')) {
       await this.waitlist.logEvent('waitlist.register_blocked', {
         email: normalizedEmail,
         status: waitlistEntry?.status || 'pending-cohort',
@@ -115,37 +133,84 @@ export class AuthService {
     try {
       let organizationId = dto.organizationId;
       let createdOrgId: string | undefined;
-      if (!organizationId) {
-        const orgName = dto.organizationName || `${dto.username}'s Organization`;
+      if (isBootstrap) {
+        const orgName = process.env.BOOTSTRAP_ROOT_ORG_NAME || `${dto.username}'s Root Org`;
         const org = await this.orgs.create({ name: orgName, primaryDomain: domain });
         organizationId = org.id || (org as any)._id;
         createdOrgId = organizationId;
       } else {
-        await this.orgs.findById(organizationId);
+        if (!organizationId) {
+          const orgName = dto.organizationName || `${derivedUsername}'s Organization`;
+          const org = await this.orgs.create({ name: orgName, primaryDomain: domain });
+          organizationId = org.id || (org as any)._id;
+          createdOrgId = organizationId;
+        } else {
+          await this.orgs.findById(organizationId);
+        }
       }
-      const { token, hash, expires } = this.generateToken(1000 * 60 * 60 * 24); // 24h
-      const assignedRole = createdOrgId ? Role.OrgOwner : Role.User;
-      const user = await this.users.create({
-        username: dto.username,
-        email: normalizedEmail,
-        password: dto.password,
-        organizationId,
-        role: assignedRole,
-        isOrgOwner: assignedRole === Role.OrgOwner,
-        verificationTokenHash: hash,
-        verificationTokenExpires: expires,
-        isEmailVerified: false,
-      });
+
+      let user;
+      let verificationToken: string | null = null;
+      if (isBootstrap) {
+        user = await this.users.create({
+          username: derivedUsername,
+          firstName,
+          lastName,
+          email: normalizedEmail,
+          password: dto.password,
+          organizationId,
+          role: Role.SuperAdmin,
+          roles: [Role.SuperAdmin, Role.PlatformAdmin, Role.OrgOwner],
+          isOrgOwner: true,
+          isEmailVerified: true,
+          verificationTokenHash: null,
+          verificationTokenExpires: null,
+        });
+      } else {
+        const { token, hash, expires } = this.generateToken(1000 * 60 * 60 * 24); // 24h
+        verificationToken = token;
+        const assignedRole = createdOrgId ? Role.OrgOwner : Role.User;
+        user = await this.users.create({
+          username: derivedUsername,
+          firstName,
+          lastName,
+          email: normalizedEmail,
+          password: dto.password,
+          organizationId,
+          role: assignedRole,
+          isOrgOwner: assignedRole === Role.OrgOwner,
+          verificationTokenHash: hash,
+          verificationTokenExpires: expires,
+          isEmailVerified: false,
+        });
+      }
+
+      const userId = (user as any).id || (user as any)._id;
+
       if (createdOrgId) {
-        await this.orgs.setOwner(createdOrgId, (user as any).id || (user as any)._id);
+        await this.orgs.setOwner(createdOrgId, userId);
       }
       await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
       await this.audit.log({
         eventType: 'auth.register',
-        userId: (user as any).id || (user as any)._id,
+        userId,
         orgId: organizationId,
       });
-      await this.email.sendVerificationEmail(dto.email, token, organizationId, dto.username);
+      if (isBootstrap && createdOrgId) {
+        await this.audit.log({
+          eventType: 'auth.bootstrap_org_created',
+          userId,
+          orgId: createdOrgId,
+          metadata: {
+            email: normalizedEmail,
+            domain,
+            rootOrgName: process.env.BOOTSTRAP_ROOT_ORG_NAME || `${dto.username}'s Root Org`,
+          },
+        });
+      }
+      if (!isBootstrap && verificationToken) {
+        await this.email.sendVerificationEmail(dto.email, verificationToken, organizationId, dto.username);
+      }
       await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
       return user;
     } catch (err) {

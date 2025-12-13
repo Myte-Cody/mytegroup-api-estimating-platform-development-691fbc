@@ -6,6 +6,7 @@ import { LegalGuard } from './legal.guard';
 import { LegalDocSchema } from './schemas/legal-doc.schema';
 import { LegalAcceptanceSchema } from './schemas/legal-acceptance.schema';
 import { CommonModule } from '../../common/common.module';
+import { LegalSeedService } from './legal.seed';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { CommonModule } from '../../common/common.module';
     ]),
   ],
   controllers: [LegalController],
-  providers: [LegalService, LegalGuard],
+  providers: [LegalService, LegalGuard, LegalSeedService],
   exports: [LegalService, LegalGuard],
 })
 export class LegalModule {}

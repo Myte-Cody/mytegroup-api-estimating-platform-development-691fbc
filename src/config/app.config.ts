@@ -23,7 +23,7 @@ const rootDomainRaw = isProduction
   ? process.env.ROOT_DOMAIN_PROD || process.env.ROOT_DOMAIN
   : process.env.ROOT_DOMAIN_DEV || process.env.ROOT_DOMAIN;
 const { host: rootHost } = parseHostPort(rootDomainRaw);
-const defaultClientPort = Number(process.env.CLIENT_PORT || (isProduction ? 443 : 6666));
+const defaultClientPort = Number(process.env.CLIENT_PORT || (isProduction ? 443 : 4001));
 const defaultApiPort = Number(process.env.API_PORT || process.env.PORT || (isProduction ? 443 : 7070));
 
 const buildOrigin = (host: string | undefined, port?: number) => {

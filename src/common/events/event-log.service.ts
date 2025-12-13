@@ -107,6 +107,35 @@ export class EventLogService {
     return this.redactIfNeeded(event);
   }
 
+  async applyComplianceToEntityEvents(params: {
+    orgId?: string;
+    entity: string;
+    entityId: string;
+    piiStripped?: boolean;
+    legalHold?: boolean;
+  }) {
+    const { orgId, entity, entityId, piiStripped, legalHold } = params;
+    if (!orgId) return;
+    if (!entity || !entityId) return;
+
+    const updates: Record<string, any> = {};
+    const set: Partial<EventLog> = {};
+    if (piiStripped !== undefined) set.piiStripped = piiStripped;
+    if (legalHold !== undefined) set.legalHold = legalHold;
+    if (Object.keys(set).length) updates.$set = set;
+    if (piiStripped === true) {
+      updates.$unset = { payload: 1, metadata: 1 };
+    }
+    if (!Object.keys(updates).length) return;
+
+    const filters: FilterQuery<EventLog> = {
+      orgId,
+      entityId,
+      $or: [{ entity }, { entityType: entity }],
+    };
+    await this.model.updateMany(filters, updates);
+  }
+
   private resolveOrgScope(sessionOrgId?: string, requestedOrgId?: string, role?: Role) {
     if (role === Role.SuperAdmin && requestedOrgId) return requestedOrgId;
     if (role === Role.SuperAdmin) return sessionOrgId;

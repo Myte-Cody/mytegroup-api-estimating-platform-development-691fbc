@@ -14,6 +14,28 @@ describe('OrganizationsController HTTP', () => {
   let app: INestApplication;
   const calls: any[] = [];
   const service: any = {
+    list: async (query: any) => {
+      calls.push(['list', query]);
+      return {
+        data: [
+          {
+            id: 'org-1',
+            name: 'Alpha',
+            primaryDomain: 'alpha.example',
+            archivedAt: null,
+            legalHold: false,
+            piiStripped: false,
+            datastoreType: 'shared',
+            dataResidency: 'shared',
+            useDedicatedDb: false,
+            databaseName: null,
+          },
+        ],
+        total: 1,
+        page: query?.page || 1,
+        limit: query?.limit || 25,
+      };
+    },
     create: async (dto: any, actor: any) => {
       calls.push(['create', dto, actor]);
       return { id: 'org-123', name: dto.name, metadata: dto.metadata || {}, datastoreType: dto.datastoreType || 'shared' };
@@ -95,6 +117,32 @@ describe('OrganizationsController HTTP', () => {
     assert.ok(call);
     assert.equal(call[1].name, 'Acme Corp');
     assert.equal(call[2].id, 'super-1');
+  });
+
+  it('allows platform roles to list organizations', async () => {
+    calls.length = 0;
+    const res = await request(app.getHttpServer())
+      .get('/organizations?search=alpha&limit=10&page=2')
+      .set(withUser({ id: 'plat-1', role: Role.PlatformAdmin }))
+      .expect(200);
+
+    assert.equal(Array.isArray(res.body.data), true);
+    assert.equal(res.body.total, 1);
+    const call = calls.find(([action]) => action === 'list');
+    assert.ok(call);
+    assert.equal(call[1].search, 'alpha');
+    assert.equal(Number(call[1].limit), 10);
+    assert.equal(Number(call[1].page), 2);
+  });
+
+  it('blocks non-platform roles from listing organizations', async () => {
+    calls.length = 0;
+    await request(app.getHttpServer())
+      .get('/organizations')
+      .set(withUser({ id: 'admin-1', role: Role.Admin, orgId: 'org-1', roles: [Role.Admin] }))
+      .expect(403);
+
+    assert.equal(calls.find(([action]) => action === 'list'), undefined);
   });
 
   it('blocks admins from accessing other orgs and does not hit service', async () => {

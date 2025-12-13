@@ -126,6 +126,7 @@ export class OfficesService {
     if (!office) throw new NotFoundException('Office not found');
     this.ensureOrgScope(office.organizationId, actor);
     if (office.archivedAt) throw new NotFoundException('Office archived');
+    this.ensureNotOnLegalHold(office, 'update');
 
     if (dto.name && dto.name !== office.name) {
       const existing = await this.officeModel.findOne({

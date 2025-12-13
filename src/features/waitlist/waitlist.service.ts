@@ -77,31 +77,6 @@ export class WaitlistService {
     return new Date(now.getTime() + ttl * 60 * 1000)
   }
 
-  private async assertCaptcha(token?: string, ip?: string) {
-    const cfg = waitlistConfig.captcha
-    if (!cfg.enabled || cfg.provider === 'none') return
-    if (cfg.requireToken && !token) {
-      throw new ForbiddenException('Captcha required')
-    }
-    const secret =
-      cfg.provider === 'turnstile' ? process.env.TURNSTILE_SECRET : cfg.provider === 'hcaptcha' ? process.env.HCAPTCHA_SECRET : undefined
-    if (!secret) return // treat as disabled when no secret configured
-    if (!token) {
-      throw new ForbiddenException('Captcha required')
-    }
-    const url = cfg.provider === 'turnstile' ? 'https://challenges.cloudflare.com/turnstile/v0/siteverify' : 'https://hcaptcha.com/siteverify'
-    const body = new URLSearchParams({ secret, response: token })
-    if (ip) body.append('remoteip', ip)
-    const res = await fetch(url, {
-      method: 'POST',
-      body,
-    })
-    const data = (await res.json()) as any
-    if (!data?.success) {
-      throw new ForbiddenException('Captcha verification failed')
-    }
-  }
-
   private ensureDomainAllowed(email: string) {
     const domain = normalizeDomainFromEmail(email) || ''
     if (domain && this.domainDeny.has(domain)) {
@@ -383,7 +358,6 @@ export class WaitlistService {
   }
 
   async start(dto: StartWaitlistDto, ip?: string) {
-    await this.assertCaptcha(dto.captchaToken, ip)
     await this.assertWaitlistAllowed(dto.email, ip)
     const now = new Date()
     const normalizedEmail = this.normalizeEmail(dto.email)
@@ -582,7 +556,6 @@ export class WaitlistService {
   }
 
   async resend(dto: ResendWaitlistDto, ip?: string) {
-    await this.assertCaptcha(dto.captchaToken, ip)
     const normalizedEmail = this.normalizeEmail(dto.email)
     const windowMs = waitlistConfig.rateLimit.windowMs
     const maxResends = waitlistConfig.verification.maxResendsPerWindow || 3

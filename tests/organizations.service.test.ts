@@ -12,6 +12,7 @@ type FakeOrgRecord = {
   datastoreType: 'shared' | 'dedicated';
   databaseUri: string | null;
   databaseName: string | null;
+  primaryDomain?: string | null;
   dataResidency: 'shared' | 'dedicated';
   archivedAt: Date | null;
   legalHold: boolean;
@@ -22,11 +23,19 @@ type FakeOrgRecord = {
 };
 
 const matches = (filter: Record<string, any>, record: FakeOrgRecord) => {
+  if (filter.$or && Array.isArray(filter.$or)) {
+    const rest = { ...filter };
+    delete (rest as any).$or;
+    const baseMatch = matches(rest, record);
+    if (!baseMatch) return false;
+    return filter.$or.some((clause: any) => matches(clause, record));
+  }
   return Object.entries(filter).every(([key, value]) => {
     const current = (record as any)[key];
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       if ('$ne' in value) return current !== value.$ne;
     }
+    if (value instanceof RegExp) return value.test(String(current ?? ''));
     return current === value;
   });
 };
@@ -60,6 +69,7 @@ const createOrgModel = (initial: Partial<FakeOrgRecord>[] = []) => {
       datastoreType: entry.datastoreType || 'shared',
       databaseUri: entry.databaseUri ?? null,
       databaseName: entry.databaseName ?? null,
+      primaryDomain: entry.primaryDomain ?? null,
       dataResidency: entry.dataResidency || 'shared',
       archivedAt: entry.archivedAt ?? null,
       legalHold: entry.legalHold ?? false,
@@ -91,6 +101,7 @@ const createOrgModel = (initial: Partial<FakeOrgRecord>[] = []) => {
         datastoreType: (payload.datastoreType as any) || (payload.useDedicatedDb ? 'dedicated' : 'shared'),
         databaseUri: payload.databaseUri ?? null,
         databaseName: payload.databaseName ?? null,
+        primaryDomain: payload.primaryDomain ?? null,
         dataResidency: (payload.dataResidency as any) || 'shared',
         archivedAt: payload.archivedAt ?? null,
         legalHold: payload.legalHold ?? false,
@@ -102,11 +113,41 @@ const createOrgModel = (initial: Partial<FakeOrgRecord>[] = []) => {
       records.push(record);
       return createDoc(record, records);
     },
+    async countDocuments(filter: Record<string, any>) {
+      return records.filter((rec) => matches(filter, rec)).length;
+    },
     find(filter: Record<string, any>) {
-      const filtered = records.filter((rec) => matches(filter, rec));
-      return {
-        lean: async () => filtered.map((rec) => ({ ...rec })),
+      const base = records.filter((rec) => matches(filter, rec));
+      let sortSpec: Record<string, 1 | -1> | undefined;
+      let skipCount = 0;
+      let limitCount: number | undefined;
+
+      const query: any = {
+        sort(spec: Record<string, 1 | -1>) {
+          sortSpec = spec;
+          return query;
+        },
+        skip(val: number) {
+          skipCount = val;
+          return query;
+        },
+        limit(val: number) {
+          limitCount = val;
+          return query;
+        },
+        lean: async () => {
+          let data = [...base];
+          if (sortSpec && 'createdAt' in sortSpec) {
+            const dir = sortSpec.createdAt;
+            data.sort((a, b) => (dir === -1 ? b.createdAt.getTime() - a.createdAt.getTime() : a.createdAt.getTime() - b.createdAt.getTime()));
+          }
+          if (skipCount) data = data.slice(skipCount);
+          if (typeof limitCount === 'number') data = data.slice(0, limitCount);
+          return data.map((rec) => ({ ...rec }));
+        },
       };
+
+      return query;
     },
   };
 };
@@ -182,6 +223,15 @@ describe('OrganizationsService', () => {
     );
   });
 
+  it('blocks updates when org is on legal hold', async () => {
+    initial[0].legalHold = true;
+    const { svc } = createService(initial);
+    await assert.rejects(
+      () => svc.update('org-1', { name: 'Blocked' } as any, { id: 'actor-9' }),
+      (err: any) => err instanceof ForbiddenException
+    );
+  });
+
   it('throws when dedicated datastore lacks uri', async () => {
     const { svc } = createService(initial);
     await assert.rejects(
@@ -231,5 +281,37 @@ describe('OrganizationsService', () => {
     assert.equal(pii.piiStripped, true);
     assert.equal(model.records[0].piiStripped, true);
     assert.equal(auditLog[auditLog.length - 1]?.eventType, 'organization.pii_stripped_toggled');
+  });
+
+  it('lists organizations with search, paging, and redacted datastore URI', async () => {
+    initial.push(
+      {
+        _id: 'org-2',
+        name: 'Beta',
+        primaryDomain: 'beta.example',
+        createdAt: new Date('2024-02-01'),
+        datastoreType: 'dedicated',
+        useDedicatedDb: true,
+        databaseUri: 'mongodb://secret',
+        databaseName: 'tenant_beta',
+      },
+      {
+        _id: 'org-3',
+        name: 'Gamma',
+        primaryDomain: 'gamma.example',
+        archivedAt: new Date(),
+        createdAt: new Date('2024-03-01'),
+      }
+    );
+
+    const { svc } = createService(initial);
+    const res = await svc.list({ search: 'beta', page: 1, limit: 10 } as any);
+
+    assert.equal(res.total, 1);
+    assert.equal(res.data.length, 1);
+    assert.equal(res.data[0].name, 'Beta');
+    assert.equal(res.data[0].datastoreType, 'dedicated');
+    assert.equal(res.data[0].databaseName, 'tenant_beta');
+    assert.ok(!('databaseUri' in res.data[0]));
   });
 });

@@ -5,6 +5,18 @@ const { OrganizationsController } = require('../src/features/organizations/organ
 const { Role } = require('../src/common/roles.ts');
 
 describe('OrganizationsController', () => {
+  it('delegates list to service', async () => {
+    const calls: any[] = []
+    const service = { list: async (...args: any[]) => calls.push(args) }
+    const controller = new OrganizationsController(service as any)
+
+    await controller.list({ search: 'alpha', limit: 10 } as any)
+
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0][0].search, 'alpha')
+    assert.equal(calls[0][0].limit, 10)
+  })
+
   it('passes actor to service on create', async () => {
     const calls: any[] = [];
     const service = { create: async (...args: any[]) => calls.push(args) };

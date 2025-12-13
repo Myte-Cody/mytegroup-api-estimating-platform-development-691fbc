@@ -15,9 +15,5 @@ export class VerifyContactInquiryDto {
 
   @IsOptional()
   @IsString()
-  captchaToken?: string
-
-  @IsOptional()
-  @IsString()
   trap?: string
 }

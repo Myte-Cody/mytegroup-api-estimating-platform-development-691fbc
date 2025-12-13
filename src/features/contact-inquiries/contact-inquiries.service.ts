@@ -100,35 +100,6 @@ export class ContactInquiriesService {
     }
   }
 
-  private async assertCaptcha(token?: string, ip?: string) {
-    const cfg = waitlistConfig.captcha
-    if (!cfg.enabled || cfg.provider === 'none') return
-    if (cfg.requireToken && !token) {
-      throw new ForbiddenException('Captcha required')
-    }
-    const secret =
-      cfg.provider === 'turnstile'
-        ? process.env.TURNSTILE_SECRET
-        : cfg.provider === 'hcaptcha'
-        ? process.env.HCAPTCHA_SECRET
-        : undefined
-    if (!secret) return
-    if (!token) {
-      throw new ForbiddenException('Captcha required')
-    }
-    const url =
-      cfg.provider === 'turnstile'
-        ? 'https://challenges.cloudflare.com/turnstile/v0/siteverify'
-        : 'https://hcaptcha.com/siteverify'
-    const body = new URLSearchParams({ secret, response: token })
-    if (ip) body.append('remoteip', ip)
-    const res = await fetch(url, { method: 'POST', body })
-    const data = (await res.json()) as any
-    if (!data?.success) {
-      throw new ForbiddenException('Captcha verification failed')
-    }
-  }
-
   private async storeVerificationCode(email: string, code: string) {
     await this.ensureRedis()
     const ttlMs = (waitlistConfig.verification.ttlMinutes || 30) * 60 * 1000
@@ -173,7 +144,6 @@ export class ContactInquiriesService {
     const normalizedEmail = this.normalizeEmail(dto.email)
     const domain = normalizeDomainFromEmail(normalizedEmail)
 
-    await this.assertCaptcha(dto.captchaToken, ip)
     await this.ensureRedis()
 
     const cooldownMs = (waitlistConfig.verification.resendCooldownMinutes || 2) * 60 * 1000
@@ -272,7 +242,6 @@ export class ContactInquiriesService {
       source: dto.source || 'footer-contact',
       preCreateAccount: dto.preCreateAccount ?? false,
       marketingConsent: dto.marketingConsent ?? true,
-      captchaToken: dto.captchaToken,
       trap: dto.trap,
     }
     try {
@@ -297,7 +266,6 @@ export class ContactInquiriesService {
     const normalizedEmail = this.normalizeEmail(dto.email)
     const personal = this.isPersonalEmail(normalizedEmail)
 
-    await this.assertCaptcha(dto.captchaToken, ip)
     await this.assertContactAllowed(normalizedEmail, ip)
     const verified = await this.isEmailVerified(normalizedEmail)
     if (!verified) {

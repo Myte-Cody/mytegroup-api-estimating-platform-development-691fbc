@@ -129,7 +129,7 @@ export class ContactsService {
   async linkInvitedUser(orgId: string, contactId: string, userId: string) {
     const model = await this.model(orgId);
     const updated = await model.findOneAndUpdate(
-      { _id: contactId, orgId },
+      { _id: contactId, orgId, legalHold: { $ne: true } },
       { invitedUserId: userId, inviteStatus: 'accepted', invitedAt: new Date() },
       { new: true }
     );
@@ -152,6 +152,7 @@ export class ContactsService {
     const contact = await model.findOne({ _id: contactId, orgId });
     if (!contact) throw new NotFoundException('Contact not found');
     if (contact.archivedAt) throw new NotFoundException('Contact archived');
+    this.ensureNotOnLegalHold(contact, 'update');
 
     if (dto.email && dto.email !== contact.email) {
       const existing = await model.findOne({ orgId, email: dto.email, _id: { $ne: contactId } });

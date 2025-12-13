@@ -137,6 +137,7 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
     this.ensureOrgScope(project.organizationId, actor);
     if (project.archivedAt) throw new NotFoundException('Project archived');
+    this.ensureNotOnLegalHold(project, 'update');
 
     if (dto.name && dto.name !== project.name) {
       const existing = await this.projectModel.findOne({

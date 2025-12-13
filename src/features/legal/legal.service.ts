@@ -7,6 +7,7 @@ import { CreateLegalDocDto } from './dto/create-legal-doc.dto';
 import { AcceptLegalDocDto } from './dto/accept-legal-doc.dto';
 import { LegalDoc } from './schemas/legal-doc.schema';
 import { LegalAcceptance } from './schemas/legal-acceptance.schema';
+import { defaultLegalDocs } from './legal.defaults';
 
 type Actor = { id?: string; orgId?: string };
 
@@ -17,6 +18,33 @@ export class LegalService {
     @InjectModel('LegalAcceptance') private readonly acceptanceModel: Model<LegalAcceptance>,
     private readonly audit: AuditLogService
   ) {}
+
+  async ensureDefaultDocs() {
+    const defaults = defaultLegalDocs();
+    for (const doc of defaults) {
+      // eslint-disable-next-line no-await-in-loop
+      const existing = await this.docModel.findOne({ type: doc.type, version: doc.version });
+      if (existing) continue;
+
+      // eslint-disable-next-line no-await-in-loop
+      const created = await this.docModel.create({
+        type: doc.type,
+        version: doc.version,
+        content: doc.content,
+        effectiveAt: doc.effectiveAt,
+        archivedAt: null,
+      });
+
+      // Best-effort audit: seeded docs have no actor.
+      // eslint-disable-next-line no-await-in-loop
+      await this.audit.log({
+        eventType: 'legal.seeded',
+        entity: 'LegalDoc',
+        entityId: created.id,
+        metadata: { type: created.type, version: created.version },
+      });
+    }
+  }
 
   async createDoc(dto: CreateLegalDocDto, actor: Actor) {
     const exists = await this.docModel.findOne({ type: dto.type, version: dto.version });

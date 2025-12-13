@@ -27,9 +27,5 @@ export class StartWaitlistDto {
 
   @IsOptional()
   @IsString()
-  captchaToken?: string
-
-  @IsOptional()
-  @IsString()
   trap?: string
 }

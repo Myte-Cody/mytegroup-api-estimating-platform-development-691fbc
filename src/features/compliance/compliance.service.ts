@@ -8,6 +8,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Role } from '../../common/roles';
 import { AuditLogService } from '../../common/services/audit-log.service';
+import { EventLogService } from '../../common/events/event-log.service';
 import { TenantConnectionService } from '../../common/tenancy/tenant-connection.service';
 import { BatchArchiveDto } from './dto/batch-archive.dto';
 import { SetLegalHoldDto } from './dto/set-legal-hold.dto';
@@ -79,6 +80,7 @@ export class ComplianceService {
     @InjectModel('Invite') private readonly inviteModel: Model<Invite>,
     @InjectModel('Project') private readonly projectModel: Model<Project>,
     private readonly audit: AuditLogService,
+    private readonly events: EventLogService,
     private readonly tenants: TenantConnectionService
   ) {}
 
@@ -220,10 +222,16 @@ export class ComplianceService {
 
     const after = this.collectAfterSnapshot(record, fieldNames);
     const orgId = this.resolveOrgId(entityType, record);
+    await this.events.applyComplianceToEntityEvents({
+      orgId,
+      entity: this.entityLabel(entityType),
+      entityId,
+      piiStripped: true,
+    });
     await this.audit.log({
       eventType: 'compliance.strip_pii',
       orgId,
-      actorId: actor.id,
+      userId: actor.id,
       entity: this.entityLabel(entityType),
       entityId,
       metadata: { redactedFields: fieldNames, before, after },
@@ -243,12 +251,19 @@ export class ComplianceService {
 
     const orgId = this.resolveOrgId(entityType, record);
     const entityId = (record as any).id || (record as any)._id || dto.entityId;
+    await this.events.applyComplianceToEntityEvents({
+      orgId,
+      entity: this.entityLabel(entityType),
+      entityId,
+      legalHold: dto.legalHold,
+    });
     await this.audit.log({
       eventType: 'compliance.legal_hold',
       orgId,
-      actorId: actor.id,
+      userId: actor.id,
       entity: this.entityLabel(entityType),
       entityId,
+      legalHold: dto.legalHold,
       metadata: { before, after: dto.legalHold, reason: dto.reason },
     });
 
@@ -300,7 +315,7 @@ export class ComplianceService {
     await this.audit.log({
       eventType: 'compliance.batch_archive',
       orgId: resolvedOrgForAudit || actor.orgId,
-      actorId: actor.id,
+      userId: actor.id,
       entity: this.entityLabel(entityType),
       metadata: { action: archive ? 'archive' : 'unarchive', archived, skipped },
     });

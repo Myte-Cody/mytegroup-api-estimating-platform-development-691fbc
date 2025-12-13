@@ -124,6 +124,10 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
       );
       const projectId = (project as any)._id || (project as any).id;
       await projectModel.updateOne({ _id: projectId }, { $set: { legalHold: true } });
+      await assert.rejects(
+        projects.update(projectId, { description: 'should fail' }, adminActor()),
+        ForbiddenException
+      );
       await assert.rejects(projects.archive(projectId, adminActor()), ForbiddenException);
       await projectModel.updateOne({ _id: projectId }, { $set: { archivedAt: new Date(), legalHold: true } });
       await assert.rejects(projects.unarchive(projectId, adminActor()), ForbiddenException);
@@ -148,6 +152,7 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
       const office = await offices.create({ name: 'LegalHold', organizationId: orgAId }, adminActor());
       const officeId = (office as any)._id || (office as any).id;
       await officeModel.updateOne({ _id: officeId }, { $set: { legalHold: true } });
+      await assert.rejects(offices.update(officeId, { address: 'Nope' }, adminActor()), ForbiddenException);
       await assert.rejects(offices.archive(officeId, adminActor()), ForbiddenException);
       await officeModel.updateOne({ _id: officeId }, { $set: { archivedAt: new Date(), legalHold: true } });
       await assert.rejects(offices.unarchive(officeId, adminActor()), ForbiddenException);
@@ -208,6 +213,7 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
       });
       const contactId = (contact as any)._id || (contact as any).id;
       await contactModel.updateOne({ _id: contactId }, { $set: { legalHold: true } });
+      await assert.rejects(contacts.update(adminActor(), orgAId, contactId, { name: 'Nope' }), ForbiddenException);
       await assert.rejects(contacts.archive(adminActor(), orgAId, contactId), ForbiddenException);
       await contactModel.updateOne({ _id: contactId }, { $set: { archivedAt: new Date(), legalHold: true } });
       await assert.rejects(contacts.unarchive(adminActor(), orgAId, contactId), ForbiddenException);

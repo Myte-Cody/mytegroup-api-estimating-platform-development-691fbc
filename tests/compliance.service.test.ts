@@ -109,6 +109,8 @@ const buildService = () => {
   ]);
   const auditLog = [];
   const audit = { log: async (event) => auditLog.push(event) };
+  const eventsCalls = [];
+  const events = { applyComplianceToEntityEvents: async (params) => eventsCalls.push(params) };
   const tenants = { getModelForOrg: async () => contactModel };
   const service = new ComplianceService(
     userModel,
@@ -116,9 +118,10 @@ const buildService = () => {
     inviteModel,
     projectModel,
     audit,
+    events,
     tenants
   );
-  return { service, auditLog, userModel, contactModel, inviteModel, projectModel };
+  return { service, auditLog, eventsCalls, userModel, contactModel, inviteModel, projectModel };
 };
 
 describe('ComplianceService', () => {
@@ -144,6 +147,7 @@ describe('ComplianceService', () => {
     assert.deepEqual(event.metadata.redactedFields, ['email', 'username', 'lastLogin']);
     assert.equal(event.metadata.before.email, '<redacted>');
     assert(!event.metadata.before.email.includes('user@example.com'));
+    assert.ok(ctx.eventsCalls.some((call) => call.entityId === 'user-1' && call.piiStripped === true));
   });
 
   it('strips invite PII, expires token, and emits audit snapshot', async () => {
@@ -161,6 +165,7 @@ describe('ComplianceService', () => {
     assert.deepEqual(event.metadata.redactedFields, ['email', 'tokenHash', 'tokenExpires']);
     assert.equal(event.metadata.before.tokenExpires, '<redacted>');
     assert.equal(event.metadata.after.tokenExpires?.getTime?.(), 0);
+    assert.ok(ctx.eventsCalls.some((call) => call.entityId === 'invite-1' && call.piiStripped === true));
   });
 
   it('blocks strip when entity is on legal hold', async () => {
@@ -206,5 +211,6 @@ describe('ComplianceService', () => {
     assert(event);
     assert.equal(event.metadata.before, false);
     assert.equal(event.metadata.after, true);
+    assert.ok(ctx.eventsCalls.some((call) => call.entityId === 'project-1' && call.legalHold === true));
   });
 });

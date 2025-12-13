@@ -132,6 +132,33 @@ describe('EventLogService', () => {
     assert.strictEqual(results.data[0].legalHold, true);
   });
 
+  it('can retroactively apply compliance flags to entity events', async () => {
+    await createEvent({
+      orgId: 'org-1',
+      entityType: 'Contact',
+      entityId: 'contact-1',
+      metadata: { email: 'secret@example.com' },
+      payload: { sensitive: true },
+    });
+
+    await service.applyComplianceToEntityEvents({
+      orgId: 'org-1',
+      entity: 'Contact',
+      entityId: 'contact-1',
+      piiStripped: true,
+    });
+
+    const stored = await model.findOne({ orgId: 'org-1', entityId: 'contact-1' }).lean();
+    assert(stored);
+    assert.strictEqual(stored.piiStripped, true);
+    assert.strictEqual(stored.metadata, undefined);
+    assert.strictEqual(stored.payload, undefined);
+
+    const results = await service.list('org-1', {}, Role.Admin);
+    assert.strictEqual(results.data.length, 1);
+    assert.strictEqual(results.data[0].redacted, true);
+  });
+
   it('excludes archived events by default and includes them when requested', async () => {
     await createEvent({ orgId: 'org-1', entityId: 'active', archivedAt: null });
     await createEvent({ orgId: 'org-1', entityId: 'archived', archivedAt: new Date() });

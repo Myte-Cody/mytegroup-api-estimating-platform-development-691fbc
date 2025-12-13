@@ -44,9 +44,5 @@ export class CreateContactInquiryDto {
 
   @IsOptional()
   @IsString()
-  captchaToken?: string
-
-  @IsOptional()
-  @IsString()
   trap?: string
 }

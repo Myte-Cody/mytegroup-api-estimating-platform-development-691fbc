@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Patch, Param, Req, ForbiddenException, Get } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Patch, Param, Req, ForbiddenException, Get, Query } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { SessionGuard } from '../../common/guards/session.guard';
@@ -10,6 +10,7 @@ import { Request } from 'express';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { UpdateOrganizationLegalHoldDto } from './dto/update-organization-legal-hold.dto';
 import { UpdateOrganizationPiiDto } from './dto/update-organization-pii.dto';
+import { ListOrganizationsDto } from './dto/list-organizations.dto';
 @Controller('organizations')
 export class OrganizationsController {
   constructor(private svc: OrganizationsService) {}
@@ -31,6 +32,14 @@ export class OrganizationsController {
   create(@Body() dto: CreateOrganizationDto, @Req() req: Request) {
     const actor = (req as any).user || req.session?.user;
     return this.svc.create(dto, actor);
+  }
+
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(Role.SuperAdmin, Role.PlatformAdmin)
+  @Get()
+  // GET /organizations - Platform roles only; lists orgs (redacts datastore URIs).
+  async list(@Query() query: ListOrganizationsDto) {
+    return this.svc.list(query);
   }
 
   @UseGuards(SessionGuard, RolesGuard)

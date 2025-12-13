@@ -26,16 +26,8 @@ export const waitlistConfig = {
     maxTotalResends: 6, // total resends before blocking
     blockMinutes: 60, // how long to block verification after exceeding limits
   },
-  captcha: {
-    provider: 'turnstile' as 'turnstile' | 'hcaptcha' | 'none',
-    /**
-     * Captcha secrets should live in env:
-     *  - Turnstile: TURNSTILE_SECRET
-     *  - hCaptcha: HCAPTCHA_SECRET
-     */
-    enabled: true,
-    requireToken: true, // when true, reject requests without a captcha token
-  },
+  // Captcha is intentionally omitted for now.
+  // We rely on domain policy + email verification codes + Redis rate limiting.
   domainPolicy: {
     // Block disposable and common personal email providers; enforce company domains for waitlist.
     denylist: [

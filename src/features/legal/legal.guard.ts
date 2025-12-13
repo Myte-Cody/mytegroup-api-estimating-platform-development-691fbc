@@ -7,6 +7,11 @@ export class LegalGuard implements CanActivate {
 
   constructor(private readonly legal: LegalService) {}
 
+  private shouldEnforce() {
+    const raw = (process.env.LEGAL_ENFORCE ?? '1').toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const user = request.session?.user || request.user;
@@ -17,14 +22,18 @@ export class LegalGuard implements CanActivate {
       request.legalStatus = status;
       request.legalRequired = status.required || [];
 
-      const enforce = (process.env.LEGAL_ENFORCE || '').toLowerCase() === '1';
-      const isLegalRoute = (request.path || '').startsWith('/legal');
+      const enforce = this.shouldEnforce();
+      const path = request.path || '';
+      const isLegalRoute = path.startsWith('/legal');
+      const isAuthRoute = path.startsWith('/auth');
+      const isHealthRoute = path.startsWith('/health');
 
-      if (enforce && status.required?.length && !isLegalRoute) {
+      // Auth routes must remain accessible so the client can discover legalRequired and route to /legal.
+      if (enforce && status.required?.length && !isLegalRoute && !isAuthRoute && !isHealthRoute) {
         throw new ForbiddenException('Legal acceptance required');
       }
     } catch (err) {
-      const enforce = (process.env.LEGAL_ENFORCE || '').toLowerCase() === '1';
+      const enforce = this.shouldEnforce();
       if (enforce) {
         throw err;
       }

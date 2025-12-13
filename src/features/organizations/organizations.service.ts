@@ -15,6 +15,7 @@ import { UpdateOrganizationLegalHoldDto } from './dto/update-organization-legal-
 import { UpdateOrganizationPiiDto } from './dto/update-organization-pii.dto';
 import { Organization } from './schemas/organization.schema';
 import { TenantConnectionService } from '../../common/tenancy/tenant-connection.service';
+import { ListOrganizationsDto } from './dto/list-organizations.dto';
 
 type Actor = { id?: string | null };
 
@@ -94,6 +95,9 @@ export class OrganizationsService {
 
   async setOwner(orgId: string, userId: string) {
     const org = await this.getOrgOrThrow(orgId);
+    if (org.legalHold) {
+      throw new ForbiddenException('Organization is under legal hold');
+    }
     org.ownerUserId = userId;
     org.createdByUserId = org.createdByUserId || userId;
     await org.save();
@@ -109,6 +113,9 @@ export class OrganizationsService {
 
   async update(id: string, dto: UpdateOrganizationDto, actor?: Actor) {
     const org = await this.getOrgOrThrow(id);
+    if (org.legalHold) {
+      throw new ForbiddenException('Organization is under legal hold');
+    }
     if (dto.name) {
       const collision = await this.orgModel.findOne({ name: dto.name, _id: { $ne: id } });
       if (collision) throw new ConflictException('Organization name already in use');
@@ -230,6 +237,62 @@ export class OrganizationsService {
 
   async findAll() {
     return this.orgModel.find({ archivedAt: null });
+  }
+
+  private sanitizeListItem(raw: any) {
+    const org = raw?.toObject ? raw.toObject() : raw;
+    const id = org?.id || (org?._id ? String(org._id) : undefined);
+    const datastoreType = this.currentDatastoreType(org as Organization);
+    return {
+      id,
+      name: org?.name,
+      primaryDomain: org?.primaryDomain || null,
+      archivedAt: org?.archivedAt || null,
+      legalHold: !!org?.legalHold,
+      piiStripped: !!org?.piiStripped,
+      datastoreType,
+      dataResidency: org?.dataResidency || (datastoreType === 'dedicated' ? 'dedicated' : 'shared'),
+      useDedicatedDb: !!org?.useDedicatedDb,
+      databaseName: org?.databaseName || null,
+    };
+  }
+
+  async list(params: ListOrganizationsDto) {
+    const {
+      search,
+      includeArchived,
+      datastoreType,
+      legalHold,
+      piiStripped,
+      page = 1,
+      limit = 25,
+    } = params || {};
+
+    const query: any = {};
+    if (!includeArchived) query.archivedAt = null;
+    if (datastoreType) query.datastoreType = datastoreType;
+    if (typeof legalHold === 'boolean') query.legalHold = legalHold;
+    if (typeof piiStripped === 'boolean') query.piiStripped = piiStripped;
+    if (search) {
+      const rx = new RegExp(search, 'i');
+      query.$or = [{ name: rx }, { primaryDomain: rx }];
+    }
+
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const safePage = Math.max(page, 1);
+    const skip = (safePage - 1) * safeLimit;
+
+    const [data, total] = await Promise.all([
+      this.orgModel.find(query).sort({ createdAt: -1 }).skip(skip).limit(safeLimit).lean(),
+      this.orgModel.countDocuments(query),
+    ]);
+
+    return {
+      data: (data || []).map((org) => this.sanitizeListItem(org)),
+      total,
+      page: safePage,
+      limit: safeLimit,
+    };
   }
 
   async hasAnyOrganization() {

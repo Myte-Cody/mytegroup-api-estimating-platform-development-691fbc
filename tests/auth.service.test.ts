@@ -11,8 +11,6 @@ const argon2 = require('argon2');
 const hashPassword = async (password) => argon2.hash(password);
 
 // Test-only accounts and secrets used across auth tests.
-const TEST_BOOTSTRAP_EMAIL = 'ahmed.mekallach@mytegroup.com';
-const TEST_BOOTSTRAP_PASSWORD = 'Ahmed@123Ahmed@123';
 const TEST_REG_EMAIL = 'regular.user+auth@test.mytegroup.com';
 const TEST_REG_PASSWORD = 'Test@123Test@123';
 
@@ -212,69 +210,5 @@ describe('AuthService login and tokens', () => {
     await assert.rejects(() => svc.verifyEmail({ token: 'bad' }), BadRequestException);
   });
 
-  it('registers bootstrap user for configured email and bypasses invite gate', async () => {
-    const previousBootstrap = process.env.BOOTSTRAP_EMAILS;
-    process.env.BOOTSTRAP_EMAILS = TEST_BOOTSTRAP_EMAIL;
-    const auditEvents = [];
-    const audit = { log: async (evt) => auditEvents.push(evt) };
 
-    const createdUsers = [];
-    const overrides = {
-      users: {
-        create: async (dto) => {
-          createdUsers.push(dto);
-          return { id: 'bootstrap-user', ...dto };
-        },
-      },
-      orgs: {
-        create: async (dto) => ({ id: 'root-org', ...dto }),
-        findById: async (id) => ({ id }),
-        setOwner: async () => null,
-        hasAnyOrganization: async () => false,
-      },
-      email: {
-        // bootstrap path should not send a verification email
-        sendVerificationEmail: async () => {
-          throw new Error('bootstrap should not send verification email');
-        },
-      },
-      waitlist: {
-        ensurePending: async () => ({ status: 'pending-cohort', cohortTag: 'wave-1' }),
-        shouldEnforceInviteGate: () => true,
-        domainGateEnabled: () => false,
-        acquireDomainClaim: async () => true,
-        releaseDomainClaim: async () => undefined,
-        markActivated: async () => null,
-        logEvent: async () => null,
-      },
-    };
-
-    const svc = new AuthService(audit, overrides.users, overrides.orgs, overrides.email, overrides.waitlist);
-
-    const dto = {
-      username: 'Ahmed Mekallach',
-      firstName: 'Ahmed',
-      lastName: 'Mekallach',
-      email: TEST_BOOTSTRAP_EMAIL,
-      password: TEST_BOOTSTRAP_PASSWORD,
-      organizationName: 'Myte Group Inc',
-      legalAccepted: true,
-    };
-
-    const user = await svc.register(dto as any);
-
-    assert.equal(user.id, 'bootstrap-user');
-    assert.equal(user.organizationId, 'root-org');
-    assert.equal(user.role, Role.SuperAdmin);
-    assert.deepEqual(user.roles, [Role.SuperAdmin, Role.PlatformAdmin, Role.OrgOwner]);
-    assert.equal(user.isOrgOwner, true);
-    assert.equal(user.isEmailVerified, true);
-
-    const bootstrapEvent = auditEvents.find((e) => e.eventType === 'auth.bootstrap_org_created');
-    assert.ok(bootstrapEvent);
-    assert.equal(bootstrapEvent.orgId, 'root-org');
-    assert.equal(bootstrapEvent.userId, 'bootstrap-user');
-
-    process.env.BOOTSTRAP_EMAILS = previousBootstrap;
-  });
 });

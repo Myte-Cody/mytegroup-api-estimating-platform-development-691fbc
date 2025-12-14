@@ -1,6 +1,6 @@
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const argon2 = require('argon2');
 
 dotenv.config();
 
@@ -66,36 +66,38 @@ async function main() {
 
   const email = process.env.SEED_SUPERADMIN_EMAIL || 'myte@mytegroup.com';
   const password = process.env.SEED_SUPERADMIN_PASSWORD || 'Myte@123Ahmed@123';
+  const primaryDomain = (process.env.SEED_SUPERADMIN_PRIMARY_DOMAIN || 'mytegroup.com').toLowerCase();
+  const orgName = process.env.SEED_SUPERADMIN_ORG_NAME || 'Myte Group Inc';
 
-  let user = await User.findOne({ email }).lean();
-  if (user) {
-    console.log(`Super admin user already exists: ${email}`);
-    await mongoose.disconnect();
-    return;
-  }
+  const org = await Organization.findOneAndUpdate(
+    { primaryDomain },
+    { $setOnInsert: { primaryDomain }, $set: { name: orgName } },
+    { new: true, upsert: true }
+  ).lean();
+  const orgId = org.id || org._id.toString();
 
-  const orgName = 'MYTE Root Org';
-  let org = await Organization.findOne({ primaryDomain: 'mytegroup.com' }).lean();
-  if (!org) {
-    org = await Organization.create({ name: orgName, primaryDomain: 'mytegroup.com' });
-  }
+  const existing = await User.findOne({ email }).lean();
+  const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+  const user = await User.findOneAndUpdate(
+    { email },
+    {
+      $setOnInsert: { email },
+      $set: {
+        username: existing?.username || 'MYTE SuperAdmin',
+        passwordHash,
+        role: 'superadmin',
+        roles: ['superadmin'],
+        organizationId: orgId,
+        isEmailVerified: true,
+        isOrgOwner: true,
+        archivedAt: null,
+        legalHold: false,
+      },
+    },
+    { new: true, upsert: true }
+  ).lean();
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  user = await User.create({
-    username: 'MYTE SuperAdmin',
-    email,
-    passwordHash,
-    role: 'superadmin',
-    roles: ['superadmin'],
-    organizationId: org.id || org._id.toString(),
-    isEmailVerified: true,
-    isOrgOwner: true,
-  });
-
-  await Organization.updateOne(
-    { _id: org.id || org._id },
-    { $set: { ownerUserId: user.id || user._id.toString() } }
-  );
+  await Organization.updateOne({ _id: orgId }, { $set: { ownerUserId: user.id || user._id.toString() } });
 
   console.log('Seeded super admin user:', email);
   await mongoose.disconnect();
@@ -105,4 +107,3 @@ main().catch((err) => {
   console.error('Seed script failed', err);
   process.exit(1);
 });
-

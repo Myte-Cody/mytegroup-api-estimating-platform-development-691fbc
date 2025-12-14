@@ -34,8 +34,11 @@ const buildOrigin = (host: string | undefined, port?: number) => {
   return `${protocol}://${safeHost}${portSegment}`;
 };
 
-export const clientOrigin = buildOrigin(rootHost, defaultClientPort);
-export const apiOrigin = buildOrigin(rootHost, defaultApiPort);
+const explicitClientOrigin = normalizeOrigin(process.env.CLIENT_ORIGIN);
+const explicitApiOrigin = normalizeOrigin(process.env.API_ORIGIN);
+
+export const clientOrigin = explicitClientOrigin || buildOrigin(rootHost, defaultClientPort);
+export const apiOrigin = explicitApiOrigin || buildOrigin(rootHost, defaultApiPort);
 
 const rawCookieDomain = process.env.SESSION_COOKIE_DOMAIN || rootHost;
 
@@ -119,11 +122,12 @@ export const featureFlags = {
 
 export const clientOrigins = () => {
   const origins = [
-    normalizeOrigin(process.env.CLIENT_ORIGIN),
+    explicitClientOrigin,
     normalizeOrigin(process.env.CLIENT_ORIGIN_ALT),
     normalizeOrigin(process.env.ROOT_DOMAIN_PROD),
     normalizeOrigin(process.env.ROOT_DOMAIN_DEV),
     clientOrigin,
+    apiOrigin,
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:4000',

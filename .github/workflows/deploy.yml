@@ -337,12 +337,16 @@ jobs:
                     "value": "${{ secrets.MYTE_API_KEY }}"
                   },
                   {
-                    "name": "TURNSTILE_SECRET",
-                    "value": "${{ secrets.TURNSTILE_SECRET }}"
+                    "name": "TWILIO_ACCOUNT_SID",
+                    "value": "${{ secrets.TWILIO_ACCOUNT_SID }}"
                   },
                   {
-                    "name": "HCAPTCHA_SECRET",
-                    "value": "${{ secrets.HCAPTCHA_SECRET }}"
+                    "name": "TWILIO_AUTH_TOKEN",
+                    "value": "${{ secrets.TWILIO_AUTH_TOKEN }}"
+                  },
+                  {
+                    "name": "TWILIO_PHONE_NUMBER",
+                    "value": "${{ secrets.TWILIO_PHONE_NUMBER }}"
                   },
                   {
                     "name": "REDIS_URL",
@@ -431,6 +435,10 @@ jobs:
                   {
                     "name": "CLIENT_ORIGIN",
                     "value": "${{ secrets.CLIENT_ORIGIN }}"
+                  },
+                  {
+                    "name": "API_ORIGIN",
+                    "value": "${{ secrets.API_ORIGIN }}"
                   },
                   {
                     "name": "CLIENT_ORIGIN_ALT",

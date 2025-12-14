@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class CreateWaitlistDto {
   @IsEmail()
@@ -7,6 +7,11 @@ export class CreateWaitlistDto {
   @IsString()
   @MaxLength(120)
   name: string;
+
+  @IsString()
+  @Matches(/^\+[1-9]\d{1,14}$/, { message: 'phone must be in E.164 format (e.g. +15145551234)' })
+  @MaxLength(20)
+  phone: string;
 
   @IsString()
   @MaxLength(80)

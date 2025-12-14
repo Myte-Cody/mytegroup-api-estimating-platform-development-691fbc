@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { InjectModel } from '@nestjs/mongoose'
 import { Model } from 'mongoose'
+import * as crypto from 'crypto'
 import { AuditLogService } from '../../common/services/audit-log.service'
 import { buildClientUrl } from '../../config/app.config'
 import { normalizeDomainFromEmail } from '../../common/utils/domain.util'
@@ -8,6 +9,7 @@ import { EmailService } from '../email/email.service'
 import { StartWaitlistDto } from './dto/start-waitlist.dto'
 import { VerifyWaitlistDto } from './dto/verify-waitlist.dto'
 import { ResendWaitlistDto } from './dto/resend-waitlist.dto'
+import { VerifyWaitlistPhoneDto } from './dto/verify-waitlist-phone.dto'
 import { waitlistConfig } from './waitlist.config'
 import { WaitlistEntry, WaitlistStatus, WaitlistVerifyStatus } from './waitlist.schema'
 import { waitlistInviteTemplate, waitlistVerificationTemplate } from '../email/templates'
@@ -16,6 +18,7 @@ import { createRedisClient } from '../../common/redis/redis.client'
 import { RedisRateLimiter } from '../../common/redis/rate-limiter'
 import { createQueue, createQueueScheduler, createWorker } from '../../queues/queue.factory'
 import { opsConfig } from '../../config/ops.config'
+import { SmsService } from '../sms/sms.service'
 
 export type WaitlistStats = {
   waitlistCount: number
@@ -41,6 +44,7 @@ export class WaitlistService {
     @InjectModel('Waitlist') private readonly model: Model<WaitlistEntry>,
     private readonly audit: AuditLogService,
     private readonly email: EmailService,
+    private readonly sms: SmsService,
     private readonly users: UsersService
   ) {
     this.startMailWorker()
@@ -48,6 +52,14 @@ export class WaitlistService {
 
   private normalizeEmail(email: string) {
     return (email || '').trim().toLowerCase()
+  }
+
+  private normalizePhone(phone: string) {
+    return (phone || '').trim()
+  }
+
+  private isPhoneValid(phone: string) {
+    return /^\+[1-9]\d{1,14}$/.test(phone)
   }
 
   private isEmailValid(email: string) {
@@ -112,6 +124,32 @@ export class WaitlistService {
     return unblocked || entry
   }
 
+  private async ensurePhoneNotBlocked(entry: WaitlistEntry) {
+    if (!entry) return entry
+    if (entry.phoneVerifyStatus !== 'blocked') return entry
+    const now = new Date()
+    if (entry.phoneVerifyBlockedUntil && entry.phoneVerifyBlockedUntil.getTime() > now.getTime()) {
+      throw new ForbiddenException('Too many attempts. Please try later.')
+    }
+    // unblock after expiry
+    const unblocked = await this.model
+      .findOneAndUpdate(
+        { _id: entry._id },
+        {
+          $set: {
+            phoneVerifyStatus: 'unverified' as WaitlistVerifyStatus,
+            phoneVerifyBlockedAt: null,
+            phoneVerifyBlockedUntil: null,
+            phoneVerifyAttempts: 0,
+            phoneVerifyResends: 0,
+          },
+        },
+        { new: true }
+      )
+      .lean()
+    return unblocked || entry
+  }
+
   private async maybeBlock(entry: WaitlistEntry, reason: string) {
     const now = new Date()
     const until = new Date(now.getTime() + (waitlistConfig.verification.blockMinutes || 60) * 60 * 1000)
@@ -135,6 +173,29 @@ export class WaitlistService {
     throw new ForbiddenException('Too many attempts. Please try later.')
   }
 
+  private async maybeBlockPhone(entry: WaitlistEntry, reason: string) {
+    const now = new Date()
+    const until = new Date(now.getTime() + (waitlistConfig.verification.blockMinutes || 60) * 60 * 1000)
+    await this.model.updateOne(
+      { _id: entry._id },
+      {
+        $set: {
+          phoneVerifyStatus: 'blocked' as WaitlistVerifyStatus,
+          phoneVerifyBlockedAt: now,
+          phoneVerifyBlockedUntil: until,
+          phoneVerifyCode: null,
+          phoneVerifyExpiresAt: null,
+        },
+      }
+    )
+    await this.audit.log({
+      eventType: 'marketing.waitlist_blocked',
+      actor: entry.email,
+      metadata: { reason: `phone:${reason}` },
+    })
+    throw new ForbiddenException('Too many attempts. Please try later.')
+  }
+
   private async assertTotalLimits(entry: WaitlistEntry) {
     const maxTotalAttempts = waitlistConfig.verification.maxTotalAttempts || 12
     const maxTotalResends = waitlistConfig.verification.maxTotalResends || 6
@@ -143,6 +204,12 @@ export class WaitlistService {
     }
     if (entry.verifyResends >= maxTotalResends) {
       await this.maybeBlock(entry, 'max_total_resends')
+    }
+    if ((entry.phoneVerifyAttemptTotal || 0) >= maxTotalAttempts) {
+      await this.maybeBlockPhone(entry, 'max_total_attempts')
+    }
+    if ((entry.phoneVerifyResends || 0) >= maxTotalResends) {
+      await this.maybeBlockPhone(entry, 'max_total_resends')
     }
   }
 
@@ -212,6 +279,14 @@ export class WaitlistService {
     return `waitlist:verify:attempt:${email}`
   }
 
+  private phoneVerifyCodeKey(email: string) {
+    return `waitlist:verify:phone:code:${email}`
+  }
+
+  private phoneVerifyAttemptKey(email: string) {
+    return `waitlist:verify:phone:attempt:${email}`
+  }
+
   private domainClaimKey(domain: string) {
     return `waitlist:domain:claim:${domain}`
   }
@@ -271,9 +346,20 @@ export class WaitlistService {
     await this.redis.del(this.verifyAttemptKey(email))
   }
 
+  private async storePhoneVerificationCode(email: string, code: string, ttlMs: number) {
+    await this.ensureRedis()
+    await this.redis.set(this.phoneVerifyCodeKey(email), code, 'PX', ttlMs)
+    await this.redis.del(this.phoneVerifyAttemptKey(email))
+  }
+
   private async fetchVerificationCode(email: string) {
     await this.ensureRedis()
     return this.redis.get(this.verifyCodeKey(email))
+  }
+
+  private async fetchPhoneVerificationCode(email: string) {
+    await this.ensureRedis()
+    return this.redis.get(this.phoneVerifyCodeKey(email))
   }
 
   private async bumpVerifyAttempt(email: string, ttlMs: number) {
@@ -283,9 +369,25 @@ export class WaitlistService {
     return count
   }
 
+  private async bumpPhoneVerifyAttempt(email: string, ttlMs: number) {
+    await this.ensureRedis()
+    const results = await this.redis
+      .multi()
+      .incr(this.phoneVerifyAttemptKey(email))
+      .pexpire(this.phoneVerifyAttemptKey(email), ttlMs, 'NX')
+      .exec()
+    const count = Number(results?.[0]?.[1] ?? 0)
+    return count
+  }
+
   private async clearVerificationState(email: string) {
     await this.ensureRedis()
     await this.redis.del(this.verifyCodeKey(email), this.verifyAttemptKey(email))
+  }
+
+  private async clearPhoneVerificationState(email: string) {
+    await this.ensureRedis()
+    await this.redis.del(this.phoneVerifyCodeKey(email), this.phoneVerifyAttemptKey(email))
   }
 
   private startMailWorker() {
@@ -294,7 +396,7 @@ export class WaitlistService {
     this.mailScheduler.waitUntilReady().catch((err) => {
       this.logger.error(`[waitlist-mail] scheduler failed: ${err?.message || err}`)
     })
-    const worker = createWorker<{ type: 'verify' | 'invite'; email: string; code?: string; name?: string; domain?: string }>(
+    const worker = createWorker<{ type: 'verify' | 'invite'; email: string; code?: string; name?: string; domain?: string; registerLink?: string }>(
       'waitlist-mail',
       async (job) => {
         if ((job.data as any).forceFail) {
@@ -304,7 +406,7 @@ export class WaitlistService {
           const t = waitlistVerificationTemplate({ code: job.data.code || '000000', userName: job.data.name })
           await this.email.sendMail({ email: job.data.email, subject: t.subject, text: t.text, html: t.html })
         } else {
-          const registerLink = buildClientUrl('/auth/register')
+          const registerLink = job.data.registerLink || buildClientUrl('/auth/register')
           const calendly = 'https://calendly.com/ahmed-mekallach/thought-exchange'
           const domain = job.data.domain || 'your company'
           const t = waitlistInviteTemplate({ registerLink, domain, calendly })
@@ -361,6 +463,11 @@ export class WaitlistService {
     await this.assertWaitlistAllowed(dto.email, ip)
     const now = new Date()
     const normalizedEmail = this.normalizeEmail(dto.email)
+    const normalizedPhone = this.normalizePhone(dto.phone)
+    if (!this.isPhoneValid(normalizedPhone)) {
+      throw new BadRequestException('Invalid phone (expected E.164 format, e.g. +15145551234)')
+    }
+
     this.ensureDomainAllowed(normalizedEmail)
 
     if (await this.hasActiveUser(normalizedEmail)) {
@@ -374,89 +481,68 @@ export class WaitlistService {
     const existing = await this.model.findOne({ email: normalizedEmail, archivedAt: null })
     if (existing) {
       await this.ensureNotBlocked(existing)
+      await this.ensurePhoneNotBlocked(existing as any)
       await this.assertTotalLimits(existing)
-      if (existing.verifyStatus === 'verified') {
-        return { status: 'verified', entry: existing.toObject ? existing.toObject() : existing }
-      }
     }
 
     const contactVerified = await this.isContactEmailVerified(normalizedEmail)
+    const emailAlreadyVerified = !!contactVerified || existing?.verifyStatus === 'verified'
 
-    let entry
-    if (contactVerified) {
-      const update = {
-        name: dto.name,
-        role: dto.role,
-        source: dto.source || 'landing',
-        preCreateAccount: !!dto.preCreateAccount,
-        marketingConsent: !!dto.marketingConsent,
-        status: 'pending-cohort' as WaitlistStatus,
-        verifyStatus: 'verified' as WaitlistVerifyStatus,
-        verifyCode: null,
-        verifyExpiresAt: null,
-        verifyAttempts: 0,
-        verifiedAt: now,
-        lastVerifySentAt: now,
-        invitedAt: null,
-        cohortTag: null,
-        updatedAt: now,
-      }
-      entry = await this.model
-        .findOneAndUpdate(
-          { email: normalizedEmail, archivedAt: null },
-          {
-            $set: update,
-            $setOnInsert: {
-              email: normalizedEmail,
-              createdAt: now,
-              verifyResends: 0,
-              verifyAttemptTotal: 0,
-              inviteFailureCount: 0,
-            },
-          },
-          { upsert: true, new: true }
-        )
-        .lean()
+    const existingPhone = this.normalizePhone((existing as any)?.phone || '')
+    const phoneAlreadyVerified =
+      existing?.phoneVerifyStatus === 'verified' && existingPhone === normalizedPhone
 
-      await this.audit.log({
-        eventType: 'marketing.waitlist_join_contact_verified',
-        actor: normalizedEmail,
-        metadata: { source: dto.source || 'landing' },
-      })
-
-      return { status: 'verified', entry }
+    if (emailAlreadyVerified) {
+      await this.clearVerificationState(normalizedEmail)
+    }
+    if (phoneAlreadyVerified) {
+      await this.clearPhoneVerificationState(normalizedEmail)
     }
 
-    const code = this.generateCode()
-    const expires = this.computeExpiry(now)
-    const ttlMs = expires.getTime() - now.getTime()
-    const update = {
-      name: dto.name,
-      role: dto.role,
-      source: dto.source || 'landing',
-      preCreateAccount: !!dto.preCreateAccount,
-      marketingConsent: !!dto.marketingConsent,
-      status: 'pending-cohort' as WaitlistStatus,
-      verifyStatus: 'unverified' as WaitlistVerifyStatus,
-      verifyCode: code,
-      verifyExpiresAt: expires,
-      verifyAttempts: 0,
-      verifiedAt: null,
-      lastVerifySentAt: now,
-      invitedAt: null,
-      cohortTag: null,
-      updatedAt: now,
-    }
-    entry = await this.model
+    const needsEmailCode = !emailAlreadyVerified
+    const needsPhoneCode = !phoneAlreadyVerified
+    const emailCode = needsEmailCode ? this.generateCode() : null
+    const phoneCode = needsPhoneCode ? this.generateCode() : null
+    const expires = needsEmailCode || needsPhoneCode ? this.computeExpiry(now) : null
+    const ttlMs = expires ? expires.getTime() - now.getTime() : 0
+
+    const existingStatus = existing?.status as WaitlistStatus | undefined
+    const status: WaitlistStatus =
+      existingStatus === 'invited' || existingStatus === 'activated' ? existingStatus : 'pending-cohort'
+
+    const entry = await this.model
       .findOneAndUpdate(
         { email: normalizedEmail, archivedAt: null },
         {
-          $set: update,
+          $set: {
+            name: dto.name,
+            phone: normalizedPhone,
+            role: dto.role,
+            source: dto.source || 'landing',
+            preCreateAccount: !!dto.preCreateAccount,
+            marketingConsent: !!dto.marketingConsent,
+            status,
+            verifyStatus: emailAlreadyVerified ? ('verified' as WaitlistVerifyStatus) : ('unverified' as WaitlistVerifyStatus),
+            verifyCode: emailCode,
+            verifyExpiresAt: emailCode ? expires : null,
+            verifyAttempts: 0,
+            verifiedAt: emailAlreadyVerified ? (existing?.verifiedAt || now) : null,
+            lastVerifySentAt: emailCode ? now : existing?.lastVerifySentAt || null,
+            phoneVerifyStatus: phoneAlreadyVerified ? ('verified' as WaitlistVerifyStatus) : ('unverified' as WaitlistVerifyStatus),
+            phoneVerifyCode: phoneCode,
+            phoneVerifyExpiresAt: phoneCode ? expires : null,
+            phoneVerifyAttempts: 0,
+            phoneVerifiedAt: phoneAlreadyVerified ? ((existing as any)?.phoneVerifiedAt || now) : null,
+            phoneLastVerifySentAt: phoneCode ? now : (existing as any)?.phoneLastVerifySentAt || null,
+            updatedAt: now,
+          },
           $setOnInsert: {
             email: normalizedEmail,
             createdAt: now,
             verifyResends: 0,
             verifyAttemptTotal: 0,
+            phoneVerifyResends: 0,
+            phoneVerifyAttemptTotal: 0,
             inviteFailureCount: 0,
           },
         },
@@ -472,18 +558,30 @@ export class WaitlistService {
         source: dto.source || 'landing',
         preCreateAccount: !!dto.preCreateAccount,
         marketingConsent: !!dto.marketingConsent,
+        needsEmailVerification: needsEmailCode,
+        needsPhoneVerification: needsPhoneCode,
       },
     })
 
-    await this.storeVerificationCode(normalizedEmail, code, ttlMs)
+    if (emailCode && expires) {
+      await this.storeVerificationCode(normalizedEmail, emailCode, ttlMs)
+      await this.mailQueue.add(
+        'verify',
+        { type: 'verify', email: normalizedEmail, code: emailCode, name: dto.name },
+        { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+      )
+    }
 
-    await this.mailQueue.add(
-      'verify',
-      { type: 'verify', email: normalizedEmail, code, name: dto.name },
-      { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
-    )
+    if (phoneCode && expires) {
+      await this.storePhoneVerificationCode(normalizedEmail, phoneCode, ttlMs)
+      const ttl = waitlistConfig.verification.ttlMinutes || 30
+      await this.sms.sendSms(normalizedPhone, `MYTE: Your verification code is ${phoneCode}. Expires in ${ttl} minutes.`)
+    }
 
-    return { status: 'verification_sent', entry }
+    if (!needsEmailCode && !needsPhoneCode) return { status: 'verified', entry }
+    if (needsEmailCode && needsPhoneCode) return { status: 'verification_sent', entry }
+    if (needsEmailCode) return { status: 'email_verification_sent', entry }
+    return { status: 'phone_verification_sent', entry }
   }
 
   async verify(dto: VerifyWaitlistDto) {
@@ -540,7 +638,7 @@ export class WaitlistService {
             verifyCode: null,
             verifyExpiresAt: null,
             verifyAttempts: 0,
-            status: 'pending-cohort' as WaitlistStatus,
+            status: (entry.status as WaitlistStatus) || ('pending-cohort' as WaitlistStatus),
           },
         },
         { new: true }
@@ -549,6 +647,77 @@ export class WaitlistService {
 
     await this.audit.log({
       eventType: 'marketing.waitlist_verified',
+      actor: normalizedEmail,
+    })
+
+    return updated
+  }
+
+  async verifyPhone(dto: VerifyWaitlistPhoneDto) {
+    const normalizedEmail = this.normalizeEmail(dto.email)
+    const entry = await this.model.findOne({ email: normalizedEmail, archivedAt: null })
+    if (!entry) throw new BadRequestException('Not on the waitlist yet')
+    await this.ensurePhoneNotBlocked(entry as any)
+    await this.assertTotalLimits(entry)
+    if (entry.phoneVerifyStatus === 'verified') return entry.toObject ? entry.toObject() : entry
+
+    const now = new Date()
+    const maxAttempts = waitlistConfig.verification.maxAttempts || 5
+    const code = await this.fetchPhoneVerificationCode(normalizedEmail)
+    if (!code || !entry.phoneVerifyExpiresAt || entry.phoneVerifyExpiresAt.getTime() < now.getTime()) {
+      await this.audit.log({
+        eventType: 'marketing.waitlist_phone_verify_expired',
+        actor: normalizedEmail,
+      })
+      throw new BadRequestException('Verification code expired. Please request a new code.')
+    }
+
+    const attemptCount = await this.bumpPhoneVerifyAttempt(
+      normalizedEmail,
+      entry.phoneVerifyExpiresAt.getTime() - now.getTime()
+    )
+    if (attemptCount > maxAttempts) {
+      await this.model.findOneAndUpdate({ _id: entry._id }, { $inc: { phoneVerifyAttemptTotal: 1 } })
+      await this.maybeBlockPhone(entry as any, 'max_attempts_per_code')
+    }
+
+    if ((code || '').trim() !== dto.code.trim()) {
+      const updated = await this.model.findOneAndUpdate(
+        { _id: entry._id },
+        { $inc: { phoneVerifyAttempts: 1, phoneVerifyAttemptTotal: 1 } },
+        { new: true }
+      )
+      if (updated) {
+        await this.assertTotalLimits(updated as any)
+      }
+      await this.audit.log({
+        eventType: 'marketing.waitlist_phone_verify_invalid',
+        actor: normalizedEmail,
+        metadata: { attemptCount },
+      })
+      throw new BadRequestException('Invalid verification code')
+    }
+
+    await this.clearPhoneVerificationState(normalizedEmail)
+
+    const updated = await this.model
+      .findOneAndUpdate(
+        { _id: entry._id },
+        {
+          $set: {
+            phoneVerifyStatus: 'verified' as WaitlistVerifyStatus,
+            phoneVerifiedAt: now,
+            phoneVerifyCode: null,
+            phoneVerifyExpiresAt: null,
+            phoneVerifyAttempts: 0,
+          },
+        },
+        { new: true }
+      )
+      .lean()
+
+    await this.audit.log({
+      eventType: 'marketing.waitlist_phone_verified',
       actor: normalizedEmail,
     })
 
@@ -616,35 +785,67 @@ export class WaitlistService {
     return { status: 'sent' }
   }
 
-  async ensurePending(email: string, fallbackName: string, fallbackRole = 'Pending', source = 'auth-register') {
-    const normalizedEmail = this.normalizeEmail(email)
-    const existing = await this.model.findOne({ email: normalizedEmail, archivedAt: null })
-    if (existing) return existing.toObject ? existing.toObject() : existing
+  async resendPhone(dto: ResendWaitlistDto, ip?: string) {
+    const normalizedEmail = this.normalizeEmail(dto.email)
+    const windowMs = waitlistConfig.rateLimit.windowMs
+    const maxResends = waitlistConfig.verification.maxResendsPerWindow || 3
+    await this.ensureRedis()
+    const byEmail = await this.limiter.allow(`resend-phone:${normalizedEmail}`, maxResends, windowMs)
+    if (!byEmail.allowed) throw new ForbiddenException('Too many resend attempts. Please wait a moment.')
+    if (ip) {
+      const byIp = await this.limiter.allow(`resend-phone:${normalizedEmail}:${ip}`, maxResends, windowMs)
+      if (!byIp.allowed) throw new ForbiddenException('Too many resend attempts. Please wait a moment.')
+    }
+    const entry = await this.model.findOne({ email: normalizedEmail, archivedAt: null })
+    if (!entry) throw new BadRequestException('Not on the waitlist yet')
+    await this.ensurePhoneNotBlocked(entry as any)
+    await this.assertTotalLimits(entry)
+    if (entry.phoneVerifyStatus === 'verified') return { status: 'verified' }
+
     const now = new Date()
-    const entry = await this.model
-      .findOneAndUpdate(
-        { email: normalizedEmail },
-        {
-          $set: {
-            name: fallbackName,
-            role: fallbackRole,
-            source,
-            preCreateAccount: false,
-            marketingConsent: true,
-            status: 'pending-cohort' as WaitlistStatus,
-            verifyStatus: 'verified' as WaitlistVerifyStatus,
-            verifiedAt: now,
-            verifyCode: null,
-            verifyExpiresAt: null,
-            verifyAttempts: 0,
-            updatedAt: now,
-          },
-          $setOnInsert: { email: normalizedEmail, createdAt: now, verifyResends: 0, inviteFailureCount: 0 },
+    const cooldownMs = (waitlistConfig.verification.resendCooldownMinutes || 2) * 60 * 1000
+    if (entry.phoneLastVerifySentAt && now.getTime() - new Date(entry.phoneLastVerifySentAt).getTime() < cooldownMs) {
+      throw new ForbiddenException('Please wait a bit before requesting another code.')
+    }
+
+    const phone = this.normalizePhone((entry as any).phone)
+    if (!this.isPhoneValid(phone)) {
+      throw new BadRequestException('Phone missing or invalid. Please rejoin the waitlist with a valid phone number.')
+    }
+
+    const code = this.generateCode()
+    const expires = this.computeExpiry(now)
+    const ttlMs = expires.getTime() - now.getTime()
+
+    await this.model.updateOne(
+      { _id: entry._id },
+      {
+        $set: {
+          phoneVerifyCode: code,
+          phoneVerifyExpiresAt: expires,
+          phoneVerifyAttempts: 0,
+          phoneLastVerifySentAt: now,
         },
-        { upsert: true, new: true }
-      )
-      .lean()
-    return entry
+        $inc: { phoneVerifyResends: 1 },
+      }
+    )
+
+    const refreshed = await this.model.findOne({ _id: entry._id })
+    if (refreshed) {
+      await this.assertTotalLimits(refreshed as any)
+    }
+
+    await this.audit.log({
+      eventType: 'marketing.waitlist_phone_verification_resent',
+      actor: normalizedEmail,
+    })
+
+    await this.storePhoneVerificationCode(normalizedEmail, code, ttlMs)
+
+    const ttl = waitlistConfig.verification.ttlMinutes || 30
+    await this.sms.sendSms(phone, `MYTE: Your verification code is ${code}. Expires in ${ttl} minutes.`)
+
+    return { status: 'sent' }
   }
 
   async findByEmail(email: string) {
@@ -712,25 +913,29 @@ export class WaitlistService {
     return { data, total, page, limit }
   }
 
-  private async ensureVerified(entry: WaitlistEntry) {
-    if (entry.verifyStatus === 'verified') return entry
-    const now = new Date()
-    const updated = await this.model
-      .findOneAndUpdate(
-        { _id: entry._id },
-        {
-          $set: {
-            verifyStatus: 'verified' as WaitlistVerifyStatus,
-            verifiedAt: entry.verifiedAt || now,
-            verifyCode: null,
-            verifyExpiresAt: null,
-            verifyAttempts: 0,
-          },
-        },
-        { new: true }
-      )
-      .lean()
-    return updated || entry
+  private isFullyVerified(entry: WaitlistEntry) {
+    return entry.verifyStatus === 'verified' && entry.phoneVerifyStatus === 'verified'
+  }
+
+  private assertFullyVerified(entry: WaitlistEntry) {
+    const phone = this.normalizePhone((entry as any).phone || '')
+    if (!this.isPhoneValid(phone)) {
+      throw new ForbiddenException('Valid phone required before an invite can be issued.')
+    }
+    if (!this.isFullyVerified(entry)) {
+      throw new ForbiddenException('Please verify your email and phone to lock your spot.')
+    }
+  }
+
+  private hashToken(token: string) {
+    return crypto.createHash('sha256').update(token).digest('hex')
+  }
+
+  private generateInviteToken(ttlHours = 24 * 7) {
+    const token = crypto.randomBytes(32).toString('hex')
+    const hash = this.hashToken(token)
+    const expires = new Date(Date.now() + ttlHours * 60 * 60 * 1000)
+    return { token, hash, expires }
   }
 
   async markInvited(email: string, cohortTag?: string) {
@@ -741,25 +946,29 @@ export class WaitlistService {
       return null
     }
 
-    const verifiedEntry = await this.ensureVerified(entry)
+    this.assertFullyVerified(entry as any)
+    const { token, hash, expires } = this.generateInviteToken()
     try {
-      await this.sendInviteEmail(normalizedEmail)
+      await this.sendInviteEmail(normalizedEmail, token)
     } catch (err) {
-      await this.model.updateOne({ _id: verifiedEntry._id }, { $inc: { inviteFailureCount: 1 } })
+      await this.model.updateOne({ _id: entry._id }, { $inc: { inviteFailureCount: 1 } })
       throw err
     }
 
     const invited = await this.model
       .findOneAndUpdate(
-        { _id: verifiedEntry._id },
+        { _id: entry._id },
         {
           $set: {
             status: 'invited' as WaitlistStatus,
             invitedAt: new Date(),
             cohortTag: cohortTag || waitlistConfig.invite.cohortTag,
-            verifyStatus: 'verified' as WaitlistVerifyStatus,
             verifyCode: null,
             verifyExpiresAt: null,
+            phoneVerifyCode: null,
+            phoneVerifyExpiresAt: null,
+            inviteTokenHash: hash,
+            inviteTokenExpiresAt: expires,
           },
         },
         { new: true }
@@ -779,19 +988,29 @@ export class WaitlistService {
     const normalizedEmail = this.normalizeEmail(email)
     return this.model.findOneAndUpdate(
       { email: normalizedEmail, archivedAt: null },
-      { $set: { status: 'activated', activatedAt: new Date(), cohortTag: cohortTag || null } },
+      {
+        $set: {
+          status: 'activated',
+          activatedAt: new Date(),
+          cohortTag: cohortTag || null,
+          inviteTokenHash: null,
+          inviteTokenExpiresAt: null,
+        },
+      },
       { new: true }
     )
   }
 
-  private async sendInviteEmail(email: string) {
-    const registerLink = buildClientUrl('/auth/register')
+  private async sendInviteEmail(email: string, inviteToken: string) {
+    const registerLink = buildClientUrl(
+      `/auth/register?email=${encodeURIComponent(email)}&invite=${encodeURIComponent(inviteToken)}`
+    )
     const calendly = 'https://calendly.com/ahmed-mekallach/thought-exchange'
     const domain = normalizeDomainFromEmail(email) || 'your company'
     const t = waitlistInviteTemplate({ registerLink, domain, calendly })
     await this.mailQueue.add(
       'invite',
-      { type: 'invite', email, domain },
+      { type: 'invite', email, domain, registerLink },
       { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
     )
   }
@@ -812,6 +1031,7 @@ export class WaitlistService {
       .find({
         status: 'pending-cohort',
         verifyStatus: 'verified',
+        phoneVerifyStatus: 'verified',
         archivedAt: null,
         createdAt: { $lte: new Date(now.getTime() - waitlistConfig.invite.delayHours * 60 * 60 * 1000) },
       })
@@ -822,7 +1042,8 @@ export class WaitlistService {
     let invited = 0
     for (const entry of eligible) {
       try {
-        await this.sendInviteEmail(entry.email)
+        const { token, hash, expires } = this.generateInviteToken()
+        await this.sendInviteEmail(entry.email, token)
         const updated = await this.model.findOneAndUpdate(
           { _id: entry._id, status: 'pending-cohort' },
           {
@@ -830,9 +1051,12 @@ export class WaitlistService {
               status: 'invited',
               invitedAt: new Date(),
               cohortTag: cohortTag || waitlistConfig.invite.cohortTag,
-              verifyStatus: 'verified',
               verifyCode: null,
               verifyExpiresAt: null,
+              phoneVerifyCode: null,
+              phoneVerifyExpiresAt: null,
+              inviteTokenHash: hash,
+              inviteTokenExpiresAt: expires,
             },
           },
           { new: true }

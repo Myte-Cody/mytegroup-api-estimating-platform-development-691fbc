@@ -6,6 +6,7 @@ export type WaitlistVerifyStatus = 'unverified' | 'verified' | 'blocked'
 export interface WaitlistEntry extends Document {
   email: string
   name: string
+  phone: string
   role: string
   source?: string | null
   status: WaitlistStatus
@@ -19,6 +20,16 @@ export interface WaitlistEntry extends Document {
   verifiedAt?: Date | null
   verifyBlockedAt?: Date | null
   verifyBlockedUntil?: Date | null
+  phoneVerifyStatus: WaitlistVerifyStatus
+  phoneVerifyCode?: string | null
+  phoneVerifyExpiresAt?: Date | null
+  phoneVerifyAttempts: number
+  phoneVerifyAttemptTotal: number
+  phoneVerifyResends: number
+  phoneLastVerifySentAt?: Date | null
+  phoneVerifiedAt?: Date | null
+  phoneVerifyBlockedAt?: Date | null
+  phoneVerifyBlockedUntil?: Date | null
   preCreateAccount: boolean
   marketingConsent: boolean
   invitedAt?: Date | null
@@ -26,6 +37,8 @@ export interface WaitlistEntry extends Document {
   cohortTag?: string | null
   metadata?: Record<string, any> | null
   inviteFailureCount?: number
+  inviteTokenHash?: string | null
+  inviteTokenExpiresAt?: Date | null
   createdAt: Date
   updatedAt: Date
   archivedAt?: Date | null
@@ -37,6 +50,7 @@ export const WaitlistSchema = new Schema<WaitlistEntry>(
   {
     email: { type: String, required: true, unique: true, index: true },
     name: { type: String, required: true },
+    phone: { type: String, required: true },
     role: { type: String, required: true },
     source: { type: String, default: null },
     status: { type: String, default: 'pending-cohort' },
@@ -50,6 +64,16 @@ export const WaitlistSchema = new Schema<WaitlistEntry>(
     verifiedAt: { type: Date, default: null },
     verifyBlockedAt: { type: Date, default: null },
     verifyBlockedUntil: { type: Date, default: null },
+    phoneVerifyStatus: { type: String, default: 'unverified' },
+    phoneVerifyCode: { type: String, default: null },
+    phoneVerifyExpiresAt: { type: Date, default: null },
+    phoneVerifyAttempts: { type: Number, default: 0 },
+    phoneVerifyAttemptTotal: { type: Number, default: 0 },
+    phoneVerifyResends: { type: Number, default: 0 },
+    phoneLastVerifySentAt: { type: Date, default: null },
+    phoneVerifiedAt: { type: Date, default: null },
+    phoneVerifyBlockedAt: { type: Date, default: null },
+    phoneVerifyBlockedUntil: { type: Date, default: null },
     preCreateAccount: { type: Boolean, default: false },
     marketingConsent: { type: Boolean, default: false },
     invitedAt: { type: Date, default: null },
@@ -57,6 +81,8 @@ export const WaitlistSchema = new Schema<WaitlistEntry>(
     cohortTag: { type: String, default: null },
     metadata: { type: Object, default: null },
     inviteFailureCount: { type: Number, default: 0 },
+    inviteTokenHash: { type: String, default: null },
+    inviteTokenExpiresAt: { type: Date, default: null },
     archivedAt: { type: Date, default: null },
     piiStripped: { type: Boolean, default: false },
     legalHold: { type: Boolean, default: false },

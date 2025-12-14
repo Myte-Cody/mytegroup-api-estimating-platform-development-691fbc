@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer'
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
+import { IsEmail, IsOptional, IsString, MaxLength, MinLength } from 'class-validator'
 
 export class CreateContactInquiryDto {
   @IsString()
@@ -23,24 +23,6 @@ export class CreateContactInquiryDto {
   @MaxLength(120)
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   source?: string
-
-  @IsOptional()
-  @IsBoolean()
-  joinWaitlist?: boolean
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  waitlistRole?: string
-
-  @IsOptional()
-  @IsBoolean()
-  preCreateAccount?: boolean
-
-  @IsOptional()
-  @IsBoolean()
-  marketingConsent?: boolean
 
   @IsOptional()
   @IsString()

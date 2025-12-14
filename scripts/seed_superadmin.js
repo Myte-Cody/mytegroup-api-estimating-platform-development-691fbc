@@ -64,10 +64,24 @@ async function main() {
   const Organization = mongoose.model('Organization', OrganizationSchema);
   const User = mongoose.model('User', UserSchema);
 
-  const email = process.env.SEED_SUPERADMIN_EMAIL || 'myte@mytegroup.com';
-  const password = process.env.SEED_SUPERADMIN_PASSWORD || 'Myte@123Ahmed@123';
-  const primaryDomain = (process.env.SEED_SUPERADMIN_PRIMARY_DOMAIN || 'mytegroup.com').toLowerCase();
-  const orgName = process.env.SEED_SUPERADMIN_ORG_NAME || 'Myte Group Inc';
+  const email = (process.env.SEED_SUPERADMIN_EMAIL || '').trim().toLowerCase();
+  const password = (process.env.SEED_SUPERADMIN_PASSWORD || '').trim();
+  const primaryDomain = (process.env.SEED_SUPERADMIN_PRIMARY_DOMAIN || 'mytegroup.com').trim().toLowerCase();
+  const orgName = (process.env.SEED_SUPERADMIN_ORG_NAME || 'Myte Group Inc').trim();
+  const role = (process.env.SEED_SUPERADMIN_ROLE || 'platform_admin').trim();
+
+  if (!email) {
+    console.error('SEED_SUPERADMIN_EMAIL is required');
+    process.exit(1);
+  }
+  if (!password) {
+    console.error('SEED_SUPERADMIN_PASSWORD is required');
+    process.exit(1);
+  }
+  if (!primaryDomain) {
+    console.error('SEED_SUPERADMIN_PRIMARY_DOMAIN is required');
+    process.exit(1);
+  }
 
   const org = await Organization.findOneAndUpdate(
     { primaryDomain },
@@ -85,8 +99,8 @@ async function main() {
       $set: {
         username: existing?.username || 'MYTE SuperAdmin',
         passwordHash,
-        role: 'superadmin',
-        roles: ['superadmin'],
+        role,
+        roles: [role],
         organizationId: orgId,
         isEmailVerified: true,
         isOrgOwner: true,

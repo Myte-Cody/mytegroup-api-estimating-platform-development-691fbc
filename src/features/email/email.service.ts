@@ -164,7 +164,7 @@ export class EmailService {
   }
 
   async sendPreviewSet(to: string) {
-    const host = process.env.ROOT_DOMAIN_PROD || process.env.ROOT_DOMAIN || 'localhost:6666';
+    const host = process.env.ROOT_DOMAIN_PROD || process.env.ROOT_DOMAIN || 'localhost:4001';
     const registerLink = `https://${host}/auth/register`;
     const verifyLink = `https://${host}/verify-email?token=sample-token`;
     const resetLink = `https://${host}/reset-password?token=sample-token`;

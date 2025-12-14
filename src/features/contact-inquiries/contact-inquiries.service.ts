@@ -8,7 +8,6 @@ import { RedisRateLimiter } from '../../common/redis/rate-limiter'
 import { normalizeDomainFromEmail } from '../../common/utils/domain.util'
 import { EmailService } from '../email/email.service'
 import { waitlistConfig } from '../waitlist/waitlist.config'
-import { WaitlistService } from '../waitlist/waitlist.service'
 import { CreateContactInquiryDto } from './dto/create-contact-inquiry.dto'
 import { ConfirmContactInquiryDto } from './dto/confirm-contact-inquiry.dto'
 import { UpdateContactInquiryDto } from './dto/update-contact-inquiry.dto'
@@ -36,8 +35,7 @@ export class ContactInquiriesService {
   constructor(
     @InjectModel('ContactInquiry') private readonly model: Model<ContactInquiry>,
     private readonly audit: AuditLogService,
-    private readonly email: EmailService,
-    private readonly waitlist: WaitlistService
+    private readonly email: EmailService
   ) {}
 
   private normalizeEmail(email: string) {
@@ -229,35 +227,6 @@ export class ContactInquiriesService {
     return { status: 'verified' }
   }
 
-  private async maybeJoinWaitlist(
-    dto: CreateContactInquiryDto,
-    email: string,
-    ip?: string
-  ): Promise<{ status: string; entry?: any } | null> {
-    if (!dto.joinWaitlist) return null
-    const payload = {
-      name: dto.name,
-      email,
-      role: dto.waitlistRole || 'Contact inquiry',
-      source: dto.source || 'footer-contact',
-      preCreateAccount: dto.preCreateAccount ?? false,
-      marketingConsent: dto.marketingConsent ?? true,
-      trap: dto.trap,
-    }
-    try {
-      const result = await this.waitlist.start(payload as any, ip)
-      return result
-    } catch (err: any) {
-      this.logger.warn(`Failed to opt-in to waitlist from contact inquiry: ${err?.message || err}`)
-      await this.audit.log({
-        eventType: 'marketing.contact_waitlist_failed',
-        actor: email,
-        metadata: { error: err?.message },
-      })
-      return null
-    }
-  }
-
   async create(dto: CreateContactInquiryDto, ip?: string, userAgent?: string | null) {
     if (dto.trap) {
       return { status: 'ok' }
@@ -282,16 +251,12 @@ export class ContactInquiriesService {
       userAgent: userAgent || null,
     })
 
-    const waitlistResult = !personal ? await this.maybeJoinWaitlist(dto, normalizedEmail, ip) : null
-
     await this.audit.log({
       eventType: 'marketing.contact_submit',
       actor: normalizedEmail,
       metadata: {
         id: entry.id,
         source: dto.source || 'footer-contact',
-        joinWaitlist: !!dto.joinWaitlist && !personal,
-        waitlistStatus: waitlistResult?.status,
       },
     })
 

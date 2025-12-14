@@ -10,6 +10,7 @@ import { WaitlistEventDto } from './dto/waitlist-event.dto'
 import { StartWaitlistDto } from './dto/start-waitlist.dto'
 import { VerifyWaitlistDto } from './dto/verify-waitlist.dto'
 import { ResendWaitlistDto } from './dto/resend-waitlist.dto'
+import { VerifyWaitlistPhoneDto } from './dto/verify-waitlist-phone.dto'
 import { ListWaitlistDto } from './dto/list-waitlist.dto'
 import { WaitlistService } from './waitlist.service'
 
@@ -27,6 +28,18 @@ export class WaitlistController {
   @Post('waitlist/verify')
   async verify(@Body() dto: VerifyWaitlistDto) {
     const entry = await this.waitlist.verify(dto)
+    return { status: 'verified', entry }
+  }
+
+  @Post('waitlist/verify-phone')
+  async verifyPhone(@Body() dto: ResendWaitlistDto, @Req() req: Request) {
+    const result = await this.waitlist.resendPhone(dto, req.ip)
+    return result
+  }
+
+  @Post('waitlist/verify-phone/confirm')
+  async confirmPhone(@Body() dto: VerifyWaitlistPhoneDto) {
+    const entry = await this.waitlist.verifyPhone(dto)
     return { status: 'verified', entry }
   }
 

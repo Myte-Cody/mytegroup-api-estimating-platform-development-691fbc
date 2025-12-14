@@ -87,20 +87,39 @@ export class AuthService {
       [firstName, lastName].filter(Boolean).join(' ') ||
       normalizedEmail.split('@')[0];
 
-    const waitlistEntry = await this.waitlist.ensurePending(
-      normalizedEmail,
-      derivedUsername,
-      dto.role || Role.User,
-      'auth-register'
-    );
-    if (this.waitlist.shouldEnforceInviteGate() && !['invited', 'activated'].includes(waitlistEntry?.status || '')) {
-      await this.waitlist.logEvent('waitlist.register_blocked', {
-        email: normalizedEmail,
-        status: waitlistEntry?.status || 'pending-cohort',
-      });
-      throw new ForbiddenException(
-        'Registration is invite-only right now. You are on the waitlist and we release waves during business hours.'
-      );
+    const waitlistEntry: any = await this.waitlist.findByEmail(normalizedEmail);
+    const inviteGateEnabled = this.waitlist.shouldEnforceInviteGate();
+    if (inviteGateEnabled) {
+      if (!waitlistEntry || !['invited', 'activated'].includes(waitlistEntry?.status || '')) {
+        await this.waitlist.logEvent('waitlist.register_blocked', {
+          email: normalizedEmail,
+          status: waitlistEntry?.status || 'missing',
+        });
+        throw new ForbiddenException(
+          'Invite required. Request early access, verify your email + phone, and we will invite your company in a wave.'
+        );
+      }
+
+      const fullyVerified = waitlistEntry?.verifyStatus === 'verified' && waitlistEntry?.phoneVerifyStatus === 'verified';
+      if (!fullyVerified) {
+        await this.waitlist.logEvent('waitlist.register_blocked_unverified', {
+          email: normalizedEmail,
+          verifyStatus: waitlistEntry?.verifyStatus,
+          phoneVerifyStatus: waitlistEntry?.phoneVerifyStatus,
+        });
+        throw new ForbiddenException('Please verify your email and phone before creating your account.');
+      }
+
+      const inviteToken = (dto as any).inviteToken;
+      if (!inviteToken) {
+        throw new ForbiddenException('Invite link required. Please use the invite email to register.');
+      }
+      const inviteHash = crypto.createHash('sha256').update(inviteToken).digest('hex');
+      const tokenExpiresAt = waitlistEntry?.inviteTokenExpiresAt ? new Date(waitlistEntry.inviteTokenExpiresAt) : null;
+      const tokenExpired = tokenExpiresAt ? tokenExpiresAt.getTime() < Date.now() : false;
+      if (!waitlistEntry?.inviteTokenHash || waitlistEntry.inviteTokenHash !== inviteHash || tokenExpired) {
+        throw new ForbiddenException('Invite link invalid or expired. Please request a fresh invite.');
+      }
     }
 
     let domainLocked = false;
@@ -135,7 +154,7 @@ export class AuthService {
       }
 
       let user;
-      const { token, hash, expires } = this.generateToken(1000 * 60 * 60 * 24); // 24h
+      const emailVerification = inviteGateEnabled ? null : this.generateToken(1000 * 60 * 60 * 24); // 24h
       const assignedRole = createdOrgId ? Role.OrgOwner : Role.User;
       user = await this.users.create({
         username: derivedUsername,
@@ -146,9 +165,9 @@ export class AuthService {
         organizationId,
         role: assignedRole,
         isOrgOwner: assignedRole === Role.OrgOwner,
-        verificationTokenHash: hash,
-        verificationTokenExpires: expires,
-        isEmailVerified: false,
+        verificationTokenHash: emailVerification?.hash ?? null,
+        verificationTokenExpires: emailVerification?.expires ?? null,
+        isEmailVerified: inviteGateEnabled,
       });
 
       const userId = (user as any).id || (user as any)._id;
@@ -162,8 +181,9 @@ export class AuthService {
         userId,
         orgId: organizationId,
       });
-      await this.email.sendVerificationEmail(dto.email, token, organizationId, dto.username);
-      await this.waitlist.markActivated(normalizedEmail, waitlistEntry?.cohortTag);
+      if (emailVerification) {
+        await this.email.sendVerificationEmail(normalizedEmail, emailVerification.token, organizationId, dto.username);
+      }
       return user;
     } catch (err) {
       throw err;

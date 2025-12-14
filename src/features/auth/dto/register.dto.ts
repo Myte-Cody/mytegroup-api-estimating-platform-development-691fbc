@@ -33,6 +33,10 @@ export class RegisterDto {
   @IsEnum(Role)
   role?: Role;
 
+  @IsOptional()
+  @IsString()
+  inviteToken?: string;
+
   @IsBoolean()
   legalAccepted: boolean;
 

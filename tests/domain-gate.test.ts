@@ -8,6 +8,7 @@ import { OrganizationsService } from '../src/features/organizations/organization
 import { AuditLogService } from '../src/common/services/audit-log.service'
 import { TenantConnectionService } from '../src/common/tenancy/tenant-connection.service'
 import { normalizeDomainFromEmail } from '../src/common/utils/domain.util'
+import { SeatsService } from '../src/features/seats/seats.service'
 
 class AuditStub implements Partial<AuditLogService> {
   async log() {
@@ -24,6 +25,12 @@ class TenantStub implements Partial<TenantConnectionService> {
   }
 }
 
+class SeatsStub implements Partial<SeatsService> {
+  async ensureOrgSeats() {
+    return
+  }
+}
+
 describe('Domain gating', () => {
   let mongod: MongoMemoryServer
   let orgModel: Model<Organization>
@@ -34,7 +41,7 @@ describe('Domain gating', () => {
     const uri = mongod.getUri()
     await mongoose.connect(uri)
     orgModel = mongoose.model<Organization>('Organization', OrganizationSchema)
-    orgs = new OrganizationsService(orgModel, new AuditStub() as any, new TenantStub() as any)
+    orgs = new OrganizationsService(orgModel, new AuditStub() as any, new TenantStub() as any, new SeatsStub() as any)
   })
 
   after(async () => {

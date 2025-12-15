@@ -18,6 +18,7 @@ import { User } from '../users/schemas/user.schema';
 import { Contact, ContactSchema } from '../contacts/schemas/contact.schema';
 import { Invite } from '../invites/schemas/invite.schema';
 import { Project } from '../projects/schemas/project.schema';
+import { Estimate } from '../estimates/schemas/estimate.schema';
 
 type ActorContext = { id?: string; orgId?: string; role?: Role };
 
@@ -57,8 +58,17 @@ const PII_RULES: Record<ComplianceEntityType, RedactionRule[]> = {
   ],
   contact: [
     { field: 'name', replacement: (_record, id) => `Redacted Contact ${id}` },
+    { field: 'firstName' },
+    { field: 'lastName' },
+    { field: 'displayName' },
+    { field: 'dateOfBirth' },
+    { field: 'ironworkerNumber' },
+    { field: 'unionLocal' },
     { field: 'email' },
     { field: 'phone' },
+    { field: 'company' },
+    { field: 'skills', replacement: () => [] },
+    { field: 'certifications', replacement: () => [] },
     { field: 'notes' },
   ],
   invite: [
@@ -70,6 +80,12 @@ const PII_RULES: Record<ComplianceEntityType, RedactionRule[]> = {
     { field: 'name', replacement: (_record, id) => `redacted-project-${id}` },
     { field: 'description' },
   ],
+  estimate: [
+    { field: 'name', replacement: (_record, id) => `redacted-estimate-${id}` },
+    { field: 'description' },
+    { field: 'notes' },
+    { field: 'lineItems', replacement: () => [] },
+  ],
 };
 
 @Injectable()
@@ -79,6 +95,7 @@ export class ComplianceService {
     @InjectModel('Contact') private readonly contactModel: Model<Contact>,
     @InjectModel('Invite') private readonly inviteModel: Model<Invite>,
     @InjectModel('Project') private readonly projectModel: Model<Project>,
+    @InjectModel('Estimate') private readonly estimateModel: Model<Estimate>,
     private readonly audit: AuditLogService,
     private readonly events: EventLogService,
     private readonly tenants: TenantConnectionService
@@ -100,7 +117,7 @@ export class ComplianceService {
   }
 
   private resolveOrgId(entityType: ComplianceEntityType, record: EntityRecord) {
-    if (entityType === 'user' || entityType === 'project') return record.organizationId;
+    if (entityType === 'user' || entityType === 'project' || entityType === 'estimate') return record.organizationId;
     if (entityType === 'contact' || entityType === 'invite') return record.orgId;
     return undefined;
   }
@@ -124,6 +141,7 @@ export class ComplianceService {
     if (entityType === 'user') return this.userModel;
     if (entityType === 'invite') return this.inviteModel;
     if (entityType === 'project') return this.projectModel;
+    if (entityType === 'estimate') return this.estimateModel;
     if (entityType === 'contact') {
       if (orgId) {
         return this.tenants.getModelForOrg<Contact>(orgId, 'Contact', ContactSchema, this.contactModel);

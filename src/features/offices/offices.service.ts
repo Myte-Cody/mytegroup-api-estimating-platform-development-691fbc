@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Role } from '../../common/roles';
+import { expandRoles, Role } from '../../common/roles';
 import { AuditLogService } from '../../common/services/audit-log.service';
 import { CreateOfficeDto } from './dto/create-office.dto';
 import { UpdateOfficeDto } from './dto/update-office.dto';
@@ -21,8 +21,11 @@ export class OfficesService {
   private ensureRole(actor: ActorContext, allowed: Role[]) {
     if (actor.role === Role.SuperAdmin) return;
     if (!actor.role) throw new ForbiddenException('Insufficient role');
-    if (allowed.includes(Role.Admin) && actor.role === Role.OrgOwner) return;
-    if (!allowed.includes(actor.role)) throw new ForbiddenException('Insufficient role');
+    const effectiveRoles = expandRoles([actor.role]);
+    const allowedEffective = allowed.some((role) => effectiveRoles.includes(role));
+    if (!allowedEffective) {
+      throw new ForbiddenException('Insufficient role');
+    }
   }
 
   private resolveOrgId(requestedOrgId: string | undefined, actor: ActorContext) {
@@ -39,11 +42,9 @@ export class OfficesService {
   }
 
   private canViewArchived(actor: ActorContext) {
-    return (
-      actor.role === Role.SuperAdmin ||
-      actor.role === Role.Admin ||
-      actor.role === Role.Manager ||
-      actor.role === Role.OrgOwner
+    const effectiveRoles = expandRoles(actor.role ? [actor.role] : []);
+    return [Role.SuperAdmin, Role.PlatformAdmin, Role.Admin, Role.Manager, Role.OrgOwner].some((role) =>
+      effectiveRoles.includes(role)
     );
   }
 
@@ -70,6 +71,9 @@ export class OfficesService {
   private async validateOrg(orgId: string) {
     const org = await this.orgModel.findOne({ _id: orgId, archivedAt: null });
     if (!org) throw new NotFoundException('Organization not found or archived');
+    if (org.legalHold) {
+      throw new ForbiddenException('Organization is under legal hold');
+    }
   }
 
   async create(dto: CreateOfficeDto, actor: ActorContext) {
@@ -98,7 +102,7 @@ export class OfficesService {
   }
 
   async list(actor: ActorContext, orgId: string, includeArchived = false) {
-    this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner, Role.PM]);
+    this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer]);
     const organizationId = this.resolveOrgId(orgId, actor);
     if (includeArchived && !this.canViewArchived(actor)) {
       throw new ForbiddenException('Not allowed to include archived offices');
@@ -109,7 +113,7 @@ export class OfficesService {
   }
 
   async getById(id: string, actor: ActorContext, includeArchived = false) {
-    this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner, Role.PM]);
+    this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer]);
     const office = await this.officeModel.findById(id);
     if (!office) throw new NotFoundException('Office not found');
     this.ensureOrgScope(office.organizationId, actor);
@@ -125,6 +129,7 @@ export class OfficesService {
     const office = await this.officeModel.findById(id);
     if (!office) throw new NotFoundException('Office not found');
     this.ensureOrgScope(office.organizationId, actor);
+    await this.validateOrg(office.organizationId);
     if (office.archivedAt) throw new NotFoundException('Office archived');
     this.ensureNotOnLegalHold(office, 'update');
 
@@ -161,6 +166,7 @@ export class OfficesService {
     const office = await this.officeModel.findById(id);
     if (!office) throw new NotFoundException('Office not found');
     this.ensureOrgScope(office.organizationId, actor);
+    await this.validateOrg(office.organizationId);
     this.ensureNotOnLegalHold(office, 'archive');
 
     if (!office.archivedAt) {
@@ -184,6 +190,7 @@ export class OfficesService {
     const office = await this.officeModel.findById(id);
     if (!office) throw new NotFoundException('Office not found');
     this.ensureOrgScope(office.organizationId, actor);
+    await this.validateOrg(office.organizationId);
     this.ensureNotOnLegalHold(office, 'unarchive');
 
     if (office.archivedAt) {

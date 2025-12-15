@@ -7,6 +7,7 @@ import { OrganizationsModule } from './features/organizations/organizations.modu
 import { UsersModule } from './features/users/users.module';
 import { OfficesModule } from './features/offices/offices.module';
 import { ProjectsModule } from './features/projects/projects.module';
+import { EstimatesModule } from './features/estimates/estimates.module';
 import { EventLogModule } from './common/events/event-log.module';
 import { mongoConfig } from './config/app.config';
 import { ContactsModule } from './features/contacts/contacts.module';
@@ -22,6 +23,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { LegalGuard } from './features/legal/legal.guard';
 import { SessionsModule } from './features/sessions/sessions.module';
 import { ContactInquiriesModule } from './features/contact-inquiries/contact-inquiries.module';
+import { PeopleModule } from './features/people/people.module';
+import { SeatsModule } from './features/seats/seats.module';
 
 @Module({
   imports: [
@@ -35,6 +38,7 @@ import { ContactInquiriesModule } from './features/contact-inquiries/contact-inq
     UsersModule,
     OfficesModule,
     ProjectsModule,
+    EstimatesModule,
     ContactsModule,
     InvitesModule,
     MigrationsModule,
@@ -45,6 +49,8 @@ import { ContactInquiriesModule } from './features/contact-inquiries/contact-inq
     WaitlistModule,
     SessionsModule,
     ContactInquiriesModule,
+    PeopleModule,
+    SeatsModule,
   ],
   providers: [
     {

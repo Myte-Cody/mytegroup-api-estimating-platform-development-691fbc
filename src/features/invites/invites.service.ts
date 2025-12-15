@@ -10,6 +10,8 @@ import { UsersService } from '../users/users.service';
 import { EmailService } from '../email/email.service';
 import { Role, canAssignRoles, mergeRoles } from '../../common/roles';
 import { ContactsService } from '../contacts/contacts.service';
+import { SeatsService } from '../seats/seats.service';
+import { seatConfig } from '../../config/app.config';
 
 @Injectable()
 export class InvitesService {
@@ -18,7 +20,8 @@ export class InvitesService {
     private readonly audit: AuditLogService,
     private readonly users: UsersService,
     private readonly email: EmailService,
-    private readonly contacts: ContactsService
+    private readonly contacts: ContactsService,
+    private readonly seats: SeatsService
   ) {}
 
   private generateToken(hours: number) {
@@ -49,9 +52,10 @@ export class InvitesService {
   async create(orgId: string, actorId: string, actorRole: Role, dto: CreateInviteDto) {
     this.validateInviteRole(actorRole, dto.role);
     await this.expireStale(orgId);
+    const email = (dto.email || '').trim().toLowerCase();
     const existing = await this.inviteModel.findOne({
       orgId,
-      email: dto.email,
+      email,
       status: 'pending',
       tokenExpires: { $gt: new Date() },
       archivedAt: null,
@@ -63,7 +67,7 @@ export class InvitesService {
     const throttleSince = new Date(Date.now() - THROTTLE_WINDOW_MS);
     const recentCount = await this.inviteModel.countDocuments({
       orgId,
-      email: dto.email,
+      email,
       createdAt: { $gte: throttleSince },
     });
     if (recentCount > 0) {
@@ -72,7 +76,7 @@ export class InvitesService {
     const { token, hash, expires } = this.generateToken(dto.expiresInHours || 72);
     const invite = await this.inviteModel.create({
       orgId,
-      email: dto.email,
+      email,
       role: dto.role || Role.User,
       contactId: dto.contactId || null,
       tokenHash: hash,
@@ -80,14 +84,14 @@ export class InvitesService {
       status: 'pending',
       createdByUserId: actorId,
     });
-    await this.email.sendInviteEmail(dto.email, token, orgId);
+    await this.email.sendInviteEmail(email, token, orgId);
     await this.audit.log({
       eventType: 'invite.created',
       orgId,
       userId: actorId,
       entity: 'Invite',
       entityId: invite.id,
-      metadata: { email: dto.email, role: dto.role },
+      metadata: { email, role: dto.role },
     });
     if (dto.contactId) {
       await this.contacts.update(
@@ -143,34 +147,76 @@ export class InvitesService {
     }
     if (invite.archivedAt) throw new ForbiddenException('Invite unavailable');
 
-    const user = await this.users.create({
-      username: dto.username,
-      email: invite.email,
-      password: dto.password,
-      organizationId: invite.orgId,
-      role: (invite.role as Role) || Role.User,
-      isEmailVerified: true,
-    });
+    await this.seats.ensureOrgSeats(invite.orgId, seatConfig.defaultSeatsPerOrg);
 
-    invite.status = 'accepted';
-    invite.acceptedAt = new Date();
-    invite.invitedUserId = (user as any).id || (user as any)._id;
-    invite.tokenHash = null;
-    await invite.save();
+    const session = await this.inviteModel.db.startSession();
+    let createdUser: any = null;
+    let inviteContactId: string | null = invite.contactId || null;
+    let invitedUserId: string | null = null;
 
-    if (invite.contactId) {
-      await this.contacts.linkInvitedUser(invite.orgId, invite.contactId, invite.invitedUserId as string);
+    try {
+      session.startTransaction();
+
+      const inviteQuery: any = this.inviteModel.findOne({ _id: invite._id });
+      if (typeof inviteQuery?.session === 'function') {
+        inviteQuery.session(session);
+      }
+      const inviteTx = await (typeof inviteQuery?.exec === 'function' ? inviteQuery.exec() : inviteQuery);
+      if (!inviteTx) throw new NotFoundException('Invite not found');
+      if (inviteTx.status === 'accepted') throw new BadRequestException('Invite already accepted');
+      if (inviteTx.status === 'expired') throw new BadRequestException('Invite expired');
+      if (inviteTx.tokenExpires < new Date()) throw new BadRequestException('Invite expired');
+      if (inviteTx.archivedAt) throw new ForbiddenException('Invite unavailable');
+
+      createdUser = await this.users.create(
+        {
+          username: dto.username,
+          email: inviteTx.email,
+          password: dto.password,
+          organizationId: inviteTx.orgId,
+          role: (inviteTx.role as Role) || Role.User,
+          isEmailVerified: true,
+        },
+        undefined,
+        { session, enforceSeat: true }
+      );
+
+      const rawUserId = (createdUser as any).id || (createdUser as any)._id || null;
+      invitedUserId = rawUserId ? String(rawUserId) : null;
+      inviteTx.status = 'accepted';
+      inviteTx.acceptedAt = new Date();
+      inviteTx.invitedUserId = invitedUserId;
+      inviteTx.tokenHash = null;
+      await inviteTx.save({ session });
+
+      await this.audit.log(
+        {
+          eventType: 'invite.accepted',
+          orgId: inviteTx.orgId,
+          userId: invitedUserId || undefined,
+          entity: 'Invite',
+          entityId: inviteTx.id,
+          metadata: { contactId: inviteTx.contactId },
+        },
+        { session }
+      );
+
+      await session.commitTransaction();
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      session.endSession();
     }
 
-    await this.audit.log({
-      eventType: 'invite.accepted',
-      orgId: invite.orgId,
-      userId: invite.invitedUserId,
-      entity: 'Invite',
-      entityId: invite.id,
-      metadata: { contactId: invite.contactId },
-    });
+    if (inviteContactId && invitedUserId) {
+      try {
+        await this.contacts.linkInvitedUser(invite.orgId, inviteContactId, invitedUserId);
+      } catch {
+        // non-fatal: user accepted invite and has a seat; contact linkage can be repaired later
+      }
+    }
 
-    return { user };
+    return { user: createdUser };
   }
 }

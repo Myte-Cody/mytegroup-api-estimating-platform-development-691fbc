@@ -114,6 +114,10 @@ export const storageConfig = {
     .filter(Boolean),
 };
 
+export const seatConfig = {
+  defaultSeatsPerOrg: Number(process.env.DEFAULT_SEATS_PER_ORG || 5),
+};
+
 export const featureFlags = {
   enableUploads: toBool(process.env.FEATURE_ENABLE_UPLOADS) || false,
   enableTemplatesApi: toBool(process.env.FEATURE_ENABLE_TEMPLATES_API) || false,

@@ -107,6 +107,21 @@ const buildService = () => {
       legalHold: false,
     },
   ]);
+  const estimateModel = createModel([
+    {
+      _id: 'estimate-1',
+      projectId: 'project-1',
+      organizationId: 'org-1',
+      createdByUserId: 'actor-1',
+      name: 'Base Estimate',
+      description: 'Sensitive estimate description',
+      notes: 'Notes',
+      status: 'draft',
+      archivedAt: null,
+      piiStripped: false,
+      legalHold: false,
+    },
+  ]);
   const auditLog = [];
   const audit = { log: async (event) => auditLog.push(event) };
   const eventsCalls = [];
@@ -117,11 +132,12 @@ const buildService = () => {
     contactModel,
     inviteModel,
     projectModel,
+    estimateModel,
     audit,
     events,
     tenants
   );
-  return { service, auditLog, eventsCalls, userModel, contactModel, inviteModel, projectModel };
+  return { service, auditLog, eventsCalls, userModel, contactModel, inviteModel, projectModel, estimateModel };
 };
 
 describe('ComplianceService', () => {

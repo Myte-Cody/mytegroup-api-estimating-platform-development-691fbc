@@ -5,12 +5,16 @@ import { TenancyModule } from '../../common/tenancy/tenancy.module';
 import { ContactsController } from './contacts.controller';
 import { ContactsService } from './contacts.service';
 import { ContactSchema } from './schemas/contact.schema';
+import { OrganizationSchema } from '../organizations/schemas/organization.schema';
 
 @Module({
   imports: [
     CommonModule,
     TenancyModule,
-    MongooseModule.forFeature([{ name: 'Contact', schema: ContactSchema }]),
+    MongooseModule.forFeature([
+      { name: 'Contact', schema: ContactSchema },
+      { name: 'Organization', schema: OrganizationSchema },
+    ]),
   ],
   controllers: [ContactsController],
   providers: [ContactsService],

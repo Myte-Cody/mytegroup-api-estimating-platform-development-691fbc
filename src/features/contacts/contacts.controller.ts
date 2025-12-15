@@ -32,12 +32,13 @@ export class ContactsController {
   async list(
     @Req() req: Request,
     @Query('organizationId') organizationId?: string,
-    @Query('includeArchived') includeArchived?: string
+    @Query('includeArchived') includeArchived?: string,
+    @Query('personType') personType?: string
   ) {
     const actor = this.getActor(req);
     const orgId = this.resolveOrgId(actor.orgId, organizationId);
     if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.list(actor, orgId, this.parseIncludeArchived(includeArchived));
+    return this.contacts.list(actor, orgId, this.parseIncludeArchived(includeArchived), personType);
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)

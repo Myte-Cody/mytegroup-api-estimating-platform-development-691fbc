@@ -168,7 +168,7 @@ export class AuthService {
         verificationTokenHash: emailVerification?.hash ?? null,
         verificationTokenExpires: emailVerification?.expires ?? null,
         isEmailVerified: inviteGateEnabled,
-      });
+      }, undefined, { enforceSeat: true });
 
       const userId = (user as any).id || (user as any)._id;
 

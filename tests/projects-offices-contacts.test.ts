@@ -48,7 +48,7 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
     const tenant = new TenantConnectionService(connection, orgModel);
     projects = new ProjectsService(projectModel, orgModel, officeModel, audit);
     offices = new OfficesService(officeModel, orgModel, audit);
-    contacts = new ContactsService(contactModel, audit, tenant);
+    contacts = new ContactsService(contactModel, orgModel, audit, tenant);
   });
 
   beforeEach(async () => {
@@ -71,8 +71,10 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
   });
 
   const adminActor = () => ({ userId: 'admin-user', orgId: orgAId, role: Role.Admin });
+  const orgAdminActor = () => ({ userId: 'org-admin-user', orgId: orgAId, role: Role.OrgAdmin });
   const pmActor = () => ({ userId: 'pm-user', orgId: orgAId, role: Role.PM });
   const managerActor = () => ({ userId: 'manager-user', orgId: orgAId, role: Role.Manager });
+  const viewerActor = () => ({ userId: 'viewer-user', orgId: orgAId, role: Role.Viewer });
   const otherOrgAdmin = () => ({ userId: 'other-admin', orgId: orgBId, role: Role.Admin });
 
   describe('ProjectsService', () => {
@@ -132,6 +134,23 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
       await projectModel.updateOne({ _id: projectId }, { $set: { archivedAt: new Date(), legalHold: true } });
       await assert.rejects(projects.unarchive(projectId, adminActor()), ForbiddenException);
     });
+
+    it('allows org admins via role hierarchy', async () => {
+      const office = await offices.create({ name: 'HQ', organizationId: orgAId, address: '123 Main' }, orgAdminActor());
+      const project = await projects.create(
+        { name: 'OrgAdminProject', description: 'Scope', organizationId: orgAId, officeId: office.id },
+        orgAdminActor()
+      );
+      assert.equal(project.organizationId, orgAId);
+    });
+
+    it('blocks writes when org legal hold is active', async () => {
+      await orgModel.updateOne({ _id: orgAId }, { $set: { legalHold: true } });
+      await assert.rejects(
+        projects.create({ name: 'Blocked', description: 'Nope', organizationId: orgAId }, adminActor()),
+        ForbiddenException
+      );
+    });
   });
 
   describe('OfficesService', () => {
@@ -146,6 +165,22 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
       const archived = await offices.getById(officeId, adminActor(), true);
       assert.ok(archived.archivedAt);
       await assert.rejects(offices.list(pmActor(), orgAId, true), ForbiddenException);
+    });
+
+    it('allows viewers to list offices', async () => {
+      await offices.create({ name: 'Field Office', organizationId: orgAId, address: 'Yard' }, adminActor());
+      const list = await offices.list(viewerActor(), orgAId, false);
+      assert.equal(list.length, 1);
+    });
+
+    it('allows org admins via role hierarchy', async () => {
+      const office = await offices.create({ name: 'OrgAdminOffice', organizationId: orgAId }, orgAdminActor());
+      assert.equal(office.organizationId, orgAId);
+    });
+
+    it('blocks writes when org legal hold is active', async () => {
+      await orgModel.updateOne({ _id: orgAId }, { $set: { legalHold: true } });
+      await assert.rejects(offices.create({ name: 'BlockedOffice', organizationId: orgAId }, adminActor()), ForbiddenException);
     });
 
     it('blocks archive/unarchive when legal hold is active', async () => {

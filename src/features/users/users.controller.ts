@@ -29,7 +29,7 @@ export class UsersController {
       actor?.role === Role.PlatformAdmin;
     const organizationId = actor?.orgId || (canBypassOrg ? dto.organizationId : undefined);
     if (!organizationId) throw new ForbiddenException('Missing organization context');
-    return this.svc.create({ ...dto, organizationId }, actor);
+    return this.svc.create({ ...dto, organizationId }, actor, { enforceSeat: true });
   }
 
   // Roles: admin, org admin, org owner, platform admin, superadmin

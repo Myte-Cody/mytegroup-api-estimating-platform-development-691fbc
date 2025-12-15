@@ -5,6 +5,7 @@ import { TenancyModule } from '../../common/tenancy/tenancy.module';
 import { ContactsModule } from '../contacts/contacts.module';
 import { EmailModule } from '../email/email.module';
 import { UsersModule } from '../users/users.module';
+import { SeatsModule } from '../seats/seats.module';
 import { InvitesController } from './invites.controller';
 import { InvitesService } from './invites.service';
 import { InviteSchema } from './schemas/invite.schema';
@@ -16,6 +17,7 @@ import { InviteSchema } from './schemas/invite.schema';
     ContactsModule,
     EmailModule,
     UsersModule,
+    SeatsModule,
     MongooseModule.forFeature([{ name: 'Invite', schema: InviteSchema }]),
   ],
   controllers: [InvitesController],

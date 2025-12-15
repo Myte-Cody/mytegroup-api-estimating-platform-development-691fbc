@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import * as argon2 from 'argon2';
 import { AuditLogService } from '../../common/services/audit-log.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -8,6 +8,8 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { Role, canAssignRoles, mergeRoles, resolvePrimaryRole } from '../../common/roles';
 import { User } from './schemas/user.schema';
 import { STRONG_PASSWORD_REGEX } from '../auth/dto/password-rules';
+import { SeatsService } from '../seats/seats.service';
+import { seatConfig } from '../../config/app.config';
 
 export type ActorContext = { role?: Role; roles?: Role[]; orgId?: string; id?: string };
 
@@ -15,7 +17,8 @@ export type ActorContext = { role?: Role; roles?: Role[]; orgId?: string; id?: s
 export class UsersService {
   constructor(
     @InjectModel('User') private readonly userModel: Model<User>,
-    private readonly audit: AuditLogService
+    private readonly audit: AuditLogService,
+    private readonly seats: SeatsService
   ) {}
 
   private sanitize(user: any) {
@@ -102,10 +105,36 @@ export class UsersService {
     }
   }
 
-  async create(dto: CreateUserDto, actor?: ActorContext) {
-    const existing = await this.userModel.findOne({ email: dto.email });
-    if (existing) throw new ConflictException('Email already registered');
+  async create(dto: CreateUserDto, actor?: ActorContext, options?: { session?: ClientSession; enforceSeat?: boolean }) {
+    const email = (dto.email || '').trim().toLowerCase();
+    if (!email) throw new BadRequestException('Email is required');
     if (!dto.organizationId) throw new ConflictException('organizationId is required');
+
+    const enforceSeat = options?.enforceSeat ?? false;
+    if (enforceSeat && !options?.session) {
+      await this.seats.ensureOrgSeats(dto.organizationId, seatConfig.defaultSeatsPerOrg);
+    }
+
+    if (enforceSeat && !options?.session) {
+      const session = await this.userModel.db.startSession();
+      try {
+        session.startTransaction();
+        const result = await this.create(dto, actor, { ...options, session });
+        await session.commitTransaction();
+        return result;
+      } catch (err) {
+        await session.abortTransaction();
+        throw err;
+      } finally {
+        session.endSession();
+      }
+    }
+
+    const session = options?.session;
+    const existingQuery = this.userModel.findOne({ email });
+    if (session) existingQuery.session(session);
+    const existing = await existingQuery;
+    if (existing) throw new ConflictException('Email already registered');
     if (!STRONG_PASSWORD_REGEX.test(dto.password)) {
       throw new BadRequestException('Password does not meet strength requirements');
     }
@@ -114,9 +143,9 @@ export class UsersService {
       this.validateRoleChange(actor, roles);
     }
     const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
-    const user = await this.userModel.create({
+    const payload = {
       username: dto.username,
-      email: dto.email,
+      email,
       passwordHash,
       role: primary,
       roles,
@@ -131,19 +160,40 @@ export class UsersService {
       lastLogin: null,
       piiStripped: false,
       legalHold: false,
-    });
+    };
+
+    let user: any;
+    if (session) {
+      const created = await (this.userModel as any).create([payload], { session });
+      user = Array.isArray(created) ? created[0] : created;
+    } else {
+      user = await (this.userModel as any).create(payload);
+    }
+
+    if (enforceSeat) {
+      await this.seats.allocateSeat(dto.organizationId, user.id, session);
+    }
+
     await this.audit.log({
       eventType: 'user.created',
       userId: actor?.id || user.id,
       orgId: user.organizationId,
       entity: 'User',
       entityId: user.id,
-    });
+    }, session ? { session } : undefined);
     return this.sanitize(user);
   }
 
   async findByEmail(email: string) {
-    return this.userModel.findOne({ email, archivedAt: null });
+    const normalized = (email || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return this.userModel.findOne({ email: normalized, archivedAt: null });
+  }
+
+  async findAnyByEmail(email: string) {
+    const normalized = (email || '').trim().toLowerCase();
+    if (!normalized) return null;
+    return this.userModel.findOne({ email: normalized }).lean();
   }
 
   async scopedFindAll(orgId: string) {
@@ -240,6 +290,7 @@ export class UsersService {
     if (user.archivedAt) return this.sanitize(user);
     user.archivedAt = new Date();
     await user.save();
+    await this.seats.releaseSeatForUser(user.organizationId as string, user.id);
     await this.audit.log({
       eventType: 'user.archived',
       userId: actor.id || user.id,
@@ -257,8 +308,18 @@ export class UsersService {
     this.assertOrgScope(user.organizationId, actor);
     this.assertNotLegalHold(user, 'unarchive');
     if (!user.archivedAt) return this.sanitize(user);
-    user.archivedAt = null;
-    await user.save();
+
+    const orgId = user.organizationId as string;
+    await this.seats.ensureOrgSeats(orgId, seatConfig.defaultSeatsPerOrg);
+    await this.seats.allocateSeat(orgId, user.id);
+
+    try {
+      user.archivedAt = null;
+      await user.save();
+    } catch (err) {
+      await this.seats.releaseSeatForUser(orgId, user.id);
+      throw err;
+    }
     await this.audit.log({
       eventType: 'user.unarchived',
       userId: actor.id || user.id,

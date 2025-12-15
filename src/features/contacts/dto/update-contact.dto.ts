@@ -1,6 +1,19 @@
-import { Transform } from 'class-transformer';
-import { IsArray, IsEmail, IsEnum, IsOptional, IsString, Matches, IsDateString, IsIn } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsEnum,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Matches,
+  ValidateNested,
+} from 'class-validator';
 import { Role } from '../../../common/roles';
+import { ContactCertificationDto } from './create-contact.dto';
 
 const PHONE_REGEX = /^[0-9+()\-.\s]{7,20}$/;
 
@@ -9,6 +22,79 @@ export class UpdateContactDto {
   @IsString()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   name?: string;
+
+  @IsOptional()
+  @IsIn(['staff', 'ironworker', 'external'])
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  personType?: 'staff' | 'ironworker' | 'external';
+
+  @IsOptional()
+  @IsIn(['individual', 'business'])
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
+  contactKind?: 'individual' | 'business';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  displayName?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  ironworkerNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  unionLocal?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  promotedToForeman?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  foremanUserId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  officeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  reportsToContactId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  skills?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ContactCertificationDto)
+  certifications?: ContactCertificationDto[];
+
+  @IsOptional()
+  @IsNumber()
+  rating?: number;
 
   @IsOptional()
   @IsEmail()

@@ -7,6 +7,7 @@ import { ComplianceService } from './compliance.service';
 import { ContactSchema } from '../contacts/schemas/contact.schema';
 import { InviteSchema } from '../invites/schemas/invite.schema';
 import { ProjectSchema } from '../projects/schemas/project.schema';
+import { EstimateSchema } from '../estimates/schemas/estimate.schema';
 import { UserSchema } from '../users/schemas/user.schema';
 
 @Module({
@@ -18,6 +19,7 @@ import { UserSchema } from '../users/schemas/user.schema';
       { name: 'Contact', schema: ContactSchema },
       { name: 'Invite', schema: InviteSchema },
       { name: 'Project', schema: ProjectSchema },
+      { name: 'Estimate', schema: EstimateSchema },
     ]),
   ],
   controllers: [ComplianceController],

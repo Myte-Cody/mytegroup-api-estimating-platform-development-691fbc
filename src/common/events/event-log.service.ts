@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model, Types } from 'mongoose';
+import { ClientSession, FilterQuery, Model, Types } from 'mongoose';
 import { EventLog } from './event-log.schema';
 import { loggingConfig } from '../../config/app.config';
 import { ListEventsDto } from './dto/list-events.dto';
@@ -14,7 +14,7 @@ export class EventLogService {
   private readonly logger = new Logger(EventLogService.name);
   constructor(@InjectModel('EventLog') private readonly model: Model<EventLog>) {}
 
-  async log(event: Partial<EventLog>) {
+  async log(event: Partial<EventLog>, options?: { session?: ClientSession }) {
     const payload = {
       ...event,
       action: event.action || this.deriveAction(event.eventType),
@@ -28,7 +28,8 @@ export class EventLogService {
       legalHold: event.legalHold ?? false,
     };
     try {
-      await this.model.create(payload);
+      const createOptions = options?.session ? { session: options.session } : undefined;
+      await this.model.create(payload, createOptions as any);
     } catch (err) {
       this.logger.error(`Failed to persist event ${event.eventType || 'unknown'}`, err as Error);
     }

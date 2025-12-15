@@ -15,6 +15,23 @@ const createAuditStub = () => {
     async log(evt: any) {
       events.push(evt);
     },
+    async logMutation(evt: any) {
+      events.push(evt);
+    },
+  };
+};
+
+const createSeatsStub = () => {
+  return {
+    async ensureOrgSeats() {
+      return;
+    },
+    async allocateSeat() {
+      return { status: 'active' };
+    },
+    async releaseSeatForUser() {
+      return { status: 'vacant' };
+    },
   };
 };
 
@@ -81,7 +98,7 @@ describe('UsersService', () => {
   it('creates users with hashed passwords and roles array', async () => {
     const model = createUserModel();
     const audit = createAuditStub();
-    const svc = new UsersService(model as any, audit as any);
+    const svc = new UsersService(model as any, audit as any, createSeatsStub() as any);
     const user = await svc.create({
       username: 'Jane',
       email: 'jane@example.com',
@@ -99,7 +116,7 @@ describe('UsersService', () => {
 
   it('rejects creating elevated roles when actor lacks privilege', async () => {
     const model = createUserModel();
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     await assert.rejects(
       () =>
         svc.create(
@@ -131,7 +148,7 @@ describe('UsersService', () => {
       },
       { id: 'u3', username: 'Carl', email: 'carl@example.com', passwordHash: 'hash-three', organizationId: 'orgB' },
     ]);
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     const results = await svc.scopedFindAll('orgA');
     assert.equal(results.length, 1);
     const user = results[0];
@@ -147,7 +164,7 @@ describe('UsersService', () => {
       { id: 'u2', username: 'Archived', email: 'arch@example.com', organizationId: 'orgA', archivedAt: new Date() },
       { id: 'u3', username: 'Other', email: 'other@example.com', organizationId: 'orgB' },
     ]);
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
 
     const activeOnly = await svc.list({ orgId: 'orgA', role: Role.Admin }, { includeArchived: false });
     assert.equal(activeOnly.length, 1);
@@ -168,7 +185,7 @@ describe('UsersService', () => {
     });
     const model = createUserModel([target]);
     const audit = createAuditStub();
-    const svc = new UsersService(model as any, audit as any);
+    const svc = new UsersService(model as any, audit as any, createSeatsStub() as any);
 
     await assert.rejects(
       () => svc.archiveUser('u-archive', { role: Role.Admin, orgId: 'other-org' }),
@@ -199,7 +216,7 @@ describe('UsersService', () => {
       legalHold: true,
     });
     const model = createUserModel([target]);
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
 
     await assert.rejects(
       () => svc.archiveUser('u-held', { role: Role.Admin, orgId: 'orgZ' }),
@@ -216,7 +233,7 @@ describe('UsersService', () => {
       { id: 'u-role', username: 'RoleUser', email: 'role@example.com', organizationId: 'orgR', role: Role.User },
     ]);
     const audit = createAuditStub();
-    const svc = new UsersService(model as any, audit as any);
+    const svc = new UsersService(model as any, audit as any, createSeatsStub() as any);
 
     await assert.rejects(
       () => svc.updateRoles('u-role', [Role.SuperAdmin], { role: Role.Admin, orgId: 'orgR' }),
@@ -244,7 +261,7 @@ describe('UsersService', () => {
       { id: 'u-active', username: 'Active', email: 'active@example.com', organizationId: 'orgX' },
       { id: 'u-arch', username: 'Archived', email: 'arch@example.com', organizationId: 'orgX', archivedAt },
     ]);
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     const actor = { orgId: 'orgX', role: Role.Admin };
 
     const active = await svc.getById('u-active', actor as any);
@@ -259,7 +276,7 @@ describe('UsersService', () => {
       { id: 'u-update', username: 'User', email: 'user@example.com', organizationId: 'orgY', piiStripped: false, legalHold: false },
     ]);
     const audit = createAuditStub();
-    const svc = new UsersService(model as any, audit as any);
+    const svc = new UsersService(model as any, audit as any, createSeatsStub() as any);
     const actor = { orgId: 'orgY', role: Role.Admin };
 
     const updated = await svc.update(
@@ -281,7 +298,7 @@ describe('UsersService', () => {
       { id: 'u1', username: 'User1', email: 'one@example.com', organizationId: 'orgZ' },
       { id: 'u2', username: 'User2', email: 'two@example.com', organizationId: 'orgZ' },
     ]);
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     await assert.rejects(
       () => svc.update('u1', { piiStripped: true }, { orgId: 'orgZ', role: Role.User } as any),
       ForbiddenException
@@ -317,7 +334,7 @@ describe('UsersService', () => {
         legalHold: false,
       },
     ]);
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     const verify = await svc.findByVerificationToken('same-hash');
     assert.equal(verify?.id, 'ok');
     const reset = await svc.findByResetToken('same-reset');
@@ -326,7 +343,7 @@ describe('UsersService', () => {
 
   it('tracks last login timestamps', async () => {
     const model = createUserModel([{ id: 'u-last', username: 'Last', email: 'last@example.com', organizationId: 'orgL' }]);
-    const svc = new UsersService(model as any, createAuditStub() as any);
+    const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     const updated = await svc.markLastLogin('u-last');
     assert.ok(updated?.lastLogin instanceof Date);
   });

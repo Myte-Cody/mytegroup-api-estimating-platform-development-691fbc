@@ -30,7 +30,7 @@ export class OfficesController {
     return this.svc.create(dto, actor);
   }
 
-  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer, Role.SuperAdmin)
   @Get()
   list(
     @Req() req: Request,
@@ -43,7 +43,7 @@ export class OfficesController {
     return this.svc.list(actor, resolvedOrg, this.parseIncludeArchived(includeArchived));
   }
 
-  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
+  @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer, Role.SuperAdmin)
   @Get(':id')
   getById(@Param('id') id: string, @Req() req: Request, @Query('includeArchived') includeArchived?: string) {
     const actor = this.getActor(req);

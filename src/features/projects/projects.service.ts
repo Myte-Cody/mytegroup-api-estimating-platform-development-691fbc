@@ -1,7 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Role } from '../../common/roles';
+import { expandRoles, Role } from '../../common/roles';
 import { AuditLogService } from '../../common/services/audit-log.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -23,8 +23,11 @@ export class ProjectsService {
   private ensureRole(actor: ActorContext, allowed: Role[]) {
     if (actor.role === Role.SuperAdmin) return;
     if (!actor.role) throw new ForbiddenException('Insufficient role');
-    if (allowed.includes(Role.Admin) && actor.role === Role.OrgOwner) return;
-    if (!allowed.includes(actor.role)) throw new ForbiddenException('Insufficient role');
+    const effectiveRoles = expandRoles([actor.role]);
+    const allowedEffective = allowed.some((role) => effectiveRoles.includes(role));
+    if (!allowedEffective) {
+      throw new ForbiddenException('Insufficient role');
+    }
   }
 
   private resolveOrgId(requestedOrgId: string | undefined, actor: ActorContext) {
@@ -41,11 +44,9 @@ export class ProjectsService {
   }
 
   private canViewArchived(actor: ActorContext) {
-    return (
-      actor.role === Role.SuperAdmin ||
-      actor.role === Role.Admin ||
-      actor.role === Role.Manager ||
-      actor.role === Role.OrgOwner
+    const effectiveRoles = expandRoles(actor.role ? [actor.role] : []);
+    return [Role.SuperAdmin, Role.PlatformAdmin, Role.Admin, Role.Manager, Role.OrgOwner].some((role) =>
+      effectiveRoles.includes(role)
     );
   }
 
@@ -72,6 +73,9 @@ export class ProjectsService {
   private async validateOrg(orgId: string) {
     const org = await this.orgModel.findOne({ _id: orgId, archivedAt: null });
     if (!org) throw new NotFoundException('Organization not found or archived');
+    if (org.legalHold) {
+      throw new ForbiddenException('Organization is under legal hold');
+    }
   }
 
   private async validateOffice(orgId: string, officeId?: string | null) {
@@ -136,6 +140,7 @@ export class ProjectsService {
     const project = await this.projectModel.findById(id);
     if (!project) throw new NotFoundException('Project not found');
     this.ensureOrgScope(project.organizationId, actor);
+    await this.validateOrg(project.organizationId);
     if (project.archivedAt) throw new NotFoundException('Project archived');
     this.ensureNotOnLegalHold(project, 'update');
 
@@ -177,6 +182,7 @@ export class ProjectsService {
     const project = await this.projectModel.findById(id);
     if (!project) throw new NotFoundException('Project not found');
     this.ensureOrgScope(project.organizationId, actor);
+    await this.validateOrg(project.organizationId);
     this.ensureNotOnLegalHold(project, 'archive');
 
     if (!project.archivedAt) {
@@ -200,6 +206,7 @@ export class ProjectsService {
     const project = await this.projectModel.findById(id);
     if (!project) throw new NotFoundException('Project not found');
     this.ensureOrgScope(project.organizationId, actor);
+    await this.validateOrg(project.organizationId);
     this.ensureNotOnLegalHold(project, 'unarchive');
 
     if (project.archivedAt) {

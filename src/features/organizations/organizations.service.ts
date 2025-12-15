@@ -16,6 +16,8 @@ import { UpdateOrganizationPiiDto } from './dto/update-organization-pii.dto';
 import { Organization } from './schemas/organization.schema';
 import { TenantConnectionService } from '../../common/tenancy/tenant-connection.service';
 import { ListOrganizationsDto } from './dto/list-organizations.dto';
+import { SeatsService } from '../seats/seats.service';
+import { seatConfig } from '../../config/app.config';
 
 type Actor = { id?: string | null };
 
@@ -24,7 +26,8 @@ export class OrganizationsService {
   constructor(
     @InjectModel('Organization') private readonly orgModel: Model<Organization>,
     private readonly audit: AuditLogService,
-    private readonly tenants: TenantConnectionService
+    private readonly tenants: TenantConnectionService,
+    private readonly seats: SeatsService
   ) {}
 
   private asObject(org: Organization) {
@@ -59,7 +62,7 @@ export class OrganizationsService {
   async create(dto: CreateOrganizationDto, actor?: Actor) {
     const existing = await this.orgModel.findOne({ name: dto.name });
     if (existing) throw new ConflictException('Organization name already in use');
-    const normalizedDomain = dto.primaryDomain ? dto.primaryDomain.toLowerCase() : null;
+    const normalizedDomain = dto.primaryDomain ? dto.primaryDomain.toLowerCase() : undefined;
     if (normalizedDomain) {
       const domainCollision = await this.orgModel.findOne({ primaryDomain: normalizedDomain });
       if (domainCollision) throw new ConflictException('Organization domain already registered');
@@ -73,7 +76,7 @@ export class OrganizationsService {
     const org = await this.orgModel.create({
       name: dto.name,
       metadata: dto.metadata || {},
-      primaryDomain: normalizedDomain,
+      ...(normalizedDomain ? { primaryDomain: normalizedDomain } : {}),
       useDedicatedDb: datastoreType === 'dedicated',
       datastoreType,
       databaseUri: dto.databaseUri || dto.datastoreUri || null,
@@ -90,6 +93,8 @@ export class OrganizationsService {
       entityId: org.id,
       metadata: { datastore: this.sanitizeDatastoreSnapshot(org) },
     });
+
+    await this.seats.ensureOrgSeats(org.id, seatConfig.defaultSeatsPerOrg);
     return this.asObject(org);
   }
 

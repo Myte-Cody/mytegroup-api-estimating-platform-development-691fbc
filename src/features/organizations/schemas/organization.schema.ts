@@ -33,7 +33,17 @@ export const OrganizationSchema = new Schema<Organization>(
     metadata: { type: Schema.Types.Mixed, default: {} },
     ownerUserId: { type: String, default: null },
     createdByUserId: { type: String, default: null },
-    primaryDomain: { type: String, default: null, index: true, unique: true, sparse: true },
+    primaryDomain: {
+      type: String,
+      index: true,
+      unique: true,
+      sparse: true,
+      set: (value: unknown) => {
+        if (typeof value !== 'string') return undefined;
+        const normalized = value.trim().toLowerCase();
+        return normalized ? normalized : undefined;
+      },
+    },
     useDedicatedDb: { type: Boolean, default: false },
     datastoreType: { type: String, enum: ['shared', 'dedicated'], default: 'shared' },
     databaseUri: { type: String, default: null },

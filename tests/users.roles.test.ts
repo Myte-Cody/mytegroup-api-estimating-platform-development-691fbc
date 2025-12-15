@@ -87,9 +87,15 @@ const createUserModel = (initial: any[] = []) => {
 const createService = (initial: any[] = []) => {
   const auditLog: any[] = [];
   const model = createUserModel(initial) as any;
+  const seats = {
+    ensureOrgSeats: async () => undefined,
+    allocateSeat: async () => ({ status: 'active' }),
+    releaseSeatForUser: async () => ({ status: 'vacant' }),
+  };
   const service = new UsersService(model, {
     log: async (evt: any) => auditLog.push(evt),
-  } as any);
+    logMutation: async (evt: any) => auditLog.push(evt),
+  } as any, seats as any);
   return { service, model, auditLog };
 };
 

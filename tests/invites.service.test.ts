@@ -86,6 +86,16 @@ const createInviteModel = (initial: Partial<FakeInviteRecord>[] = []) => {
   });
 
   return {
+    db: {
+      startSession: async () => {
+        return {
+          startTransaction: () => undefined,
+          commitTransaction: async () => undefined,
+          abortTransaction: async () => undefined,
+          endSession: () => undefined,
+        };
+      },
+    },
     records,
     async updateMany(filter: Record<string, any>, update: Record<string, any>) {
       let modified = 0;
@@ -178,7 +188,8 @@ const createService = (
     },
   };
 
-  const service = new InvitesService(model as any, audit as any, users as any, email as any, contacts as any);
+  const seats = { ensureOrgSeats: async () => undefined };
+  const service = new InvitesService(model as any, audit as any, users as any, email as any, contacts as any, seats as any);
   if (tokenFactory) {
     (service as any).generateToken = tokenFactory;
   }

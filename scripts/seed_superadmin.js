@@ -69,9 +69,14 @@ async function main() {
   const primaryDomain = (process.env.SEED_SUPERADMIN_PRIMARY_DOMAIN || 'mytegroup.com').trim().toLowerCase();
   const orgName = (process.env.SEED_SUPERADMIN_ORG_NAME || 'Myte Group Inc').trim();
   const role = (process.env.SEED_SUPERADMIN_ROLE || 'platform_admin').trim();
+  const canonicalSeedEmail = 'ahmed.mekallach@mytegroup.com';
 
   if (!email) {
     console.error('SEED_SUPERADMIN_EMAIL is required');
+    process.exit(1);
+  }
+  if (email !== canonicalSeedEmail) {
+    console.error(`Only ${canonicalSeedEmail} is allowed for platform admin seeding`);
     process.exit(1);
   }
   if (!password) {

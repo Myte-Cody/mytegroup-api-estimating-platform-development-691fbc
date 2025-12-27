@@ -150,7 +150,8 @@ const createInviteModel = (initial: Partial<FakeInviteRecord>[] = []) => {
 const createService = (
   model: ReturnType<typeof createInviteModel>,
   tokenFactory?: (hours: number) => { token: string; hash: string; expires: Date },
-  personResolver?: (input: { orgId: string; personId: string }) => Record<string, any>
+  personResolver?: (input: { orgId: string; personId: string }) => Record<string, any>,
+  orgResolver?: (input: { orgId: string }) => Record<string, any> | null
 ) => {
   const auditLog: any[] = [];
   const emailLog: any[] = [];
@@ -203,9 +204,20 @@ const createService = (
     },
   };
 
+  const orgModel = {
+    findOne: (filter: Record<string, any>) => ({
+      lean: async () => {
+        const orgId = filter?._id || 'org-default';
+        if (orgResolver) return orgResolver({ orgId });
+        return { _id: orgId, archivedAt: null, legalHold: false };
+      },
+    }),
+  };
+
   const seats = { ensureOrgSeats: async () => undefined };
   const service = new InvitesService(
     model as any,
+    orgModel as any,
     audit as any,
     users as any,
     email as any,
@@ -249,6 +261,24 @@ describe('InvitesService', () => {
     });
 
     assert.equal(invite.role, Role.Superintendent);
+  });
+
+  it('blocks invites when organization is under legal hold', async () => {
+    const { service } = createService(
+      model,
+      undefined,
+      undefined,
+      ({ orgId }) => ({ _id: orgId, archivedAt: null, legalHold: true })
+    );
+
+    await assert.rejects(
+      () =>
+        service.create('org-legal', 'actor-1', Role.Admin, {
+          personId: 'person-1',
+          role: Role.Viewer,
+        }),
+      (err: any) => err instanceof ForbiddenException && /legal hold/.test(err.message)
+    );
   });
 
   it('rejects staff-only roles for internal_union people', async () => {

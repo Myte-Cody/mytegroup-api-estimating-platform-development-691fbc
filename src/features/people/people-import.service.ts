@@ -1,4 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { AuditLogService } from '../../common/services/audit-log.service';
 import { Role } from '../../common/roles';
 import { TenantConnectionService } from '../../common/tenancy/tenant-connection.service';
@@ -6,6 +8,7 @@ import { normalizeEmail, normalizeName } from '../../common/utils/normalize.util
 import { Company, CompanySchema } from '../companies/schemas/company.schema';
 import { CompanyLocation, CompanyLocationSchema } from '../company-locations/schemas/company-location.schema';
 import { Office, OfficeSchema } from '../offices/schemas/office.schema';
+import { Organization } from '../organizations/schemas/organization.schema';
 import { Person, PersonSchema } from '../persons/schemas/person.schema';
 import { PersonsService } from '../persons/persons.service';
 import { UsersService } from '../users/users.service';
@@ -30,6 +33,7 @@ export class PeopleImportService {
   constructor(
     private readonly audit: AuditLogService,
     private readonly tenants: TenantConnectionService,
+    @InjectModel('Organization') private readonly orgModel: Model<Organization>,
     private readonly persons: PersonsService,
     private readonly users: UsersService
   ) {}
@@ -58,6 +62,14 @@ export class PeopleImportService {
     return undefined;
   }
 
+  private async validateOrg(orgId: string) {
+    const org = await this.orgModel.findOne({ _id: orgId, archivedAt: null });
+    if (!org) throw new NotFoundException('Organization not found or archived');
+    if (org.legalHold) {
+      throw new ForbiddenException('Organization is under legal hold');
+    }
+  }
+
   private rowErrors(row: PeopleImportRowDto) {
     const errors: string[] = [];
     if (!row.name || !row.name.trim()) errors.push('name is required');
@@ -71,6 +83,7 @@ export class PeopleImportService {
   async preview(actor: ActorContext, rows: PeopleImportRowDto[]) {
     if (!actor.orgId) throw new BadRequestException('Missing organization context');
     const orgId = actor.orgId;
+    await this.validateOrg(orgId);
 
     if (!Array.isArray(rows) || rows.length === 0) {
       throw new BadRequestException('No rows supplied for import preview');
@@ -180,6 +193,7 @@ export class PeopleImportService {
   async confirm(actor: ActorContext, rows: PeopleImportConfirmRowDto[]) {
     if (!actor.orgId) throw new BadRequestException('Missing organization context');
     const orgId = actor.orgId;
+    await this.validateOrg(orgId);
     if (!actor.userId) throw new BadRequestException('Missing actor context');
     if (!actor.role) throw new BadRequestException('Missing actor role');
 
@@ -350,6 +364,7 @@ export class PeopleImportService {
   async previewV1(actor: ActorContext, rows: PeopleImportV1RowDto[]) {
     if (!actor.orgId) throw new BadRequestException('Missing organization context');
     const orgId = actor.orgId;
+    await this.validateOrg(orgId);
 
     if (!Array.isArray(rows) || rows.length === 0) {
       throw new BadRequestException('No rows supplied for import preview');
@@ -471,6 +486,7 @@ export class PeopleImportService {
   async confirmV1(actor: ActorContext, rows: PeopleImportV1ConfirmRowDto[]) {
     if (!actor.orgId) throw new BadRequestException('Missing organization context');
     const orgId = actor.orgId;
+    await this.validateOrg(orgId);
 
     if (!Array.isArray(rows) || rows.length === 0) {
       throw new BadRequestException('No rows supplied for import confirm');

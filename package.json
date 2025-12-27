@@ -14,6 +14,7 @@
     "test": "cross-env LEGAL_ENFORCE=0 node --require ts-node/register/transpile-only --test tests/*.test.ts",
     "crm:normalize-org-id": "node --require ts-node/register/transpile-only scripts/normalize_org_id.ts",
     "crm:migrate-contacts-to-crm": "node --require ts-node/register/transpile-only scripts/migrate_contacts_to_crm.ts",
+    "crm:repair-invite-person-links": "node --require ts-node/register/transpile-only scripts/repair_invite_person_links.ts",
     "queue:test": "node scripts/queue-test.js",
     "queue:dlq:stats": "node scripts/queue-dlq.js stats",
     "queue:dlq:requeue": "node scripts/queue-dlq.js requeue",

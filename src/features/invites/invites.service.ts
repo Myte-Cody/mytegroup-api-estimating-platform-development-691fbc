@@ -12,17 +12,25 @@ import { Role, canAssignRoles, mergeRoles } from '../../common/roles';
 import { SeatsService } from '../seats/seats.service';
 import { seatConfig } from '../../config/app.config';
 import { PersonsService } from '../persons/persons.service';
+import { Organization } from '../organizations/schemas/organization.schema';
 
 @Injectable()
 export class InvitesService {
   constructor(
     @InjectModel('Invite') private readonly inviteModel: Model<Invite>,
+    @InjectModel('Organization') private readonly orgModel: Model<Organization>,
     private readonly audit: AuditLogService,
     private readonly users: UsersService,
     private readonly email: EmailService,
     private readonly persons: PersonsService,
     private readonly seats: SeatsService
   ) {}
+
+  private async ensureOrgActive(orgId: string) {
+    const org = await this.orgModel.findOne({ _id: orgId, archivedAt: null }).lean();
+    if (!org) throw new NotFoundException('Organization not found or archived');
+    if (org.legalHold) throw new ForbiddenException('Organization is under legal hold');
+  }
 
   private generateToken(hours: number) {
     const token = crypto.randomBytes(32).toString('hex');
@@ -53,6 +61,7 @@ export class InvitesService {
     this.validateInviteRole(actorRole, dto.role);
     if (!orgId) throw new BadRequestException('Missing organization context');
     if (!actorId) throw new BadRequestException('Missing actor context');
+    await this.ensureOrgActive(orgId);
     await this.expireStale(orgId);
 
     const actor = { userId: actorId, orgId, role: actorRole as Role };
@@ -139,6 +148,7 @@ export class InvitesService {
   }
 
   async resend(orgId: string, inviteId: string, actorId: string) {
+    await this.ensureOrgActive(orgId);
     await this.expireStale(orgId);
     const invite = await this.inviteModel.findOne({ _id: inviteId, orgId, archivedAt: null });
     if (!invite) throw new NotFoundException('Invite not found');

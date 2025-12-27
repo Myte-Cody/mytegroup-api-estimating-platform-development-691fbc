@@ -6,6 +6,7 @@ import { EmailModule } from '../email/email.module';
 import { UsersModule } from '../users/users.module';
 import { SeatsModule } from '../seats/seats.module';
 import { PersonsModule } from '../persons/persons.module';
+import { OrganizationSchema } from '../organizations/schemas/organization.schema';
 import { InvitesController } from './invites.controller';
 import { InvitesService } from './invites.service';
 import { InviteSchema } from './schemas/invite.schema';
@@ -18,7 +19,10 @@ import { InviteSchema } from './schemas/invite.schema';
     EmailModule,
     UsersModule,
     SeatsModule,
-    MongooseModule.forFeature([{ name: 'Invite', schema: InviteSchema }]),
+    MongooseModule.forFeature([
+      { name: 'Invite', schema: InviteSchema },
+      { name: 'Organization', schema: OrganizationSchema },
+    ]),
   ],
   controllers: [InvitesController],
   providers: [InvitesService],

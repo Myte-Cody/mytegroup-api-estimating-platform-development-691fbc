@@ -56,7 +56,7 @@ describe('EstimatesService', { concurrency: 1 }, () => {
     ]);
     orgAId = orgA.id;
     orgBId = orgB.id;
-    const projectA = await projectModel.create({ name: 'Project A', organizationId: orgAId });
+    const projectA = await projectModel.create({ name: 'Project A', orgId: orgAId });
     projectAId = projectA.id;
   });
 
@@ -70,7 +70,7 @@ describe('EstimatesService', { concurrency: 1 }, () => {
     const estimateId = (created as any).id || (created as any)._id;
     assert.ok(estimateId);
     assert.equal((created as any).projectId, projectAId);
-    assert.equal((created as any).organizationId, orgAId);
+    assert.equal((created as any).orgId, orgAId);
     assert.equal(await eventLogModel.countDocuments({ eventType: 'estimate.created' }), 1);
 
     const list = await service.list(projectAId, estimatorActor(), false);
@@ -161,4 +161,3 @@ describe('EstimatesService', { concurrency: 1 }, () => {
     await assert.rejects(service.create(projectAId, { name: 'Nope' }, viewerActor()), ForbiddenException);
   });
 });
-

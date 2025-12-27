@@ -2,7 +2,7 @@ import { Schema, Document } from 'mongoose';
 
 export interface Project extends Document {
   name: string;
-  organizationId: string;
+  orgId: string;
   officeId?: string;
   description?: string;
   archivedAt?: Date | null;
@@ -15,7 +15,7 @@ export interface Project extends Document {
 export const ProjectSchema = new Schema<Project>(
   {
     name: { type: String, required: true },
-    organizationId: { type: String, required: true },
+    orgId: { type: String, required: true, index: true },
     officeId: { type: String },
     description: { type: String },
     archivedAt: { type: Date, default: null },
@@ -25,5 +25,8 @@ export const ProjectSchema = new Schema<Project>(
   { timestamps: true }
 );
 
-ProjectSchema.index({ organizationId: 1, name: 1 }, { unique: true });
-ProjectSchema.index({ organizationId: 1, archivedAt: 1 });
+ProjectSchema.index(
+  { orgId: 1, name: 1 },
+  { unique: true, partialFilterExpression: { archivedAt: null } }
+);
+ProjectSchema.index({ orgId: 1, archivedAt: 1 });

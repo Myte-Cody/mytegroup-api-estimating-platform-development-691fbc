@@ -39,7 +39,7 @@ const buildService = () => {
       username: 'User One',
       passwordHash: 'hash',
       role: Role.User,
-      organizationId: 'org-1',
+      orgId: 'org-1',
       archivedAt: null,
       piiStripped: false,
       legalHold: false,
@@ -101,7 +101,7 @@ const buildService = () => {
       _id: 'project-1',
       name: 'Tower Project',
       description: 'Client address in description',
-      organizationId: 'org-1',
+      orgId: 'org-1',
       archivedAt: null,
       piiStripped: false,
       legalHold: false,
@@ -111,7 +111,7 @@ const buildService = () => {
     {
       _id: 'estimate-1',
       projectId: 'project-1',
-      organizationId: 'org-1',
+      orgId: 'org-1',
       createdByUserId: 'actor-1',
       name: 'Base Estimate',
       description: 'Sensitive estimate description',
@@ -122,6 +122,12 @@ const buildService = () => {
       legalHold: false,
     },
   ]);
+  const personModel = createModel([]);
+  const companyModel = createModel([]);
+  const companyLocationModel = createModel([]);
+  const officeModel = createModel([]);
+  const graphEdgeModel = createModel([]);
+  const orgTaxonomyModel = createModel([]);
   const auditLog = [];
   const audit = { log: async (event) => auditLog.push(event) };
   const eventsCalls = [];
@@ -133,6 +139,12 @@ const buildService = () => {
     inviteModel,
     projectModel,
     estimateModel,
+    personModel,
+    companyModel,
+    companyLocationModel,
+    officeModel,
+    graphEdgeModel,
+    orgTaxonomyModel,
     audit,
     events,
     tenants

@@ -10,7 +10,7 @@ export class CreateProjectDto {
 
   @IsOptional()
   @IsString()
-  organizationId?: string;
+  orgId?: string;
 
   @IsOptional()
   @IsString()

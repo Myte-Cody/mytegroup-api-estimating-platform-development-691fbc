@@ -8,7 +8,7 @@ export interface User extends Document {
   passwordHash: string;
   role: string;
   roles: string[];
-  organizationId?: string;
+  orgId?: string;
   isEmailVerified: boolean;
   verificationTokenHash?: string | null;
   verificationTokenExpires?: Date | null;
@@ -32,7 +32,7 @@ export const UserSchema = new Schema<User>(
     passwordHash: { type: String, required: true },
     role: { type: String, default: 'user' },
     roles: { type: [String], default: ['user'] },
-    organizationId: { type: String },
+    orgId: { type: String, index: true },
     isEmailVerified: { type: Boolean, default: false },
     verificationTokenHash: { type: String, default: null },
     verificationTokenExpires: { type: Date, default: null },
@@ -47,4 +47,4 @@ export const UserSchema = new Schema<User>(
   { timestamps: true }
 );
 
-UserSchema.index({ organizationId: 1, archivedAt: 1 });
+UserSchema.index({ orgId: 1, archivedAt: 1 });

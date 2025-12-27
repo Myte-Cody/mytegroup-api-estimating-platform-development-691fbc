@@ -23,7 +23,7 @@ export class RegisterDto {
 
   @IsOptional()
   @IsString()
-  organizationId?: string;
+  orgId?: string;
 
   @IsOptional()
   @IsString()

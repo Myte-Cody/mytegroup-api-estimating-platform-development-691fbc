@@ -61,7 +61,7 @@ describe('AuthService login and tokens', () => {
       users: {
         findByEmail: async () => ({
           id: 'u1',
-          organizationId: 'org1',
+          orgId: 'org1',
           role: Role.User,
           roles: [Role.User],
           passwordHash: hash,
@@ -71,7 +71,7 @@ describe('AuthService login and tokens', () => {
         }),
         markLastLogin: async (id) => ({
           id,
-          organizationId: 'org1',
+          orgId: 'org1',
           role: Role.User,
           roles: [Role.User],
           passwordHash: hash,
@@ -94,7 +94,7 @@ describe('AuthService login and tokens', () => {
     const hash = await hashPassword(password);
     const baseUser = {
       id: 'u2',
-      organizationId: 'org2',
+      orgId: 'org2',
       role: Role.User,
       roles: [Role.User],
       passwordHash: hash,
@@ -131,7 +131,7 @@ describe('AuthService login and tokens', () => {
       users: {
         findByResetToken: async () => ({
           id: 'u3',
-          organizationId: 'org3',
+          orgId: 'org3',
           role: Role.User,
           roles: [Role.User],
           legalHold: true,
@@ -156,7 +156,7 @@ describe('AuthService login and tokens', () => {
           assert.equal(hash, resetHash);
           return {
             id: 'u4',
-            organizationId: 'org4',
+            orgId: 'org4',
             role: Role.User,
             roles: [Role.User],
             legalHold: false,
@@ -167,7 +167,7 @@ describe('AuthService login and tokens', () => {
         clearResetTokenAndSetPassword: async (id, newPassword) => {
           clearCalled = true;
           assert.ok(STRONG_PASSWORD_REGEX.test(newPassword));
-          return { id, organizationId: 'org4', role: Role.User, roles: [Role.User] };
+          return { id, orgId: 'org4', role: Role.User, roles: [Role.User] };
         },
       },
     });
@@ -187,11 +187,11 @@ describe('AuthService login and tokens', () => {
       users: {
         findByVerificationToken: async (incomingHash) => {
           assert.equal(incomingHash, hash);
-          return { id: 'u5', organizationId: 'org5', role: Role.User, roles: [Role.User], archivedAt: null };
+          return { id: 'u5', orgId: 'org5', role: Role.User, roles: [Role.User], archivedAt: null };
         },
         clearVerificationToken: async () => {
           cleared = true;
-          return { id: 'u5', organizationId: 'org5' };
+          return { id: 'u5', orgId: 'org5' };
         },
       },
     });

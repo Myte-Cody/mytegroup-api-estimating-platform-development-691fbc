@@ -56,7 +56,7 @@ describe('UsersController', () => {
     const result = await controller.create(dto, req);
 
     assert.equal(calls.create.length, 1);
-    assert.equal(calls.create[0].dto.organizationId, 'org-1');
+    assert.equal(calls.create[0].dto.orgId, 'org-1');
     assert.deepEqual(calls.create[0].actor.roles, [Role.Admin, Role.PM]);
     assert.deepEqual(result.role, Role.User);
   });
@@ -68,13 +68,13 @@ describe('UsersController', () => {
       username: 'Ops',
       email: 'ops@example.com',
       password: 'Str0ng!Passw0rd',
-      organizationId: 'target-org',
+      orgId: 'target-org',
       roles: [Role.OrgAdmin],
     };
 
     await controller.create(dto, req);
 
-    assert.equal(calls.create[0].dto.organizationId, 'target-org');
+    assert.equal(calls.create[0].dto.orgId, 'target-org');
   });
 
   it('throws when org is missing for non-privileged actor', async () => {
@@ -122,7 +122,7 @@ describe('UsersController', () => {
     const { controller, calls } = makeController();
     const req = { session: { user: { orgId: 'org-1', role: Role.Admin, roles: [Role.Admin] } } };
 
-    const result = await controller.list({ includeArchived: true, organizationId: 'org-99' } as any, req as any);
+    const result = await controller.list({ includeArchived: true, orgId: 'org-99' } as any, req as any);
 
     assert.equal(calls.list.length, 1);
     assert.equal(calls.list[0].opts.orgId, 'org-99');

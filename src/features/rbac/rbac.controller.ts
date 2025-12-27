@@ -20,9 +20,9 @@ export class RbacController {
   }
 
   @Get('users')
-  list(@Req() req: Request, @Query('organizationId') organizationId?: string) {
+  list(@Req() req: Request, @Query('orgId') orgId?: string) {
     const actor = (req as any).session?.user || (req as any).user;
-    return this.svc.listUserRoles(organizationId, actor);
+    return this.svc.listUserRoles(orgId, actor);
   }
 
   @Get('users/:id/roles')

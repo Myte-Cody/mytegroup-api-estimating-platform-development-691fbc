@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req, Get, UseGuards, Optional } from '@nestjs/common';
+import { Controller, Post, Body, Req, Get, UseGuards, Optional, ForbiddenException } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -14,9 +14,18 @@ import { OrgScopeGuard } from '../../common/guards/org-scope.guard';
 import { PasswordStrengthDto } from './dto/password-strength.dto';
 import { LegalService } from '../legal/legal.service';
 import { SessionsService } from '../sessions/sessions.service';
+import { OrganizationsService } from '../organizations/organizations.service';
+import { SetOrgDto } from './dto/set-org.dto';
+import { UsersService } from '../users/users.service';
 @Controller('auth')
 export class AuthController {
-  constructor(private auth: AuthService, private legal: LegalService, @Optional() private sessions?: SessionsService) {}
+  constructor(
+    private auth: AuthService,
+    private legal: LegalService,
+    private orgs: OrganizationsService,
+    private users: UsersService,
+    @Optional() private sessions?: SessionsService
+  ) {}
 
   private async regenerateSession(req: Request) {
     return new Promise<void>((resolve, reject) => {
@@ -31,15 +40,16 @@ export class AuthController {
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
     const user = await this.auth.register(dto);
     await this.regenerateSession(req);
+    const orgId = (user as any).orgId || (user as any).organizationId;
     (req as any).session.user = {
       id: (user as any)._id || (user as any).id,
       role: user.role,
       roles: (user as any).roles || [user.role],
-      orgId: user.organizationId,
+      orgId,
       isOrgOwner: (user as any).isOrgOwner,
     };
     await this.sessions?.registerSession(req.sessionID, (user as any)._id || (user as any).id);
-    const status = await this.legal.acceptanceStatus({ id: (user as any).id, orgId: user.organizationId });
+    const status = await this.legal.acceptanceStatus({ id: (user as any).id, orgId });
     return { user, legalRequired: status.required.length > 0, legalRequiredDocs: status.required };
   }
 
@@ -51,16 +61,17 @@ export class AuthController {
       ...user,
       id: (user as any)._id || (user as any).id,
     };
+    const orgId = normalizedUser.orgId || normalizedUser.organizationId;
     // session-based auth for dev; cookie set by express-session middleware
     (req as any).session.user = {
       id: normalizedUser.id,
       role: normalizedUser.role,
       roles: normalizedUser.roles || [normalizedUser.role],
-      orgId: normalizedUser.organizationId,
+      orgId,
       isOrgOwner: normalizedUser.isOrgOwner,
     };
     await this.sessions?.registerSession(req.sessionID, normalizedUser.id);
-    const status = await this.legal.acceptanceStatus({ id: normalizedUser.id, orgId: normalizedUser.organizationId });
+    const status = await this.legal.acceptanceStatus({ id: normalizedUser.id, orgId });
     return { user: normalizedUser, legalRequired: status.required.length > 0, legalRequiredDocs: status.required };
   }
 
@@ -81,9 +92,37 @@ export class AuthController {
 
   @UseGuards(SessionGuard)
   @Get('me')
-  me(@Req() req: Request) {
+  async me(@Req() req: Request) {
     const user = req.session.user;
-    return { user, legalRequired: (req as any).legalRequired || [], legalStatus: (req as any).legalStatus };
+    if (user?.id && !user.orgId) {
+      try {
+        const dbUser: any = await this.users.getById(user.id, user, true);
+        const resolvedOrgId = dbUser?.orgId || dbUser?.organizationId;
+        if (resolvedOrgId) {
+          req.session.user = {
+            ...user,
+            orgId: resolvedOrgId,
+            role: dbUser.role || user.role,
+            roles: dbUser.roles || user.roles,
+          };
+        }
+      } catch {
+        // ignore - session remains unchanged
+      }
+    }
+    return { user: req.session.user, legalRequired: (req as any).legalRequired || [], legalStatus: (req as any).legalStatus };
+  }
+
+  @UseGuards(SessionGuard, RolesGuard)
+  @Roles(Role.SuperAdmin, Role.PlatformAdmin)
+  @Post('set-org')
+  async setOrg(@Body() dto: SetOrgDto, @Req() req: Request) {
+    if (!req.session?.user?.id) {
+      throw new ForbiddenException('Missing session');
+    }
+    await this.orgs.findById(dto.orgId);
+    req.session.user = { ...req.session.user, orgId: dto.orgId };
+    return { user: req.session.user };
   }
 
   @Post('verify-email')

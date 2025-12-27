@@ -9,9 +9,9 @@ import { Invite } from './schemas/invite.schema';
 import { UsersService } from '../users/users.service';
 import { EmailService } from '../email/email.service';
 import { Role, canAssignRoles, mergeRoles } from '../../common/roles';
-import { ContactsService } from '../contacts/contacts.service';
 import { SeatsService } from '../seats/seats.service';
 import { seatConfig } from '../../config/app.config';
+import { PersonsService } from '../persons/persons.service';
 
 @Injectable()
 export class InvitesService {
@@ -20,7 +20,7 @@ export class InvitesService {
     private readonly audit: AuditLogService,
     private readonly users: UsersService,
     private readonly email: EmailService,
-    private readonly contacts: ContactsService,
+    private readonly persons: PersonsService,
     private readonly seats: SeatsService
   ) {}
 
@@ -51,8 +51,45 @@ export class InvitesService {
 
   async create(orgId: string, actorId: string, actorRole: Role, dto: CreateInviteDto) {
     this.validateInviteRole(actorRole, dto.role);
+    if (!orgId) throw new BadRequestException('Missing organization context');
+    if (!actorId) throw new BadRequestException('Missing actor context');
     await this.expireStale(orgId);
-    const email = (dto.email || '').trim().toLowerCase();
+
+    const actor = { userId: actorId, orgId, role: actorRole as Role };
+    const person = await this.persons.getById(actor, orgId, dto.personId, false);
+
+    const personId = String(person.id || person._id);
+    const email = String(person.primaryEmail || '').trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException('Person must have a primaryEmail to be invited');
+    }
+
+    if (dto.role === Role.Foreman) {
+      if (person.personType !== 'internal_union') {
+        throw new BadRequestException('Foreman invites must come from an internal_union (ironworker) Person');
+      }
+      if (!person.ironworkerNumber) {
+        throw new BadRequestException('Foreman invites require ironworkerNumber on the Person');
+      }
+    } else if (dto.role === Role.Superintendent) {
+      if (!['internal_staff', 'internal_union'].includes(person.personType)) {
+        throw new BadRequestException('Superintendent invites must come from internal_staff or internal_union Person');
+      }
+    } else {
+      if (person.personType !== 'internal_staff') {
+        throw new BadRequestException('Invites must come from an internal_staff Person (except Foreman/Superintendent)');
+      }
+    }
+
+    if (person.userId) {
+      throw new BadRequestException('Person is already linked to a user; invite not required');
+    }
+
+    const existingUser = await this.users.findAnyByEmail(email);
+    if (existingUser) {
+      throw new BadRequestException('A user already exists with this email');
+    }
+
     const existing = await this.inviteModel.findOne({
       orgId,
       email,
@@ -78,7 +115,7 @@ export class InvitesService {
       orgId,
       email,
       role: dto.role || Role.User,
-      contactId: dto.contactId || null,
+      personId,
       tokenHash: hash,
       tokenExpires: expires,
       status: 'pending',
@@ -91,16 +128,8 @@ export class InvitesService {
       userId: actorId,
       entity: 'Invite',
       entityId: invite.id,
-      metadata: { email, role: dto.role },
+      metadata: { email, role: dto.role, personId },
     });
-    if (dto.contactId) {
-      await this.contacts.update(
-        { userId: actorId, role: actorRole, orgId },
-        orgId,
-        dto.contactId,
-        { inviteStatus: 'pending', invitedAt: new Date() }
-      );
-    }
     return invite.toObject ? invite.toObject() : invite;
   }
 
@@ -151,7 +180,7 @@ export class InvitesService {
 
     const session = await this.inviteModel.db.startSession();
     let createdUser: any = null;
-    let inviteContactId: string | null = invite.contactId || null;
+    let invitePersonId: string | null = invite.personId ? String(invite.personId) : null;
     let invitedUserId: string | null = null;
 
     try {
@@ -173,7 +202,7 @@ export class InvitesService {
           username: dto.username,
           email: inviteTx.email,
           password: dto.password,
-          organizationId: inviteTx.orgId,
+          orgId: inviteTx.orgId,
           role: (inviteTx.role as Role) || Role.User,
           isEmailVerified: true,
         },
@@ -196,7 +225,7 @@ export class InvitesService {
           userId: invitedUserId || undefined,
           entity: 'Invite',
           entityId: inviteTx.id,
-          metadata: { contactId: inviteTx.contactId },
+          metadata: { personId: inviteTx.personId },
         },
         { session }
       );
@@ -209,11 +238,23 @@ export class InvitesService {
       session.endSession();
     }
 
-    if (inviteContactId && invitedUserId) {
+    if (!invitePersonId && invitedUserId) {
       try {
-        await this.contacts.linkInvitedUser(invite.orgId, inviteContactId, invitedUserId);
+        const systemActor: any = { role: Role.SuperAdmin, orgId: invite.orgId };
+        const person = await this.persons.findByPrimaryEmail(systemActor, invite.orgId, invite.email);
+        if (person) {
+          invitePersonId = String((person as any).id || (person as any)._id);
+        }
       } catch {
-        // non-fatal: user accepted invite and has a seat; contact linkage can be repaired later
+        // non-fatal: user accepted invite and has a seat; person linkage can be repaired later
+      }
+    }
+
+    if (invitePersonId && invitedUserId) {
+      try {
+        await this.persons.linkUser(invite.orgId, invitePersonId, invitedUserId);
+      } catch {
+        // non-fatal: user accepted invite and has a seat; person linkage can be repaired later
       }
     }
 

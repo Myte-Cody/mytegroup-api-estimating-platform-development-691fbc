@@ -21,9 +21,9 @@ export class PeopleImportRowDto {
   row: number;
 
   @IsOptional()
-  @IsIn(['staff', 'ironworker', 'external'])
+  @IsIn(['staff', 'ironworker', 'external', 'internal_staff', 'internal_union', 'external_person'])
   @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
-  personType?: 'staff' | 'ironworker' | 'external';
+  personType?: 'staff' | 'ironworker' | 'external' | 'internal_staff' | 'internal_union' | 'external_person';
 
   @IsString()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
@@ -93,6 +93,10 @@ export class PeopleImportConfirmRowDto extends PeopleImportRowDto {
 
   @IsOptional()
   @IsString()
+  personId?: string;
+
+  @IsOptional()
+  @IsString()
   contactId?: string;
 }
 
@@ -103,4 +107,3 @@ export class PeopleImportConfirmDto {
   @Type(() => PeopleImportConfirmRowDto)
   rows: PeopleImportConfirmRowDto[];
 }
-

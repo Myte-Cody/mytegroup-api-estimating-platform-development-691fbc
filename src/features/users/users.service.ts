@@ -108,11 +108,12 @@ export class UsersService {
   async create(dto: CreateUserDto, actor?: ActorContext, options?: { session?: ClientSession; enforceSeat?: boolean }) {
     const email = (dto.email || '').trim().toLowerCase();
     if (!email) throw new BadRequestException('Email is required');
-    if (!dto.organizationId) throw new ConflictException('organizationId is required');
+    const orgId = dto.orgId;
+    if (!orgId) throw new ConflictException('orgId is required');
 
     const enforceSeat = options?.enforceSeat ?? false;
     if (enforceSeat && !options?.session) {
-      await this.seats.ensureOrgSeats(dto.organizationId, seatConfig.defaultSeatsPerOrg);
+      await this.seats.ensureOrgSeats(orgId, seatConfig.defaultSeatsPerOrg);
     }
 
     if (enforceSeat && !options?.session) {
@@ -149,7 +150,7 @@ export class UsersService {
       passwordHash,
       role: primary,
       roles,
-      organizationId: dto.organizationId,
+      orgId,
       isEmailVerified: dto.isEmailVerified ?? false,
       verificationTokenHash: dto.verificationTokenHash ?? null,
       verificationTokenExpires: dto.verificationTokenExpires ?? null,
@@ -171,13 +172,13 @@ export class UsersService {
     }
 
     if (enforceSeat) {
-      await this.seats.allocateSeat(dto.organizationId, user.id, session);
+      await this.seats.allocateSeat(orgId, user.id, session);
     }
 
     await this.audit.log({
       eventType: 'user.created',
       userId: actor?.id || user.id,
-      orgId: user.organizationId,
+      orgId: user.orgId,
       entity: 'User',
       entityId: user.id,
     }, session ? { session } : undefined);
@@ -197,7 +198,7 @@ export class UsersService {
   }
 
   async scopedFindAll(orgId: string) {
-    const users = await this.userModel.find({ organizationId: orgId, archivedAt: null });
+    const users = await this.userModel.find({ orgId, archivedAt: null });
     return users.map((u) => this.sanitize(u));
   }
 
@@ -209,7 +210,7 @@ export class UsersService {
     } = {}
   ) {
     const { orgId } = this.resolveOrg(actor, options.orgId);
-    const filter: any = { organizationId: orgId };
+    const filter: any = { orgId };
     if (!options.includeArchived) {
       filter.archivedAt = null;
     }
@@ -220,7 +221,7 @@ export class UsersService {
   async getById(id: string, actor: ActorContext, includeArchived = false) {
     const user = await this.userModel.findById(id);
     if (!user) throw new NotFoundException('User not found');
-    this.assertOrgScope(user.organizationId, actor);
+    this.assertOrgScope(user.orgId, actor);
     if (user.archivedAt && !includeArchived) {
       throw new NotFoundException('User not found');
     }
@@ -269,8 +270,8 @@ export class UsersService {
     );
   }
 
-    async clearResetTokenAndSetPassword(userId: string, newPassword: string) {
-      const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
+  async clearResetTokenAndSetPassword(userId: string, newPassword: string) {
+    const passwordHash = await argon2.hash(newPassword, { type: argon2.argon2id });
     return this.userModel.findByIdAndUpdate(
       userId,
       {
@@ -285,16 +286,16 @@ export class UsersService {
   async archiveUser(targetUserId: string, actor: ActorContext) {
     const user = await this.userModel.findById(targetUserId);
     if (!user) throw new NotFoundException('User not found');
-    this.assertOrgScope(user.organizationId, actor);
+    this.assertOrgScope(user.orgId, actor);
     this.assertNotLegalHold(user, 'archive');
     if (user.archivedAt) return this.sanitize(user);
     user.archivedAt = new Date();
     await user.save();
-    await this.seats.releaseSeatForUser(user.organizationId as string, user.id);
+    await this.seats.releaseSeatForUser(user.orgId as string, user.id);
     await this.audit.log({
       eventType: 'user.archived',
       userId: actor.id || user.id,
-      orgId: user.organizationId,
+      orgId: user.orgId,
       entity: 'User',
       entityId: user.id,
       metadata: { archivedAt: user.archivedAt },
@@ -305,11 +306,11 @@ export class UsersService {
   async unarchiveUser(targetUserId: string, actor: ActorContext) {
     const user = await this.userModel.findById(targetUserId);
     if (!user) throw new NotFoundException('User not found');
-    this.assertOrgScope(user.organizationId, actor);
+    this.assertOrgScope(user.orgId, actor);
     this.assertNotLegalHold(user, 'unarchive');
     if (!user.archivedAt) return this.sanitize(user);
 
-    const orgId = user.organizationId as string;
+    const orgId = user.orgId as string;
     await this.seats.ensureOrgSeats(orgId, seatConfig.defaultSeatsPerOrg);
     await this.seats.allocateSeat(orgId, user.id);
 
@@ -323,7 +324,7 @@ export class UsersService {
     await this.audit.log({
       eventType: 'user.unarchived',
       userId: actor.id || user.id,
-      orgId: user.organizationId,
+      orgId: user.orgId,
       entity: 'User',
       entityId: user.id,
       metadata: { archivedAt: user.archivedAt },
@@ -334,7 +335,7 @@ export class UsersService {
   async getUserRoles(targetUserId: string, actor: ActorContext) {
     const user = await this.userModel.findById(targetUserId);
     if (!user) throw new NotFoundException('User not found');
-    this.assertOrgScope(user.organizationId, actor);
+    this.assertOrgScope(user.orgId, actor);
     const sanitized = this.sanitize(user) as any;
     const roles = mergeRoles(sanitized.role as Role, sanitized.roles as Role[]);
     return { ...sanitized, roles, role: sanitized.role || resolvePrimaryRole(roles) };
@@ -343,9 +344,12 @@ export class UsersService {
   async listOrgRoles(orgId: string | undefined, actor: ActorContext) {
     const actorRoles = this.getActorRoles(actor);
     const canBypass = actorRoles.includes(Role.SuperAdmin) || actorRoles.includes(Role.PlatformAdmin);
+    if (!canBypass && orgId && actor.orgId && orgId !== actor.orgId) {
+      throw new ForbiddenException('Cannot access users outside your organization');
+    }
     const resolvedOrg = canBypass && orgId ? orgId : actor.orgId;
     if (!resolvedOrg) throw new ForbiddenException('Missing organization context');
-    const users = await this.userModel.find({ organizationId: resolvedOrg, archivedAt: null });
+    const users = await this.userModel.find({ orgId: resolvedOrg, archivedAt: null });
     return users.map((u) => {
       const sanitized = this.sanitize(u) as any;
       const roles = mergeRoles(sanitized.role as Role, sanitized.roles as Role[]);
@@ -356,7 +360,7 @@ export class UsersService {
   async updateRoles(targetUserId: string, roles: Role[], actor: ActorContext) {
     const user = await this.userModel.findById(targetUserId);
     if (!user) throw new NotFoundException('User not found');
-    this.assertOrgScope(user.organizationId, actor);
+    this.assertOrgScope(user.orgId, actor);
     const normalizedRoles = this.validateRoleChange(actor, roles);
     if (user.archivedAt) {
       throw new ForbiddenException('Cannot change roles for archived users');
@@ -371,7 +375,7 @@ export class UsersService {
     await this.audit.log({
       eventType: 'user.roles_updated',
       userId: actor.id || user.id,
-      orgId: user.organizationId,
+      orgId: user.orgId,
       entity: 'User',
       entityId: user.id,
       metadata: { roles: normalizedRoles, actorRoles: this.getActorRoles(actor) },
@@ -382,7 +386,7 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto, actor: ActorContext) {
     const user = await this.userModel.findById(id);
     if (!user) throw new NotFoundException('User not found');
-    this.assertOrgScope(user.organizationId, actor);
+    this.assertOrgScope(user.orgId, actor);
     if (user.archivedAt) {
       throw new ForbiddenException('Cannot update archived users');
     }
@@ -422,7 +426,7 @@ export class UsersService {
     await this.audit.log({
       eventType: 'user.updated',
       userId: actor.id || user.id,
-      orgId: user.organizationId,
+      orgId: user.orgId,
       entity: 'User',
       entityId: user.id,
       metadata: { changes: this.summarizeDiff(before, after, ['username', 'email', 'isEmailVerified', 'piiStripped', 'legalHold']) },

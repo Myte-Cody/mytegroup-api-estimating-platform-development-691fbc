@@ -9,7 +9,7 @@ export class ListUsersQueryDto {
 
   @IsOptional()
   @IsString()
-  organizationId?: string;
+  orgId?: string;
 }
 
 export class GetUserQueryDto {

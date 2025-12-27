@@ -34,7 +34,7 @@ export class ProjectsController {
   @Get()
   list(
     @Req() req: Request,
-    @Query('organizationId') orgId?: string,
+    @Query('orgId') orgId?: string,
     @Query('includeArchived') includeArchived?: string
   ) {
     const actor = this.getActor(req);

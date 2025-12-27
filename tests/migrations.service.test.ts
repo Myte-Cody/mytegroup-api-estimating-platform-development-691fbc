@@ -91,7 +91,7 @@ describe('MigrationsService', () => {
       passwordHash: 'hash',
       role: Role.Admin,
       roles: [Role.Admin],
-      organizationId: org.id,
+      orgId: org.id,
       piiStripped: false,
       legalHold: false,
     });
@@ -120,7 +120,7 @@ describe('MigrationsService', () => {
 
     await projectModel.create({
       name: 'Project A',
-      organizationId: org.id,
+      orgId: org.id,
       description: 'test project',
       piiStripped: false,
       legalHold: false,
@@ -128,7 +128,7 @@ describe('MigrationsService', () => {
 
     await officeModel.create({
       name: 'HQ',
-      organizationId: org.id,
+      orgId: org.id,
       address: '123 Main',
       piiStripped: false,
       legalHold: false,
@@ -167,7 +167,7 @@ describe('MigrationsService', () => {
       passwordHash: 'hash',
       role: Role.Admin,
       roles: [Role.Admin],
-      organizationId: org.id,
+      orgId: org.id,
       piiStripped: false,
       legalHold: false,
     });
@@ -313,7 +313,7 @@ describe('MigrationsService', () => {
     );
 
     assert.strictEqual(migration.status, 'ready_for_cutover');
-    const copied = await sharedConn.model('User').countDocuments({ organizationId: org.id });
+    const copied = await sharedConn.model('User').countDocuments({ orgId: org.id });
     assert.strictEqual(copied, 1);
 
     await migrations.finalize(

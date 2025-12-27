@@ -103,7 +103,7 @@ describe('UsersService', () => {
       username: 'Jane',
       email: 'jane@example.com',
       password: 'Str0ng!Passw0rd',
-      organizationId: 'org1',
+      orgId: 'org1',
       role: Role.Admin,
     });
     assert.equal(user.role, Role.Admin);
@@ -120,7 +120,7 @@ describe('UsersService', () => {
     await assert.rejects(
       () =>
         svc.create(
-          { username: 'Root', email: 'root@example.com', password: 'Str0ng!Passw0rd', organizationId: 'orgX', role: Role.SuperAdmin },
+          { username: 'Root', email: 'root@example.com', password: 'Str0ng!Passw0rd', orgId: 'orgX', role: Role.SuperAdmin },
           { role: Role.Admin, roles: [Role.Admin], orgId: 'orgX' } as any
         ),
       ForbiddenException
@@ -136,23 +136,23 @@ describe('UsersService', () => {
         passwordHash: 'hash-one',
         verificationTokenHash: 'vh',
         resetTokenHash: 'rh',
-        organizationId: 'orgA',
+        orgId: 'orgA',
       },
       {
         id: 'u2',
         username: 'Bob',
         email: 'bob@example.com',
         passwordHash: 'hash-two',
-        organizationId: 'orgA',
+        orgId: 'orgA',
         archivedAt: new Date(),
       },
-      { id: 'u3', username: 'Carl', email: 'carl@example.com', passwordHash: 'hash-three', organizationId: 'orgB' },
+      { id: 'u3', username: 'Carl', email: 'carl@example.com', passwordHash: 'hash-three', orgId: 'orgB' },
     ]);
     const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     const results = await svc.scopedFindAll('orgA');
     assert.equal(results.length, 1);
     const user = results[0];
-    assert.equal(user.organizationId, 'orgA');
+    assert.equal(user.orgId, 'orgA');
     assert.ok(!('passwordHash' in user));
     assert.ok(!('verificationTokenHash' in user));
     assert.ok(!('resetTokenHash' in user));
@@ -160,9 +160,9 @@ describe('UsersService', () => {
 
   it('lists users scoped by org with includeArchived option', async () => {
     const model = createUserModel([
-      { id: 'u1', username: 'Active', email: 'active@example.com', organizationId: 'orgA' },
-      { id: 'u2', username: 'Archived', email: 'arch@example.com', organizationId: 'orgA', archivedAt: new Date() },
-      { id: 'u3', username: 'Other', email: 'other@example.com', organizationId: 'orgB' },
+      { id: 'u1', username: 'Active', email: 'active@example.com', orgId: 'orgA' },
+      { id: 'u2', username: 'Archived', email: 'arch@example.com', orgId: 'orgA', archivedAt: new Date() },
+      { id: 'u3', username: 'Other', email: 'other@example.com', orgId: 'orgB' },
     ]);
     const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
 
@@ -181,7 +181,7 @@ describe('UsersService', () => {
       id: 'u-archive',
       username: 'Target',
       email: 'target@example.com',
-      organizationId: 'orgZ',
+      orgId: 'orgZ',
     });
     const model = createUserModel([target]);
     const audit = createAuditStub();
@@ -212,7 +212,7 @@ describe('UsersService', () => {
       id: 'u-held',
       username: 'Held',
       email: 'held@example.com',
-      organizationId: 'orgZ',
+      orgId: 'orgZ',
       legalHold: true,
     });
     const model = createUserModel([target]);
@@ -230,7 +230,7 @@ describe('UsersService', () => {
 
   it('updates roles with RBAC validation and audit logging', async () => {
     const model = createUserModel([
-      { id: 'u-role', username: 'RoleUser', email: 'role@example.com', organizationId: 'orgR', role: Role.User },
+      { id: 'u-role', username: 'RoleUser', email: 'role@example.com', orgId: 'orgR', role: Role.User },
     ]);
     const audit = createAuditStub();
     const svc = new UsersService(model as any, audit as any, createSeatsStub() as any);
@@ -258,8 +258,8 @@ describe('UsersService', () => {
   it('fetches users by id with archive flag respected', async () => {
     const archivedAt = new Date();
     const model = createUserModel([
-      { id: 'u-active', username: 'Active', email: 'active@example.com', organizationId: 'orgX' },
-      { id: 'u-arch', username: 'Archived', email: 'arch@example.com', organizationId: 'orgX', archivedAt },
+      { id: 'u-active', username: 'Active', email: 'active@example.com', orgId: 'orgX' },
+      { id: 'u-arch', username: 'Archived', email: 'arch@example.com', orgId: 'orgX', archivedAt },
     ]);
     const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     const actor = { orgId: 'orgX', role: Role.Admin };
@@ -273,7 +273,7 @@ describe('UsersService', () => {
 
   it('updates profile fields with compliance guard and audit diff', async () => {
     const model = createUserModel([
-      { id: 'u-update', username: 'User', email: 'user@example.com', organizationId: 'orgY', piiStripped: false, legalHold: false },
+      { id: 'u-update', username: 'User', email: 'user@example.com', orgId: 'orgY', piiStripped: false, legalHold: false },
     ]);
     const audit = createAuditStub();
     const svc = new UsersService(model as any, audit as any, createSeatsStub() as any);
@@ -295,8 +295,8 @@ describe('UsersService', () => {
 
   it('prevents compliance updates without privilege and prevents duplicate emails', async () => {
     const model = createUserModel([
-      { id: 'u1', username: 'User1', email: 'one@example.com', organizationId: 'orgZ' },
-      { id: 'u2', username: 'User2', email: 'two@example.com', organizationId: 'orgZ' },
+      { id: 'u1', username: 'User1', email: 'one@example.com', orgId: 'orgZ' },
+      { id: 'u2', username: 'User2', email: 'two@example.com', orgId: 'orgZ' },
     ]);
     const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     await assert.rejects(
@@ -315,7 +315,7 @@ describe('UsersService', () => {
         id: 'blocked',
         username: 'Blocked',
         email: 'blocked@example.com',
-        organizationId: 'orgT',
+        orgId: 'orgT',
         verificationTokenHash: 'same-hash',
         verificationTokenExpires: new Date(Date.now() - 1000),
         resetTokenHash: 'same-reset',
@@ -326,7 +326,7 @@ describe('UsersService', () => {
         id: 'ok',
         username: 'Active',
         email: 'ok@example.com',
-        organizationId: 'orgT',
+        orgId: 'orgT',
         verificationTokenHash: 'same-hash',
         verificationTokenExpires: new Date(Date.now() + 1000),
         resetTokenHash: 'same-reset',
@@ -342,7 +342,7 @@ describe('UsersService', () => {
   });
 
   it('tracks last login timestamps', async () => {
-    const model = createUserModel([{ id: 'u-last', username: 'Last', email: 'last@example.com', organizationId: 'orgL' }]);
+    const model = createUserModel([{ id: 'u-last', username: 'Last', email: 'last@example.com', orgId: 'orgL' }]);
     const svc = new UsersService(model as any, createAuditStub() as any, createSeatsStub() as any);
     const updated = await svc.markLastLogin('u-last');
     assert.ok(updated?.lastLogin instanceof Date);

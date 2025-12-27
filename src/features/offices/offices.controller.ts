@@ -7,9 +7,10 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/roles';
 import { OfficesService } from './offices.service';
 import { CreateOfficeDto } from './dto/create-office.dto';
+import { ListOfficesQueryDto } from './dto/list-offices.dto';
 import { UpdateOfficeDto } from './dto/update-office.dto';
 
-@Controller('offices')
+@Controller(['offices', 'org-locations'])
 @UseGuards(SessionGuard, OrgScopeGuard, RolesGuard)
 export class OfficesController {
   constructor(private svc: OfficesService) {}
@@ -34,40 +35,57 @@ export class OfficesController {
   @Get()
   list(
     @Req() req: Request,
-    @Query('organizationId') orgId?: string,
-    @Query('includeArchived') includeArchived?: string
+    @Query() query: ListOfficesQueryDto
   ) {
     const actor = this.getActor(req);
-    const resolvedOrg = actor.role === Role.SuperAdmin && orgId ? orgId : actor.orgId;
+    const resolvedOrg = actor.role === Role.SuperAdmin && query.orgId ? query.orgId : actor.orgId;
     if (!resolvedOrg) throw new ForbiddenException('Missing organization context');
-    return this.svc.list(actor, resolvedOrg, this.parseIncludeArchived(includeArchived));
+    return this.svc.list(actor, resolvedOrg, query);
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer, Role.SuperAdmin)
   @Get(':id')
-  getById(@Param('id') id: string, @Req() req: Request, @Query('includeArchived') includeArchived?: string) {
+  getById(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('includeArchived') includeArchived?: string,
+    @Query('orgId') orgId?: string,
+  ) {
     const actor = this.getActor(req);
-    return this.svc.getById(id, actor, this.parseIncludeArchived(includeArchived));
+    return this.svc.getById(id, actor, orgId, this.parseIncludeArchived(includeArchived));
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateOfficeDto, @Req() req: Request) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateOfficeDto,
+    @Req() req: Request,
+    @Query('orgId') orgId?: string,
+  ) {
     const actor = this.getActor(req);
-    return this.svc.update(id, dto, actor);
+    return this.svc.update(id, dto, actor, orgId);
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
   @Post(':id/archive')
-  archive(@Param('id') id: string, @Req() req: Request) {
+  archive(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('orgId') orgId?: string,
+  ) {
     const actor = this.getActor(req);
-    return this.svc.archive(id, actor);
+    return this.svc.archive(id, actor, orgId);
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
   @Post(':id/unarchive')
-  unarchive(@Param('id') id: string, @Req() req: Request) {
+  unarchive(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('orgId') orgId?: string,
+  ) {
     const actor = this.getActor(req);
-    return this.svc.unarchive(id, actor);
+    return this.svc.unarchive(id, actor, orgId);
   }
 }

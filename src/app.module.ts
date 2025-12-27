@@ -25,6 +25,14 @@ import { SessionsModule } from './features/sessions/sessions.module';
 import { ContactInquiriesModule } from './features/contact-inquiries/contact-inquiries.module';
 import { PeopleModule } from './features/people/people.module';
 import { SeatsModule } from './features/seats/seats.module';
+import { CompaniesModule } from './features/companies/companies.module';
+import { CompanyLocationsModule } from './features/company-locations/company-locations.module';
+import { PersonsModule } from './features/persons/persons.module';
+import { OrgTaxonomyModule } from './features/org-taxonomy/org-taxonomy.module';
+import { GraphEdgesModule } from './features/graph-edges/graph-edges.module';
+import { CrmContextModule } from './features/crm-context/crm-context.module';
+import { IngestionModule } from './features/ingestion/ingestion.module';
+import { DevSeedModule } from './features/dev-seed/dev-seed.module';
 
 @Module({
   imports: [
@@ -51,6 +59,14 @@ import { SeatsModule } from './features/seats/seats.module';
     ContactInquiriesModule,
     PeopleModule,
     SeatsModule,
+    CompaniesModule,
+    CompanyLocationsModule,
+    PersonsModule,
+    OrgTaxonomyModule,
+    GraphEdgesModule,
+    CrmContextModule,
+    IngestionModule,
+    DevSeedModule,
   ],
   providers: [
     {

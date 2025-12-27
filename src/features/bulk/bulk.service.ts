@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, GoneException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Schema } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
@@ -83,7 +83,7 @@ export class BulkService {
       modelName: 'User',
       schema: UserSchema,
       defaultModel: this.userModel,
-      orgField: 'organizationId',
+      orgField: 'orgId',
       uniqueField: 'email',
       allowedFields: [
         'username',
@@ -152,7 +152,7 @@ export class BulkService {
       modelName: 'Project',
       schema: ProjectSchema,
       defaultModel: this.projectModel,
-      orgField: 'organizationId',
+      orgField: 'orgId',
       uniqueField: 'name',
       allowedFields: ['name', 'description', 'officeId', 'archivedAt', 'piiStripped', 'legalHold'],
       requiredFields: ['name'],
@@ -165,7 +165,7 @@ export class BulkService {
       modelName: 'Office',
       schema: OfficeSchema,
       defaultModel: this.officeModel,
-      orgField: 'organizationId',
+      orgField: 'orgId',
       uniqueField: 'name',
       allowedFields: ['name', 'address', 'archivedAt', 'piiStripped', 'legalHold'],
       requiredFields: ['name'],
@@ -462,7 +462,7 @@ export class BulkService {
     const payload: any = {
       username: data.username ?? existing?.username,
       email: data.email,
-      organizationId: orgId,
+      orgId,
       roles: roles.length ? roles : existing?.roles || [roleToPersist],
       role: roleToPersist,
       isOrgOwner: data.isOrgOwner ?? existing?.isOrgOwner ?? roles.includes(Role.OrgOwner),
@@ -547,13 +547,13 @@ export class BulkService {
       errors.push({ row: rowIndex, field: 'name', message: 'name is required for projects' });
       return { errors, created: 0, updated: 0 };
     }
-    const existing = await model.findOne({ organizationId: orgId, name: data.name });
+    const existing = await model.findOne({ orgId, name: data.name });
     if (existing?.legalHold) {
       errors.push({ row: rowIndex, message: 'Project is on legal hold and cannot be modified' });
       return { errors, created: 0, updated: 0 };
     }
     const payload: any = {
-      organizationId: orgId,
+      orgId,
       name: data.name,
       description: data.description ?? existing?.description ?? null,
       officeId: data.officeId ?? existing?.officeId ?? null,
@@ -582,13 +582,13 @@ export class BulkService {
       errors.push({ row: rowIndex, field: 'name', message: 'name is required for offices' });
       return { errors, created: 0, updated: 0 };
     }
-    const existing = await model.findOne({ organizationId: orgId, name: data.name });
+    const existing = await model.findOne({ orgId, name: data.name });
     if (existing?.legalHold) {
       errors.push({ row: rowIndex, message: 'Office is on legal hold and cannot be modified' });
       return { errors, created: 0, updated: 0 };
     }
     const payload: any = {
-      organizationId: orgId,
+      orgId,
       name: data.name,
       address: data.address ?? existing?.address ?? null,
       archivedAt: data.archivedAt ?? existing?.archivedAt ?? null,
@@ -605,6 +605,9 @@ export class BulkService {
   }
 
   async import(entityType: BulkEntityType, options: ImportOptions): Promise<ImportResult> {
+    if (entityType === 'contacts') {
+      throw new GoneException('Bulk contacts import is deprecated; use /people/import/v1/* and /companies/import/v1/*');
+    }
     const config = this.configFor(entityType);
     const actorRoles = this.collectRoles(options.actor);
     this.assertPrivileged(actorRoles);
@@ -645,8 +648,6 @@ export class BulkService {
 
       if (entityType === 'users') {
         result = await this.upsertUser(model as Model<User>, orgId, actorRoles, rowIndex, payload, !!options.dryRun);
-      } else if (entityType === 'contacts') {
-        result = await this.upsertContact(model as Model<Contact>, orgId, rowIndex, payload, !!options.dryRun);
       } else if (entityType === 'projects') {
         result = await this.upsertProject(model as Model<Project>, orgId, rowIndex, payload, !!options.dryRun);
       } else if (entityType === 'offices') {
@@ -744,6 +745,9 @@ export class BulkService {
   }
 
   async export(entityType: BulkEntityType, options: ExportOptions): Promise<ExportResult> {
+    if (entityType === 'contacts') {
+      throw new GoneException('Bulk contacts export is deprecated; use /persons and /companies APIs');
+    }
     const config = this.configFor(entityType);
     const actorRoles = this.collectRoles(options.actor);
     this.assertPrivileged(actorRoles);

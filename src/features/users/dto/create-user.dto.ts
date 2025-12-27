@@ -32,7 +32,7 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
-  organizationId?: string;
+  orgId?: string;
 
   @IsOptional()
   @IsString()

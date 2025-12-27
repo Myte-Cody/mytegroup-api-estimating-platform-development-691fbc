@@ -19,6 +19,12 @@ import { Contact, ContactSchema } from '../contacts/schemas/contact.schema';
 import { Invite } from '../invites/schemas/invite.schema';
 import { Project } from '../projects/schemas/project.schema';
 import { Estimate } from '../estimates/schemas/estimate.schema';
+import { Person, PersonSchema } from '../persons/schemas/person.schema';
+import { Company, CompanySchema } from '../companies/schemas/company.schema';
+import { CompanyLocation, CompanyLocationSchema } from '../company-locations/schemas/company-location.schema';
+import { Office, OfficeSchema } from '../offices/schemas/office.schema';
+import { GraphEdge, GraphEdgeSchema } from '../graph-edges/schemas/graph-edge.schema';
+import { OrgTaxonomy, OrgTaxonomySchema } from '../org-taxonomy/schemas/org-taxonomy.schema';
 
 type ActorContext = { id?: string; orgId?: string; role?: Role };
 
@@ -26,7 +32,6 @@ type EntityRecord = {
   id?: string;
   _id?: string;
   orgId?: string;
-  organizationId?: string;
   archivedAt?: Date | null;
   piiStripped?: boolean;
   legalHold?: boolean;
@@ -86,6 +91,50 @@ const PII_RULES: Record<ComplianceEntityType, RedactionRule[]> = {
     { field: 'notes' },
     { field: 'lineItems', replacement: () => [] },
   ],
+  person: [
+    { field: 'displayName', replacement: (_record, id) => `redacted-person-${id}` },
+    { field: 'firstName' },
+    { field: 'lastName' },
+    { field: 'dateOfBirth' },
+    { field: 'ironworkerNumber' },
+    { field: 'unionLocal' },
+    { field: 'emails', replacement: () => [] },
+    { field: 'phones', replacement: () => [] },
+    { field: 'primaryEmail' },
+    { field: 'primaryPhoneE164' },
+    { field: 'skillFreeText', replacement: () => [] },
+    { field: 'certifications', replacement: () => [] },
+    { field: 'notes' },
+  ],
+  company: [
+    { field: 'name', replacement: (_record, id) => `redacted-company-${id}` },
+    { field: 'normalizedName', replacement: (_record, id) => `redacted-company-${id}` },
+    { field: 'website' },
+    { field: 'mainEmail', replacement: (_record, id) => `redacted+company-${id}@example.com` },
+    { field: 'mainPhone' },
+    { field: 'notes' },
+  ],
+  company_location: [
+    { field: 'name', replacement: (_record, id) => `redacted-company-location-${id}` },
+    { field: 'normalizedName', replacement: (_record, id) => `redacted-company-location-${id}` },
+    { field: 'email', replacement: (_record, id) => `redacted+company-location-${id}@example.com` },
+    { field: 'phone' },
+    { field: 'addressLine1' },
+    { field: 'addressLine2' },
+    { field: 'city' },
+    { field: 'region' },
+    { field: 'postal' },
+    { field: 'country' },
+    { field: 'notes' },
+  ],
+  org_location: [
+    { field: 'name', replacement: (_record, id) => `redacted-org-location-${id}` },
+    { field: 'normalizedName', replacement: (_record, id) => `redacted-org-location-${id}` },
+    { field: 'address' },
+    { field: 'description' },
+  ],
+  graph_edge: [{ field: 'metadata', replacement: () => ({}) }],
+  org_taxonomy: [],
 };
 
 @Injectable()
@@ -96,6 +145,12 @@ export class ComplianceService {
     @InjectModel('Invite') private readonly inviteModel: Model<Invite>,
     @InjectModel('Project') private readonly projectModel: Model<Project>,
     @InjectModel('Estimate') private readonly estimateModel: Model<Estimate>,
+    @InjectModel('Person') private readonly personModel: Model<Person>,
+    @InjectModel('Company') private readonly companyModel: Model<Company>,
+    @InjectModel('CompanyLocation') private readonly companyLocationModel: Model<CompanyLocation>,
+    @InjectModel('Office') private readonly officeModel: Model<Office>,
+    @InjectModel('GraphEdge') private readonly graphEdgeModel: Model<GraphEdge>,
+    @InjectModel('OrgTaxonomy') private readonly orgTaxonomyModel: Model<OrgTaxonomy>,
     private readonly audit: AuditLogService,
     private readonly events: EventLogService,
     private readonly tenants: TenantConnectionService
@@ -117,9 +172,10 @@ export class ComplianceService {
   }
 
   private resolveOrgId(entityType: ComplianceEntityType, record: EntityRecord) {
-    if (entityType === 'user' || entityType === 'project' || entityType === 'estimate') return record.organizationId;
-    if (entityType === 'contact' || entityType === 'invite') return record.orgId;
-    return undefined;
+    if (entityType === 'user' || entityType === 'project' || entityType === 'estimate') {
+      return record.orgId;
+    }
+    return record.orgId;
   }
 
   private assertOrgScope(entityType: ComplianceEntityType, record: EntityRecord, actor: ActorContext) {
@@ -147,6 +203,52 @@ export class ComplianceService {
         return this.tenants.getModelForOrg<Contact>(orgId, 'Contact', ContactSchema, this.contactModel);
       }
       return this.contactModel;
+    }
+    if (entityType === 'person') {
+      if (orgId) {
+        return this.tenants.getModelForOrg<Person>(orgId, 'Person', PersonSchema, this.personModel);
+      }
+      return this.personModel;
+    }
+    if (entityType === 'company') {
+      if (orgId) {
+        return this.tenants.getModelForOrg<Company>(orgId, 'Company', CompanySchema, this.companyModel);
+      }
+      return this.companyModel;
+    }
+    if (entityType === 'company_location') {
+      if (orgId) {
+        return this.tenants.getModelForOrg<CompanyLocation>(
+          orgId,
+          'CompanyLocation',
+          CompanyLocationSchema,
+          this.companyLocationModel
+        );
+      }
+      return this.companyLocationModel;
+    }
+    if (entityType === 'org_location') {
+      if (orgId) {
+        return this.tenants.getModelForOrg<Office>(orgId, 'Office', OfficeSchema, this.officeModel);
+      }
+      return this.officeModel;
+    }
+    if (entityType === 'graph_edge') {
+      if (orgId) {
+        return this.tenants.getModelForOrg<GraphEdge>(orgId, 'GraphEdge', GraphEdgeSchema, this.graphEdgeModel);
+      }
+      return this.graphEdgeModel;
+    }
+    if (entityType === 'org_taxonomy') {
+      if (orgId) {
+        return this.tenants.getModelForOrg<OrgTaxonomy>(
+          orgId,
+          'OrgTaxonomy',
+          OrgTaxonomySchema,
+          this.orgTaxonomyModel
+        );
+      }
+      return this.orgTaxonomyModel;
     }
     throw new BadRequestException(`Unsupported entity type: ${entityType}`);
   }

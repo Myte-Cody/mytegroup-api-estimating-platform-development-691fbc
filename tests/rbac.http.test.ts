@@ -162,7 +162,7 @@ describe('RBAC HTTP endpoints', () => {
 
   it('allows platform admin to list another org', async () => {
     const res = await request(app.getHttpServer())
-      .get('/rbac/users?organizationId=org-2')
+      .get('/rbac/users?orgId=org-2')
       .set(withUser({ id: 'actor', role: Role.PlatformAdmin, roles: [Role.PlatformAdmin] }))
       .expect(200);
 
@@ -172,7 +172,7 @@ describe('RBAC HTTP endpoints', () => {
 
   it('blocks cross-org listing for org admin', async () => {
     await request(app.getHttpServer())
-      .get('/rbac/users?organizationId=org-2')
+      .get('/rbac/users?orgId=org-2')
       .set(withUser({ id: 'actor', orgId: 'org-1', role: Role.Admin, roles: [Role.Admin] }))
       .expect(403);
   });

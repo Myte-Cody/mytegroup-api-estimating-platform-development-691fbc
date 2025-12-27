@@ -9,6 +9,12 @@ import { InviteSchema } from '../invites/schemas/invite.schema';
 import { ProjectSchema } from '../projects/schemas/project.schema';
 import { EstimateSchema } from '../estimates/schemas/estimate.schema';
 import { UserSchema } from '../users/schemas/user.schema';
+import { PersonSchema } from '../persons/schemas/person.schema';
+import { CompanySchema } from '../companies/schemas/company.schema';
+import { CompanyLocationSchema } from '../company-locations/schemas/company-location.schema';
+import { OfficeSchema } from '../offices/schemas/office.schema';
+import { GraphEdgeSchema } from '../graph-edges/schemas/graph-edge.schema';
+import { OrgTaxonomySchema } from '../org-taxonomy/schemas/org-taxonomy.schema';
 
 @Module({
   imports: [
@@ -20,6 +26,12 @@ import { UserSchema } from '../users/schemas/user.schema';
       { name: 'Invite', schema: InviteSchema },
       { name: 'Project', schema: ProjectSchema },
       { name: 'Estimate', schema: EstimateSchema },
+      { name: 'Person', schema: PersonSchema },
+      { name: 'Company', schema: CompanySchema },
+      { name: 'CompanyLocation', schema: CompanyLocationSchema },
+      { name: 'Office', schema: OfficeSchema },
+      { name: 'GraphEdge', schema: GraphEdgeSchema },
+      { name: 'OrgTaxonomy', schema: OrgTaxonomySchema },
     ]),
   ],
   controllers: [ComplianceController],

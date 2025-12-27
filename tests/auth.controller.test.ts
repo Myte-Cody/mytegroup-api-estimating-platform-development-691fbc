@@ -14,14 +14,16 @@ describe('AuthController', () => {
             id: 'user-reg',
             role: Role.OrgOwner,
             roles: [Role.OrgOwner, Role.Admin],
-            organizationId: 'org-1',
+            orgId: 'org-1',
             isOrgOwner: true,
           };
         },
       } as any,
       {
         acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }),
-      } as any
+      } as any,
+      {} as any,
+      {} as any
     );
     const req: any = {
       session: {
@@ -51,13 +53,15 @@ describe('AuthController', () => {
             id: 'user-login',
             role: Role.PlatformAdmin,
             roles: [Role.PlatformAdmin, Role.SuperAdmin],
-            organizationId: 'org-9',
+            orgId: 'org-9',
           };
         },
       } as any,
       {
         acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }),
-      } as any
+      } as any,
+      {} as any,
+      {} as any
     );
     const req: any = {
       session: {
@@ -79,9 +83,11 @@ describe('AuthController', () => {
   it('login falls back to primary role when roles array missing', async () => {
     const controller = new AuthController(
       {
-        login: async () => ({ id: 'user-one', role: Role.User, organizationId: 'org-2' }),
+        login: async () => ({ id: 'user-one', role: Role.User, orgId: 'org-2' }),
       } as any,
-      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any
+      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any,
+      {} as any,
+      {} as any
     );
     const req: any = {
       session: {
@@ -97,7 +103,12 @@ describe('AuthController', () => {
 
   it('logout destroys the session and returns ok', async () => {
     let destroyed = false;
-    const controller = new AuthController({} as any, { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any);
+    const controller = new AuthController(
+      {} as any,
+      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any,
+      {} as any,
+      {} as any
+    );
     const req: any = { session: { destroy: (cb: () => void) => { destroyed = true; cb(); } } };
 
     const result = await controller.logout(req);
@@ -106,11 +117,16 @@ describe('AuthController', () => {
     assert.equal(destroyed, true);
   });
 
-  it('returns the session snapshot from me()', () => {
-    const controller = new AuthController({} as any, { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any);
+  it('returns the session snapshot from me()', async () => {
+    const controller = new AuthController(
+      {} as any,
+      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any,
+      {} as any,
+      { getById: async () => null } as any
+    );
     const sessionUser = { id: 'me', orgId: 'org-3', roles: [Role.Manager] };
 
-    const result = controller.me({ session: { user: sessionUser } } as any);
+    const result = await controller.me({ session: { user: sessionUser } } as any);
 
     assert.deepEqual(result.user, sessionUser);
   });
@@ -136,7 +152,9 @@ describe('AuthController', () => {
           return { score: 4 };
         },
       } as any,
-      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any
+      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any,
+      {} as any,
+      {} as any
     );
 
     const verify = await controller.verifyEmail({ token: 'tok-1' } as any);
@@ -163,7 +181,9 @@ describe('AuthController', () => {
           return [{ id: 'user-1' }];
         },
       } as any,
-      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any
+      { acceptanceStatus: async () => ({ required: [], acceptedVersions: {}, latest: [] }) } as any,
+      {} as any,
+      {} as any
     );
     const sessionUser = { orgId: 'org-5', roles: [Role.Admin], role: Role.Admin };
     const req: any = { session: { user: sessionUser } };

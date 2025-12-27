@@ -15,7 +15,7 @@ type FakeInviteRecord = {
   orgId: string;
   email: string;
   role: RoleType;
-  contactId?: string | null;
+  personId?: string | null;
   tokenHash: string | null;
   tokenExpires: Date;
   status: InviteStatus;
@@ -70,7 +70,7 @@ const createInviteModel = (initial: Partial<FakeInviteRecord>[] = []) => {
       orgId: entry.orgId || 'org-default',
       email: entry.email || 'user@example.com',
       role: (entry.role as RoleType) || Role.User,
-      contactId: entry.contactId ?? null,
+      personId: entry.personId ?? null,
       tokenHash: entry.tokenHash ?? hashToken('seed-token'),
       tokenExpires: entry.tokenExpires || new Date(Date.now() + 60 * 60 * 1000),
       status: entry.status || 'pending',
@@ -123,7 +123,7 @@ const createInviteModel = (initial: Partial<FakeInviteRecord>[] = []) => {
         orgId: doc.orgId || 'org-default',
         email: doc.email || 'user@example.com',
         role: (doc.role as RoleType) || Role.User,
-        contactId: doc.contactId ?? null,
+        personId: doc.personId ?? null,
         tokenHash: doc.tokenHash ?? hashToken('token'),
         tokenExpires: doc.tokenExpires || new Date(now.getTime() + 72 * 60 * 60 * 1000),
         status: (doc.status as InviteStatus) || 'pending',
@@ -149,13 +149,13 @@ const createInviteModel = (initial: Partial<FakeInviteRecord>[] = []) => {
 
 const createService = (
   model: ReturnType<typeof createInviteModel>,
-  tokenFactory?: (hours: number) => { token: string; hash: string; expires: Date }
+  tokenFactory?: (hours: number) => { token: string; hash: string; expires: Date },
+  personResolver?: (input: { orgId: string; personId: string }) => Record<string, any>
 ) => {
   const auditLog: any[] = [];
   const emailLog: any[] = [];
   const usersCreated: any[] = [];
-  const contactUpdates: any[] = [];
-  const contactLinks: any[] = [];
+  const personLinks: any[] = [];
 
   const audit = { log: async (event: any) => auditLog.push(event) };
   const users = {
@@ -164,37 +164,59 @@ const createService = (
       usersCreated.push(user);
       return user;
     },
+    findAnyByEmail: async () => null,
   };
   const email = { sendInviteEmail: async (email: string, token: string) => emailLog.push({ email, token }) };
-  const contacts = {
-    update: async (...args: any[]) => {
-      let actor: any;
-      let orgId: string | undefined;
-      let contactId: string | undefined;
-      let payload: any;
-      if (args.length === 4) {
-        [actor, orgId, contactId, payload] = args;
-      } else if (args.length === 3) {
-        [orgId, contactId, payload] = args;
-      } else {
-        [orgId, payload] = args;
+
+  const defaultPerson = (orgId: string, personId: string) => ({
+    _id: personId,
+    id: personId,
+    orgId,
+    personType: 'internal_staff',
+    primaryEmail: String(personId || '').trim().toLowerCase().includes('@')
+      ? String(personId || '').trim().toLowerCase()
+      : 'user@example.com',
+    ironworkerNumber: null,
+    userId: null,
+    archivedAt: null,
+  });
+
+  const persons = {
+    getById: async (_actor: any, orgId: string, personId: string) => {
+      if (personResolver) {
+        return { ...defaultPerson(orgId, personId), ...personResolver({ orgId, personId }) };
       }
-      contactUpdates.push({ actor, orgId, contactId, payload });
-      return { actor, orgId, contactId, ...payload };
+      return defaultPerson(orgId, personId);
     },
-    linkInvitedUser: async (orgId: string, contactId: string, userId: string) => {
-      contactLinks.push({ orgId, contactId, userId });
-      return { orgId, contactId, userId };
+    findByPrimaryEmail: async (_actor: any, orgId: string, email: string) => ({
+      _id: 'person-1',
+      id: 'person-1',
+      orgId,
+      personType: 'internal_staff',
+      primaryEmail: String(email || '').trim().toLowerCase(),
+      ironworkerNumber: null,
+      userId: null,
+      archivedAt: null,
+    }),
+    linkUser: async (orgId: string, personId: string, userId: string) => {
+      personLinks.push({ orgId, personId, userId });
     },
   };
 
   const seats = { ensureOrgSeats: async () => undefined };
-  const service = new InvitesService(model as any, audit as any, users as any, email as any, contacts as any, seats as any);
+  const service = new InvitesService(
+    model as any,
+    audit as any,
+    users as any,
+    email as any,
+    persons as any,
+    seats as any
+  );
   if (tokenFactory) {
     (service as any).generateToken = tokenFactory;
   }
 
-  return { service, auditLog, emailLog, usersCreated, contactUpdates, contactLinks };
+  return { service, auditLog, emailLog, usersCreated, personLinks };
 };
 
 describe('InvitesService', () => {
@@ -209,10 +231,69 @@ describe('InvitesService', () => {
     await assert.rejects(
       () =>
         service.create('org-1', 'actor-1', Role.PM, {
-          email: 'candidate@example.com',
+          personId: 'candidate@example.com',
           role: Role.Admin,
         }),
       (err: any) => err instanceof ForbiddenException && /Insufficient role/.test(err.message)
+    );
+  });
+
+  it('allows superintendent invites from internal_union (ironworker) people', async () => {
+    const { service } = createService(model, undefined, () => ({
+      personType: 'internal_union',
+    }));
+
+    const invite = await service.create('org-1', 'actor-1', Role.Admin, {
+      personId: 'person-1',
+      role: Role.Superintendent,
+    });
+
+    assert.equal(invite.role, Role.Superintendent);
+  });
+
+  it('rejects staff-only roles for internal_union people', async () => {
+    const { service } = createService(model, undefined, () => ({
+      personType: 'internal_union',
+    }));
+
+    await assert.rejects(
+      () =>
+        service.create('org-1', 'actor-1', Role.Admin, {
+          personId: 'person-2',
+          role: Role.PM,
+        }),
+      (err: any) => err instanceof BadRequestException && /internal_staff/.test(err.message)
+    );
+  });
+
+  it('rejects foreman invites without ironworkerNumber', async () => {
+    const { service } = createService(model, undefined, () => ({
+      personType: 'internal_union',
+      ironworkerNumber: null,
+    }));
+
+    await assert.rejects(
+      () =>
+        service.create('org-1', 'actor-1', Role.Admin, {
+          personId: 'person-3',
+          role: Role.Foreman,
+        }),
+      (err: any) => err instanceof BadRequestException && /ironworkerNumber/.test(err.message)
+    );
+  });
+
+  it('rejects superintendent invites from external people', async () => {
+    const { service } = createService(model, undefined, () => ({
+      personType: 'external_person',
+    }));
+
+    await assert.rejects(
+      () =>
+        service.create('org-1', 'actor-1', Role.Admin, {
+          personId: 'person-4',
+          role: Role.Superintendent,
+        }),
+      (err: any) => err instanceof BadRequestException && /Superintendent invites/.test(err.message)
     );
   });
 
@@ -233,26 +314,25 @@ describe('InvitesService', () => {
     await assert.rejects(
       () =>
         service.create('org-1', 'actor-1', Role.Admin, {
-          email: 'dupe@example.com',
+          personId: 'dupe@example.com',
           role: Role.User,
         }),
       (err: any) => err instanceof BadRequestException && /Pending invite already exists/.test(err.message)
     );
   });
 
-  it('creates an invite, sends email, logs audit, and updates contact with requested TTL', async () => {
+  it('creates an invite, sends email, and logs audit with requested TTL', async () => {
     const expires = new Date('2025-01-01T00:00:00Z');
     let requestedHours = 0;
     const tokenFactory = (hours: number) => {
       requestedHours = hours;
       return { token: 'fixed-token', hash: 'fixed-hash', expires };
     };
-    const { service, emailLog, auditLog, contactUpdates } = createService(model, tokenFactory);
+    const { service, emailLog, auditLog } = createService(model, tokenFactory);
 
     const invite = await service.create('org-1', 'actor-1', Role.Admin, {
-      email: 'new@example.com',
+      personId: 'new@example.com',
       role: Role.PM,
-      contactId: 'contact-1',
       expiresInHours: 12,
     });
 
@@ -260,12 +340,11 @@ describe('InvitesService', () => {
     assert.equal(requestedHours, 12);
     const stored = model.records.find((rec) => rec.email === 'new@example.com');
     assert(stored);
+    assert.equal(stored.personId, 'new@example.com');
     assert.equal(stored?.tokenHash, 'fixed-hash');
     assert.equal(stored?.tokenExpires.toISOString(), expires.toISOString());
     assert.deepEqual(emailLog, [{ email: 'new@example.com', token: 'fixed-token' }]);
     assert.equal(auditLog[0]?.eventType, 'invite.created');
-    assert.equal(contactUpdates[0]?.contactId, 'contact-1');
-    assert.equal(contactUpdates[0]?.payload?.inviteStatus, 'pending');
   });
 
   it('resend regenerates token, extends TTL, and emits audit log', async () => {
@@ -388,7 +467,7 @@ describe('InvitesService', () => {
     assert.equal(persisted.status, 'accepted');
   });
 
-  it('accepts invite, creates user, links contact, and emits audit', async () => {
+  it('accepts invite, creates user, links person, and emits audit', async () => {
     const token = 'accept-me';
     const tokenHash = hashToken(token);
     model = createInviteModel([
@@ -400,10 +479,10 @@ describe('InvitesService', () => {
         tokenHash,
         tokenExpires: new Date(Date.now() + 2 * 60 * 60 * 1000),
         status: 'pending',
-        contactId: 'contact-77',
+        personId: 'person-77',
       },
     ]);
-    const { service, usersCreated, contactLinks, auditLog } = createService(model);
+    const { service, usersCreated, personLinks, auditLog } = createService(model);
 
     const result = await service.accept({
       token,
@@ -412,7 +491,7 @@ describe('InvitesService', () => {
     });
 
     assert.equal(result.user.email, 'join@example.com');
-    assert.equal(usersCreated[0]?.organizationId, 'org-1');
+    assert.equal(usersCreated[0]?.orgId, 'org-1');
     assert.equal(usersCreated[0]?.role, Role.Engineer);
     const invite = model.records.find((rec) => rec._id === 'invite-to-accept');
     assert(invite);
@@ -420,8 +499,8 @@ describe('InvitesService', () => {
     assert(invite?.acceptedAt instanceof Date);
     assert.equal(invite?.invitedUserId, usersCreated[0]?.id);
     assert.equal(invite?.tokenHash, null);
-    assert.equal(contactLinks[0]?.contactId, 'contact-77');
-    assert.equal(contactLinks[0]?.userId, usersCreated[0]?.id);
+    assert.equal(personLinks[0]?.personId, 'person-77');
+    assert.equal(personLinks[0]?.userId, usersCreated[0]?.id);
     assert.equal(auditLog[auditLog.length - 1]?.eventType, 'invite.accepted');
   });
 

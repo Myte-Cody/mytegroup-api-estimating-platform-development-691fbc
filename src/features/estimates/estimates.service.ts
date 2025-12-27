@@ -68,7 +68,7 @@ export class EstimatesService {
   private async loadProjectOrThrow(projectId: string, actor: ActorContext) {
     const project = await this.projectModel.findById(projectId).lean();
     if (!project) throw new NotFoundException('Project not found');
-    const orgId = project.organizationId;
+    const orgId = (project as any).orgId;
     if (!orgId) throw new ForbiddenException('Project is missing organization scope');
     this.ensureOrgScope(orgId, actor);
     return project;
@@ -129,12 +129,13 @@ export class EstimatesService {
       Role.PlatformAdmin,
     ]);
     const project = await this.loadProjectOrThrow(projectId, actor);
-    await this.loadOrgOrThrow(project.organizationId);
+    const projectOrgId = (project as any).orgId;
+    await this.loadOrgOrThrow(projectOrgId);
     this.ensureProjectWritable(project, 'create');
 
     const existing = await this.estimateModel.findOne({
       projectId,
-      organizationId: project.organizationId,
+      orgId: projectOrgId,
       name: dto.name,
       archivedAt: null,
     });
@@ -144,7 +145,7 @@ export class EstimatesService {
 
     const estimate = await this.estimateModel.create({
       projectId,
-      organizationId: project.organizationId,
+      orgId: projectOrgId,
       createdByUserId: actor.userId,
       name: dto.name,
       description: dto.description,
@@ -157,7 +158,7 @@ export class EstimatesService {
 
     await this.audit.log({
       eventType: 'estimate.created',
-      orgId: project.organizationId,
+      orgId: projectOrgId,
       userId: actor.userId,
       entity: 'Estimate',
       entityId: estimate.id,
@@ -180,9 +181,10 @@ export class EstimatesService {
     if (includeArchived && !this.canViewArchived(actor)) {
       throw new ForbiddenException('Not allowed to include archived estimates');
     }
+    const projectOrgId = (project as any).orgId;
     const filter: Record<string, any> = {
       projectId,
-      organizationId: project.organizationId,
+      orgId: projectOrgId,
     };
     if (!includeArchived) filter.archivedAt = null;
     return this.estimateModel.find(filter).lean();
@@ -200,7 +202,7 @@ export class EstimatesService {
     const estimate = await this.estimateModel.findById(estimateId);
     if (!estimate) throw new NotFoundException('Estimate not found');
     if (estimate.projectId !== projectId) throw new NotFoundException('Estimate not found');
-    this.ensureOrgScope(estimate.organizationId, actor);
+    this.ensureOrgScope((estimate as any).orgId, actor);
     if (estimate.archivedAt && !includeArchived) throw new NotFoundException('Estimate archived');
     if (estimate.archivedAt && includeArchived && !this.canViewArchived(actor)) {
       throw new ForbiddenException('Not allowed to view archived estimate');
@@ -220,18 +222,19 @@ export class EstimatesService {
     const estimate = await this.estimateModel.findById(estimateId);
     if (!estimate) throw new NotFoundException('Estimate not found');
     if (estimate.projectId !== projectId) throw new NotFoundException('Estimate not found');
-    this.ensureOrgScope(estimate.organizationId, actor);
+    const estimateOrgId = (estimate as any).orgId;
+    this.ensureOrgScope(estimateOrgId, actor);
     if (estimate.archivedAt) throw new NotFoundException('Estimate archived');
     this.ensureNotOnLegalHold(estimate, 'update');
 
     const project = await this.loadProjectOrThrow(projectId, actor);
-    await this.loadOrgOrThrow(project.organizationId);
+    await this.loadOrgOrThrow((project as any).orgId);
     this.ensureProjectWritable(project, 'update');
 
     if (dto.name && dto.name !== estimate.name) {
       const collision = await this.estimateModel.findOne({
         projectId,
-        organizationId: estimate.organizationId,
+        orgId: estimateOrgId,
         name: dto.name,
         archivedAt: null,
         _id: { $ne: estimateId },
@@ -258,7 +261,7 @@ export class EstimatesService {
 
     await this.audit.log({
       eventType: 'estimate.updated',
-      orgId: estimate.organizationId,
+      orgId: estimateOrgId,
       userId: actor.userId,
       entity: 'Estimate',
       entityId: estimate.id,
@@ -280,11 +283,12 @@ export class EstimatesService {
     const estimate = await this.estimateModel.findById(estimateId);
     if (!estimate) throw new NotFoundException('Estimate not found');
     if (estimate.projectId !== projectId) throw new NotFoundException('Estimate not found');
-    this.ensureOrgScope(estimate.organizationId, actor);
+    const estimateOrgId = (estimate as any).orgId;
+    this.ensureOrgScope(estimateOrgId, actor);
     this.ensureNotOnLegalHold(estimate, 'archive');
 
     const project = await this.loadProjectOrThrow(projectId, actor);
-    await this.loadOrgOrThrow(project.organizationId);
+    await this.loadOrgOrThrow((project as any).orgId);
     this.ensureProjectWritable(project, 'archive');
 
     if (!estimate.archivedAt) {
@@ -295,7 +299,7 @@ export class EstimatesService {
 
     await this.audit.log({
       eventType: 'estimate.archived',
-      orgId: estimate.organizationId,
+      orgId: estimateOrgId,
       userId: actor.userId,
       entity: 'Estimate',
       entityId: estimate.id,
@@ -317,11 +321,12 @@ export class EstimatesService {
     const estimate = await this.estimateModel.findById(estimateId);
     if (!estimate) throw new NotFoundException('Estimate not found');
     if (estimate.projectId !== projectId) throw new NotFoundException('Estimate not found');
-    this.ensureOrgScope(estimate.organizationId, actor);
+    const estimateOrgId = (estimate as any).orgId;
+    this.ensureOrgScope(estimateOrgId, actor);
     this.ensureNotOnLegalHold(estimate, 'unarchive');
 
     const project = await this.loadProjectOrThrow(projectId, actor);
-    await this.loadOrgOrThrow(project.organizationId);
+    await this.loadOrgOrThrow((project as any).orgId);
     this.ensureProjectWritable(project, 'unarchive');
 
     if (estimate.archivedAt) {
@@ -332,7 +337,7 @@ export class EstimatesService {
 
     await this.audit.log({
       eventType: 'estimate.unarchived',
-      orgId: estimate.organizationId,
+      orgId: estimateOrgId,
       userId: actor.userId,
       entity: 'Estimate',
       entityId: estimate.id,
@@ -342,4 +347,3 @@ export class EstimatesService {
     return this.toPlain(estimate);
   }
 }
-

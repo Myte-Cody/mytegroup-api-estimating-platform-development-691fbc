@@ -46,8 +46,8 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
     const eventLog = new EventLogService(eventLogModel);
     const audit = new AuditLogService(eventLog);
     const tenant = new TenantConnectionService(connection, orgModel);
-    projects = new ProjectsService(projectModel, orgModel, officeModel, audit);
-    offices = new OfficesService(officeModel, orgModel, audit);
+    projects = new ProjectsService(projectModel, orgModel, officeModel, audit, tenant);
+    offices = new OfficesService(officeModel, orgModel, audit, tenant);
     contacts = new ContactsService(contactModel, orgModel, audit, tenant);
   });
 
@@ -79,17 +79,17 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
 
   describe('ProjectsService', () => {
     it('creates, lists, archives with RBAC and audit', async () => {
-      const office = await offices.create({ name: 'HQ', organizationId: orgAId, address: '123 Main' }, adminActor());
+      const office = await offices.create({ name: 'HQ', orgId: orgAId, address: '123 Main' }, adminActor());
       const project = await projects.create(
-        { name: 'Skyline', description: 'Tower build', organizationId: orgAId, officeId: office.id },
+        { name: 'Skyline', description: 'Tower build', orgId: orgAId, officeId: office.id },
         adminActor()
       );
       const projectId = (project as any)._id || (project as any).id;
-      assert.equal(project.organizationId, orgAId);
+      assert.equal(project.orgId, orgAId);
       assert.equal(await eventLogModel.countDocuments({ eventType: 'project.created' }), 1);
 
       await assert.rejects(
-        projects.create({ name: 'Skyline', organizationId: orgAId }, adminActor()),
+        projects.create({ name: 'Skyline', orgId: orgAId }, adminActor()),
         ConflictException
       );
 
@@ -102,9 +102,9 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
     });
 
     it('enforces org scope and update semantics', async () => {
-      const office = await offices.create({ name: 'North', organizationId: orgAId }, adminActor());
+      const office = await offices.create({ name: 'North', orgId: orgAId }, adminActor());
       const project = await projects.create(
-        { name: 'Bridge', organizationId: orgAId, officeId: office.id },
+        { name: 'Bridge', orgId: orgAId, officeId: office.id },
         adminActor()
       );
       const projectId = (project as any)._id || (project as any).id;
@@ -119,9 +119,9 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
     });
 
     it('blocks archive/unarchive when legal hold is active', async () => {
-      const office = await offices.create({ name: 'LegalHold', organizationId: orgAId }, adminActor());
+      const office = await offices.create({ name: 'LegalHold', orgId: orgAId }, adminActor());
       const project = await projects.create(
-        { name: 'HoldProject', organizationId: orgAId, officeId: office.id },
+        { name: 'HoldProject', orgId: orgAId, officeId: office.id },
         adminActor()
       );
       const projectId = (project as any)._id || (project as any).id;
@@ -136,18 +136,18 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
     });
 
     it('allows org admins via role hierarchy', async () => {
-      const office = await offices.create({ name: 'HQ', organizationId: orgAId, address: '123 Main' }, orgAdminActor());
+      const office = await offices.create({ name: 'HQ', orgId: orgAId, address: '123 Main' }, orgAdminActor());
       const project = await projects.create(
-        { name: 'OrgAdminProject', description: 'Scope', organizationId: orgAId, officeId: office.id },
+        { name: 'OrgAdminProject', description: 'Scope', orgId: orgAId, officeId: office.id },
         orgAdminActor()
       );
-      assert.equal(project.organizationId, orgAId);
+      assert.equal(project.orgId, orgAId);
     });
 
     it('blocks writes when org legal hold is active', async () => {
       await orgModel.updateOne({ _id: orgAId }, { $set: { legalHold: true } });
       await assert.rejects(
-        projects.create({ name: 'Blocked', description: 'Nope', organizationId: orgAId }, adminActor()),
+        projects.create({ name: 'Blocked', description: 'Nope', orgId: orgAId }, adminActor()),
         ForbiddenException
       );
     });
@@ -155,36 +155,36 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
 
   describe('OfficesService', () => {
     it('supports CRUD + archive with scoped access', async () => {
-      const office = await offices.create({ name: 'HQ', organizationId: orgAId, address: '123 Main' }, adminActor());
+      const office = await offices.create({ name: 'HQ', orgId: orgAId, address: '123 Main' }, adminActor());
       const officeId = (office as any)._id || (office as any).id;
-      await assert.rejects(offices.update(officeId, { address: 'New' }, otherOrgAdmin()), ForbiddenException);
+      await assert.rejects(offices.update(officeId, { address: 'New' }, otherOrgAdmin()), NotFoundException);
       const updated = await offices.update(officeId, { address: 'New Address' }, managerActor());
       assert.equal(updated.address, 'New Address');
       await offices.archive(officeId, adminActor());
-      await assert.rejects(offices.getById(officeId, adminActor(), false), NotFoundException);
-      const archived = await offices.getById(officeId, adminActor(), true);
+      await assert.rejects(offices.getById(officeId, adminActor(), undefined, false), NotFoundException);
+      const archived = await offices.getById(officeId, adminActor(), undefined, true);
       assert.ok(archived.archivedAt);
-      await assert.rejects(offices.list(pmActor(), orgAId, true), ForbiddenException);
+      await assert.rejects(offices.list(pmActor(), orgAId, { includeArchived: true } as any), ForbiddenException);
     });
 
     it('allows viewers to list offices', async () => {
-      await offices.create({ name: 'Field Office', organizationId: orgAId, address: 'Yard' }, adminActor());
-      const list = await offices.list(viewerActor(), orgAId, false);
+      await offices.create({ name: 'Field Office', orgId: orgAId, address: 'Yard' }, adminActor());
+      const list = await offices.list(viewerActor(), orgAId, { includeArchived: false } as any);
       assert.equal(list.length, 1);
     });
 
     it('allows org admins via role hierarchy', async () => {
-      const office = await offices.create({ name: 'OrgAdminOffice', organizationId: orgAId }, orgAdminActor());
-      assert.equal(office.organizationId, orgAId);
+      const office = await offices.create({ name: 'OrgAdminOffice', orgId: orgAId }, orgAdminActor());
+      assert.equal(office.orgId, orgAId);
     });
 
     it('blocks writes when org legal hold is active', async () => {
       await orgModel.updateOne({ _id: orgAId }, { $set: { legalHold: true } });
-      await assert.rejects(offices.create({ name: 'BlockedOffice', organizationId: orgAId }, adminActor()), ForbiddenException);
+      await assert.rejects(offices.create({ name: 'BlockedOffice', orgId: orgAId }, adminActor()), ForbiddenException);
     });
 
     it('blocks archive/unarchive when legal hold is active', async () => {
-      const office = await offices.create({ name: 'LegalHold', organizationId: orgAId }, adminActor());
+      const office = await offices.create({ name: 'LegalHold', orgId: orgAId }, adminActor());
       const officeId = (office as any)._id || (office as any).id;
       await officeModel.updateOne({ _id: officeId }, { $set: { legalHold: true } });
       await assert.rejects(offices.update(officeId, { address: 'Nope' }, adminActor()), ForbiddenException);

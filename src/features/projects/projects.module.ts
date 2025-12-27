@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CommonModule } from '../../common/common.module';
+import { TenancyModule } from '../../common/tenancy/tenancy.module';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { ProjectSchema } from './schemas/project.schema';
@@ -10,6 +11,7 @@ import { OfficeSchema } from '../offices/schemas/office.schema';
 @Module({
   imports: [
     CommonModule,
+    TenancyModule,
     MongooseModule.forFeature([
       { name: 'Project', schema: ProjectSchema },
       { name: 'Organization', schema: OrganizationSchema },

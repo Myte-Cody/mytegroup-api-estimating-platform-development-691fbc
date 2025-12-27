@@ -30,10 +30,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? responseBody
         : (responseBody as any)?.message || 'Internal server error';
 
-    this.logger.error(
-      `Request ${request?.method || ''} ${request?.url || ''} failed`,
-      exception instanceof Error ? exception.stack : JSON.stringify(responseBody)
-    );
+    const logMessage = `Request ${request?.method || ''} ${request?.url || ''} failed (${status})`;
+    const logDetail = exception instanceof Error ? exception.stack : JSON.stringify(responseBody);
+
+    // 4xx responses are often expected (auth/validation) and shouldn't spam ERROR logs.
+    if (status >= 500) {
+      this.logger.error(logMessage, logDetail);
+    } else {
+      this.logger.warn(logMessage, logDetail);
+    }
 
     httpAdapter.reply(
       ctx.getResponse(),

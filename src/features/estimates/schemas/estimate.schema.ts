@@ -13,7 +13,7 @@ export interface EstimateLineItem {
 
 export interface Estimate extends Document {
   projectId: string;
-  organizationId: string;
+  orgId: string;
   createdByUserId: string;
   name: string;
   description?: string;
@@ -32,7 +32,7 @@ export interface Estimate extends Document {
 export const EstimateSchema = new Schema<Estimate>(
   {
     projectId: { type: String, required: true, index: true },
-    organizationId: { type: String, required: true, index: true },
+    orgId: { type: String, required: true, index: true },
     createdByUserId: { type: String, required: true },
     name: { type: String, required: true },
     description: { type: String },
@@ -57,6 +57,8 @@ export const EstimateSchema = new Schema<Estimate>(
   { timestamps: true }
 );
 
-EstimateSchema.index({ projectId: 1, name: 1, archivedAt: 1 });
-EstimateSchema.index({ projectId: 1, archivedAt: 1 });
-
+EstimateSchema.index(
+  { orgId: 1, projectId: 1, name: 1 },
+  { unique: true, partialFilterExpression: { archivedAt: null } }
+);
+EstimateSchema.index({ orgId: 1, projectId: 1, archivedAt: 1 });

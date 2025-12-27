@@ -33,7 +33,7 @@ type EntityConfig = {
   key: string;
   modelName: string;
   schema: Schema;
-  filterField: string;
+  filterField: string | string[];
 };
 
 const DEFAULT_CHUNK_SIZE = 100;
@@ -46,11 +46,11 @@ export class MigrationsService {
   private readonly connectionCache = new Map<string, Promise<Connection>>();
 
   private readonly entities: EntityConfig[] = [
-    { key: 'users', modelName: 'User', schema: UserSchema, filterField: 'organizationId' },
+    { key: 'users', modelName: 'User', schema: UserSchema, filterField: 'orgId' },
     { key: 'invites', modelName: 'Invite', schema: InviteSchema, filterField: 'orgId' },
     { key: 'contacts', modelName: 'Contact', schema: ContactSchema, filterField: 'orgId' },
-    { key: 'projects', modelName: 'Project', schema: ProjectSchema, filterField: 'organizationId' },
-    { key: 'offices', modelName: 'Office', schema: OfficeSchema, filterField: 'organizationId' },
+    { key: 'projects', modelName: 'Project', schema: ProjectSchema, filterField: 'orgId' },
+    { key: 'offices', modelName: 'Office', schema: OfficeSchema, filterField: 'orgId' },
     { key: 'eventLogs', modelName: 'EventLog', schema: EventLogSchema, filterField: 'orgId' },
   ];
 
@@ -90,6 +90,9 @@ export class MigrationsService {
   }
 
   private buildFilter(config: EntityConfig, orgId: string) {
+    if (Array.isArray(config.filterField)) {
+      return { $or: config.filterField.map((field) => ({ [field]: orgId })) };
+    }
     return { [config.filterField]: orgId };
   }
 

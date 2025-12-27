@@ -31,13 +31,17 @@ export class AuthService {
     return { token, hash, expires };
   }
 
+  private resolveUserOrgId(user: any) {
+    return (user as any)?.orgId || (user as any)?.organizationId;
+  }
+
   async login(email: string, pass: string) {
     const user = await this.users.findByEmail(email);
     const isValid = user && (await argon2.verify(user.passwordHash, pass));
     await this.audit.log({
       eventType: 'auth.login',
       userId: user?.id,
-      orgId: user?.organizationId,
+      orgId: this.resolveUserOrgId(user),
       metadata: { email, success: !!isValid },
     });
     if (!isValid) throw new UnauthorizedException();
@@ -142,15 +146,15 @@ export class AuthService {
     }
 
     try {
-      let organizationId = dto.organizationId;
+      let orgId = dto.orgId;
       let createdOrgId: string | undefined;
-      if (!organizationId) {
+      if (!orgId) {
         const orgName = dto.organizationName || `${derivedUsername}'s Organization`;
         const org = await this.orgs.create({ name: orgName, primaryDomain: domain });
-        organizationId = org.id || (org as any)._id;
-        createdOrgId = organizationId;
+        orgId = org.id || (org as any)._id;
+        createdOrgId = orgId;
       } else {
-        await this.orgs.findById(organizationId);
+        await this.orgs.findById(orgId);
       }
 
       let user;
@@ -162,7 +166,7 @@ export class AuthService {
         lastName,
         email: normalizedEmail,
         password: dto.password,
-        organizationId,
+        orgId,
         role: assignedRole,
         isOrgOwner: assignedRole === Role.OrgOwner,
         verificationTokenHash: emailVerification?.hash ?? null,
@@ -179,10 +183,10 @@ export class AuthService {
       await this.audit.log({
         eventType: 'auth.register',
         userId,
-        orgId: organizationId,
+        orgId,
       });
       if (emailVerification) {
-        await this.email.sendVerificationEmail(normalizedEmail, emailVerification.token, organizationId, dto.username);
+        await this.email.sendVerificationEmail(normalizedEmail, emailVerification.token, orgId, dto.username);
       }
       return user;
     } catch (err) {
@@ -200,10 +204,11 @@ export class AuthService {
     const user = await this.users.findByVerificationToken(hash);
     if (!user) throw new BadRequestException('Invalid or expired token');
     await this.users.clearVerificationToken(user.id);
+    const orgId = this.resolveUserOrgId(user);
     await this.audit.log({
       eventType: 'auth.verify_email',
       userId: user.id,
-      orgId: user.organizationId,
+      orgId,
     });
     return this.sanitizeUser(user);
   }
@@ -214,12 +219,13 @@ export class AuthService {
     if (user.legalHold || user.archivedAt) throw new ForbiddenException('User unavailable');
     const { token, hash, expires } = this.generateToken(1000 * 60 * 60); // 1h
     await this.users.setResetToken(user.id, hash, expires);
+    const orgId = this.resolveUserOrgId(user);
     await this.audit.log({
       eventType: 'auth.password_reset_requested',
       userId: user.id,
-      orgId: user.organizationId,
+      orgId,
     });
-    await this.email.sendPasswordResetEmail(user.email, token, user.organizationId as string, user.username);
+    await this.email.sendPasswordResetEmail(user.email, token, orgId as string, user.username);
     return { status: 'ok' };
   }
 
@@ -232,10 +238,11 @@ export class AuthService {
     if (!user) throw new BadRequestException('Invalid or expired token');
     if (user.legalHold || user.archivedAt) throw new ForbiddenException('User unavailable');
     const updated = await this.users.clearResetTokenAndSetPassword(user.id, dto.newPassword);
+    const orgId = this.resolveUserOrgId(user);
     await this.audit.log({
       eventType: 'auth.password_reset',
       userId: user.id,
-      orgId: user.organizationId,
+      orgId,
     });
     return this.sanitizeUser(updated);
   }

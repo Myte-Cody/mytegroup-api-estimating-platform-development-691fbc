@@ -44,7 +44,7 @@ const createUserModel = (initial: any[] = []) => {
       passwordHash: entry.passwordHash || 'hashed',
       role: entry.role || Role.User,
       roles: entry.roles || [entry.role || Role.User],
-      organizationId: entry.organizationId || 'org-1',
+      orgId: entry.orgId || entry.organizationId || 'org-1',
       archivedAt: entry.archivedAt ?? null,
       legalHold: entry.legalHold ?? false,
       isOrgOwner: entry.isOrgOwner ?? (entry.roles || []).includes(Role.OrgOwner),
@@ -102,7 +102,7 @@ const createService = (initial: any[] = []) => {
 describe('UsersService role management', () => {
   it('sets primary role based on priority and emits audit metadata', async () => {
     const { service, auditLog, model } = createService([
-      { _id: 'u1', organizationId: 'org-1', roles: [Role.User], role: Role.User },
+      { _id: 'u1', orgId: 'org-1', roles: [Role.User], role: Role.User },
     ]);
     const result = await service.updateRoles(
       'u1',
@@ -121,7 +121,7 @@ describe('UsersService role management', () => {
   });
 
   it('prevents assigning superadmin when actor lacks privilege', async () => {
-    const { service } = createService([{ _id: 'u2', organizationId: 'org-1' }]);
+    const { service } = createService([{ _id: 'u2', orgId: 'org-1' }]);
     await assert.rejects(
       () =>
         service.updateRoles('u2', [Role.SuperAdmin], {
@@ -134,7 +134,7 @@ describe('UsersService role management', () => {
   });
 
   it('blocks cross-org updates for non-privileged actors', async () => {
-    const { service } = createService([{ _id: 'u3', organizationId: 'org-1' }]);
+    const { service } = createService([{ _id: 'u3', orgId: 'org-1' }]);
     await assert.rejects(
       () =>
         service.updateRoles('u3', [Role.Admin], {
@@ -147,7 +147,7 @@ describe('UsersService role management', () => {
   });
 
   it('allows platform admin to manage roles without org constraint', async () => {
-    const { service } = createService([{ _id: 'u4', organizationId: 'org-1', roles: [Role.User] }]);
+    const { service } = createService([{ _id: 'u4', orgId: 'org-1', roles: [Role.User] }]);
     const result = await service.updateRoles(
       'u4',
       [Role.Manager],
@@ -160,7 +160,7 @@ describe('UsersService role management', () => {
 
   it('prevents role updates for archived users', async () => {
     const { service } = createService([
-      { _id: 'u5', organizationId: 'org-1', archivedAt: new Date() },
+      { _id: 'u5', orgId: 'org-1', archivedAt: new Date() },
     ]);
     await assert.rejects(
       () =>

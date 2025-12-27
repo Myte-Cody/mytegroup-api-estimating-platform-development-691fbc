@@ -7,7 +7,7 @@ export interface Invite extends Document {
   orgId: string;
   email: string;
   role: Role;
-  contactId?: string | null;
+  personId?: string | null;
   tokenHash: string;
   tokenExpires: Date;
   status: InviteStatus;
@@ -26,7 +26,7 @@ export const InviteSchema = new Schema<Invite>(
     orgId: { type: String, required: true, index: true },
     email: { type: String, required: true },
     role: { type: String, required: true },
-    contactId: { type: String, default: null },
+    personId: { type: String, default: null },
     tokenHash: { type: String, required: true },
     tokenExpires: { type: Date, required: true },
     status: { type: String, enum: ['pending', 'accepted', 'expired'], default: 'pending' },
@@ -41,5 +41,6 @@ export const InviteSchema = new Schema<Invite>(
 );
 
 InviteSchema.index({ orgId: 1, email: 1, status: 1 });
+InviteSchema.index({ orgId: 1, personId: 1, status: 1 });
 InviteSchema.index({ tokenHash: 1 });
 InviteSchema.index({ tokenExpires: 1 }, { expireAfterSeconds: 0 });

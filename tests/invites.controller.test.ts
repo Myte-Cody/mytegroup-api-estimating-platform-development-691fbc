@@ -14,7 +14,7 @@ describe('InvitesController', () => {
     };
     const controller = new InvitesController(service as any);
     const req: any = { session: { user: { orgId: 'org-1', id: 'actor-1', role: Role.Admin, roles: [Role.PM, Role.Admin] } } };
-    const dto = { email: 'user@example.com', role: Role.User };
+    const dto = { personId: 'person-1', role: Role.User };
 
     const result = await controller.create(dto as any, req);
 
@@ -36,7 +36,7 @@ describe('InvitesController', () => {
     };
     const controller = new InvitesController(service as any);
     const req: any = { session: { user: { orgId: 'org-roles', id: 'actor-roles', roles: [Role.PlatformAdmin, Role.Viewer] } } };
-    const dto = { email: 'multi@example.com', role: Role.Manager };
+    const dto = { personId: 'person-2', role: Role.Manager };
 
     await controller.create(dto as any, req);
 

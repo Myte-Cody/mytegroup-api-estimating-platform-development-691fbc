@@ -27,9 +27,9 @@ export class UsersController {
       actorRoles.includes(Role.PlatformAdmin) ||
       actor?.role === Role.SuperAdmin ||
       actor?.role === Role.PlatformAdmin;
-    const organizationId = actor?.orgId || (canBypassOrg ? dto.organizationId : undefined);
-    if (!organizationId) throw new ForbiddenException('Missing organization context');
-    return this.svc.create({ ...dto, organizationId }, actor, { enforceSeat: true });
+    const orgId = actor?.orgId || (canBypassOrg ? dto.orgId : undefined);
+    if (!orgId) throw new ForbiddenException('Missing organization context');
+    return this.svc.create({ ...dto, orgId }, actor, { enforceSeat: true });
   }
 
   // Roles: admin, org admin, org owner, platform admin, superadmin
@@ -39,7 +39,7 @@ export class UsersController {
   list(@Query() query: ListUsersQueryDto, @Req() req: Request) {
     const actor = (req as any).user || req.session?.user;
     return this.svc.list(actor, {
-      orgId: query.organizationId,
+      orgId: query.orgId,
       includeArchived: query.includeArchived,
     });
   }

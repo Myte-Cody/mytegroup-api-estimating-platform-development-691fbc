@@ -3,11 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { expandRoles, Role } from '../../common/roles';
 import { AuditLogService } from '../../common/services/audit-log.service';
+import { TenantConnectionService } from '../../common/tenancy/tenant-connection.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { Project } from './schemas/project.schema';
 import { Organization } from '../organizations/schemas/organization.schema';
-import { Office } from '../offices/schemas/office.schema';
+import { Office, OfficeSchema } from '../offices/schemas/office.schema';
 
 type ActorContext = { userId?: string; orgId?: string; role?: Role };
 
@@ -17,8 +18,13 @@ export class ProjectsService {
     @InjectModel('Project') private readonly projectModel: Model<Project>,
     @InjectModel('Organization') private readonly orgModel: Model<Organization>,
     @InjectModel('Office') private readonly officeModel: Model<Office>,
-    private readonly audit: AuditLogService
+    private readonly audit: AuditLogService,
+    private readonly tenants: TenantConnectionService
   ) {}
+
+  private async officeTenantModel(orgId: string) {
+    return this.tenants.getModelForOrg<Office>(orgId, 'Office', OfficeSchema, this.officeModel);
+  }
 
   private ensureRole(actor: ActorContext, allowed: Role[]) {
     if (actor.role === Role.SuperAdmin) return;
@@ -80,29 +86,30 @@ export class ProjectsService {
 
   private async validateOffice(orgId: string, officeId?: string | null) {
     if (!officeId) return;
-    const office = await this.officeModel.findOne({ _id: officeId, organizationId: orgId, archivedAt: null });
+    const offices = await this.officeTenantModel(orgId);
+    const office = await offices.findOne({ _id: officeId, orgId, archivedAt: null });
     if (!office) throw new NotFoundException('Office not found or archived for this organization');
   }
 
   async create(dto: CreateProjectDto, actor: ActorContext) {
     this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner]);
-    const organizationId = this.resolveOrgId(dto.organizationId, actor);
-    await this.validateOrg(organizationId);
-    await this.validateOffice(organizationId, dto.officeId);
+    const orgId = this.resolveOrgId(dto.orgId, actor);
+    await this.validateOrg(orgId);
+    await this.validateOffice(orgId, dto.officeId);
 
-    const existing = await this.projectModel.findOne({ organizationId, name: dto.name });
+    const existing = await this.projectModel.findOne({ orgId, name: dto.name, archivedAt: null });
     if (existing) throw new ConflictException('Project name already exists for this organization');
 
     const project = await this.projectModel.create({
       name: dto.name,
       description: dto.description,
-      organizationId,
+      orgId,
       officeId: dto.officeId || null,
     });
 
     await this.audit.log({
       eventType: 'project.created',
-      orgId: organizationId,
+      orgId,
       userId: actor.userId,
       entity: 'Project',
       entityId: project.id,
@@ -114,11 +121,11 @@ export class ProjectsService {
 
   async list(actor: ActorContext, orgId: string, includeArchived = false) {
     this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer]);
-    const organizationId = this.resolveOrgId(orgId, actor);
+    const resolvedOrgId = this.resolveOrgId(orgId, actor);
     if (includeArchived && !this.canViewArchived(actor)) {
       throw new ForbiddenException('Not allowed to include archived projects');
     }
-    const filter: Record<string, any> = { organizationId };
+    const filter: Record<string, any> = { orgId: resolvedOrgId };
     if (!includeArchived) filter.archivedAt = null;
     return this.projectModel.find(filter).lean();
   }
@@ -127,7 +134,7 @@ export class ProjectsService {
     this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.Viewer]);
     const project = await this.projectModel.findById(id);
     if (!project) throw new NotFoundException('Project not found');
-    this.ensureOrgScope(project.organizationId, actor);
+    this.ensureOrgScope(project.orgId, actor);
     if (project.archivedAt && !includeArchived) throw new NotFoundException('Project archived');
     if (project.archivedAt && includeArchived && !this.canViewArchived(actor)) {
       throw new ForbiddenException('Not allowed to view archived projects');
@@ -139,15 +146,16 @@ export class ProjectsService {
     this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner]);
     const project = await this.projectModel.findById(id);
     if (!project) throw new NotFoundException('Project not found');
-    this.ensureOrgScope(project.organizationId, actor);
-    await this.validateOrg(project.organizationId);
+    this.ensureOrgScope(project.orgId, actor);
+    await this.validateOrg(project.orgId);
     if (project.archivedAt) throw new NotFoundException('Project archived');
     this.ensureNotOnLegalHold(project, 'update');
 
     if (dto.name && dto.name !== project.name) {
       const existing = await this.projectModel.findOne({
-        organizationId: project.organizationId,
+        orgId: project.orgId,
         name: dto.name,
+        archivedAt: null,
         _id: { $ne: id },
       });
       if (existing) throw new ConflictException('Project name already exists for this organization');
@@ -156,7 +164,7 @@ export class ProjectsService {
     const before = this.toPlain(project);
 
     if (dto.officeId !== undefined) {
-      await this.validateOffice(project.organizationId, dto.officeId);
+      await this.validateOffice(project.orgId, dto.officeId);
       project.officeId = dto.officeId || null;
     }
     if (dto.name !== undefined) project.name = dto.name;
@@ -167,7 +175,7 @@ export class ProjectsService {
 
     await this.audit.log({
       eventType: 'project.updated',
-      orgId: project.organizationId,
+      orgId: project.orgId,
       userId: actor.userId,
       entity: 'Project',
       entityId: project.id,
@@ -181,8 +189,8 @@ export class ProjectsService {
     this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner]);
     const project = await this.projectModel.findById(id);
     if (!project) throw new NotFoundException('Project not found');
-    this.ensureOrgScope(project.organizationId, actor);
-    await this.validateOrg(project.organizationId);
+    this.ensureOrgScope(project.orgId, actor);
+    await this.validateOrg(project.orgId);
     this.ensureNotOnLegalHold(project, 'archive');
 
     if (!project.archivedAt) {
@@ -192,7 +200,7 @@ export class ProjectsService {
 
     await this.audit.log({
       eventType: 'project.archived',
-      orgId: project.organizationId,
+      orgId: project.orgId,
       userId: actor.userId,
       entity: 'Project',
       entityId: project.id,
@@ -205,18 +213,25 @@ export class ProjectsService {
     this.ensureRole(actor, [Role.Admin, Role.Manager, Role.OrgOwner]);
     const project = await this.projectModel.findById(id);
     if (!project) throw new NotFoundException('Project not found');
-    this.ensureOrgScope(project.organizationId, actor);
-    await this.validateOrg(project.organizationId);
+    this.ensureOrgScope(project.orgId, actor);
+    await this.validateOrg(project.orgId);
     this.ensureNotOnLegalHold(project, 'unarchive');
 
     if (project.archivedAt) {
+      const collision = await this.projectModel.findOne({
+        orgId: project.orgId,
+        name: project.name,
+        archivedAt: null,
+        _id: { $ne: id },
+      });
+      if (collision) throw new ConflictException('Project name already exists for this organization');
       project.archivedAt = null;
       await project.save();
     }
 
     await this.audit.log({
       eventType: 'project.unarchived',
-      orgId: project.organizationId,
+      orgId: project.orgId,
       userId: actor.userId,
       entity: 'Project',
       entityId: project.id,

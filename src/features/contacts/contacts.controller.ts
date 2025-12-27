@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, GoneException, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { OrgScopeGuard } from '../../common/guards/org-scope.guard';
@@ -27,18 +27,22 @@ export class ContactsController {
     return requestedOrgId || actorOrgId;
   }
 
+  private throwDeprecatedWrite() {
+    throw new GoneException('Contacts write APIs are deprecated; use /persons, /companies, /company-locations');
+  }
+
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
   @Get()
   async list(
     @Req() req: Request,
-    @Query('organizationId') organizationId?: string,
+    @Query('orgId') orgId?: string,
     @Query('includeArchived') includeArchived?: string,
     @Query('personType') personType?: string
   ) {
     const actor = this.getActor(req);
-    const orgId = this.resolveOrgId(actor.orgId, organizationId);
-    if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.list(actor, orgId, this.parseIncludeArchived(includeArchived), personType);
+    const resolvedOrgId = this.resolveOrgId(actor.orgId, orgId);
+    if (!resolvedOrgId) throw new BadRequestException('Organization context is required');
+    return this.contacts.list(actor, resolvedOrgId, this.parseIncludeArchived(includeArchived), personType);
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
@@ -47,21 +51,22 @@ export class ContactsController {
     @Param('id') id: string,
     @Req() req: Request,
     @Query('includeArchived') includeArchived?: string,
-    @Query('organizationId') organizationId?: string
+    @Query('orgId') orgId?: string,
   ) {
     const actor = this.getActor(req);
-    const orgId = this.resolveOrgId(actor.orgId, organizationId);
-    if (!orgId && actor.role !== Role.SuperAdmin) throw new BadRequestException('Organization context is required');
-    return this.contacts.getById(actor, id, orgId, this.parseIncludeArchived(includeArchived));
+    const resolvedOrgId = this.resolveOrgId(actor.orgId, orgId);
+    if (!resolvedOrgId && actor.role !== Role.SuperAdmin) throw new BadRequestException('Organization context is required');
+    return this.contacts.getById(actor, id, resolvedOrgId, this.parseIncludeArchived(includeArchived));
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
   @Post()
-  async create(@Body() dto: CreateContactDto, @Req() req: Request, @Query('organizationId') organizationId?: string) {
-    const actor = this.getActor(req);
-    const orgId = this.resolveOrgId(actor.orgId, organizationId);
-    if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.create(actor, orgId, dto);
+  async create(
+    @Body() dto: CreateContactDto,
+    @Req() req: Request,
+    @Query('orgId') orgId?: string,
+  ) {
+    this.throwDeprecatedWrite();
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.PM, Role.SuperAdmin)
@@ -70,29 +75,28 @@ export class ContactsController {
     @Param('id') id: string,
     @Body() dto: UpdateContactDto,
     @Req() req: Request,
-    @Query('organizationId') organizationId?: string
+    @Query('orgId') orgId?: string,
   ) {
-    const actor = this.getActor(req);
-    const orgId = this.resolveOrgId(actor.orgId, organizationId);
-    if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.update(actor, orgId, id, dto);
+    this.throwDeprecatedWrite();
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
   @Post(':id/archive')
-  async archive(@Param('id') id: string, @Req() req: Request, @Query('organizationId') organizationId?: string) {
-    const actor = this.getActor(req);
-    const orgId = this.resolveOrgId(actor.orgId, organizationId);
-    if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.archive(actor, orgId, id);
+  async archive(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('orgId') orgId?: string,
+  ) {
+    this.throwDeprecatedWrite();
   }
 
   @Roles(Role.Admin, Role.Manager, Role.OrgOwner, Role.SuperAdmin)
   @Post(':id/unarchive')
-  async unarchive(@Param('id') id: string, @Req() req: Request, @Query('organizationId') organizationId?: string) {
-    const actor = this.getActor(req);
-    const orgId = this.resolveOrgId(actor.orgId, organizationId);
-    if (!orgId) throw new BadRequestException('Organization context is required');
-    return this.contacts.unarchive(actor, orgId, id);
+  async unarchive(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('orgId') orgId?: string,
+  ) {
+    this.throwDeprecatedWrite();
   }
 }

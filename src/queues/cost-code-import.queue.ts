@@ -102,7 +102,7 @@ const getConnectionForOrg = async (orgId: string, org: any) => {
 
 const buildWorkbookJson = async (buffer: Buffer) => {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  await workbook.xlsx.load(buffer as any);
   const sheets = workbook.worksheets.map((sheet) => {
     const rows: string[][] = [];
     const maxRows = Math.min(sheet.rowCount || 0, MAX_IMPORT_ROWS);

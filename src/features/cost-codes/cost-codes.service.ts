@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, type Schema } from 'mongoose';
 import ExcelJS from 'exceljs';
 import { Role, expandRoles } from '../../common/roles';
 import { AuditLogService } from '../../common/services/audit-log.service';
@@ -78,7 +78,7 @@ export class CostCodesService {
     return this.tenants.getModelForOrg<CostCodeImportJob>(
       orgId,
       'CostCodeImportJob',
-      CostCodeImportJobSchema,
+      CostCodeImportJobSchema as unknown as Schema<CostCodeImportJob>,
       this.importJobModel
     );
   }
@@ -150,7 +150,7 @@ export class CostCodesService {
 
     const model = await this.costCodes(orgId);
     const filter = this.buildFilter(orgId, query);
-    const sort = { code: 1, _id: 1 };
+    const sort: Record<string, 1 | -1> = { code: 1, _id: 1 };
 
     if (query.noPagination) {
       return model.find(filter).sort(sort).lean();
@@ -419,7 +419,7 @@ export class CostCodesService {
     }
 
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    await workbook.xlsx.load(buffer as any);
 
     const sheets = workbook.worksheets.map((sheet) => {
       const rows: string[][] = [];
@@ -434,11 +434,11 @@ export class CostCodesService {
 
     const workbookJson = { sheets };
     const extracted = await this.ai.extractCostCodesFromWorkbook({ orgId, workbook: workbookJson });
-    const normalized = this.normalizeCostCodes(extracted || [], true);
-    if (!normalized.length) {
+    const normalizedCodes = this.normalizeCostCodes(extracted || [], true);
+    if (!normalizedCodes.length) {
       throw new BadRequestException('No cost codes detected in the import file');
     }
-    return normalized;
+    return normalizedCodes;
   }
 
   async startImport(actor: ActorContext, file?: { buffer: Buffer }) {

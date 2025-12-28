@@ -353,4 +353,91 @@ export class AiService {
         : [],
     }));
   }
+
+  async extractCostCodesFromWorkbook(input: {
+    orgId?: string;
+    workbook: { sheets: Array<{ name: string; rows: string[][] }> };
+  }): Promise<Array<{ category: string; code: string; description: string }>> {
+    if (!this.isEnabled()) throw new ServiceUnavailableException('AI is not enabled.');
+
+    const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    const system = [
+      'You are a JSON extraction assistant.',
+      'Given a workbook with sheet names and row arrays (including headers), extract cost codes.',
+      'Return ONLY strict JSON (no markdown, no commentary).',
+      'Output must be a JSON object with a "codes" array.',
+    ].join(' ');
+
+    const user = {
+      orgId: input.orgId,
+      workbook: input.workbook,
+      outputSchema: {
+        codes: [{ category: 'string', code: 'string', description: 'string' }],
+      },
+      rules: [
+        'Extract rows that represent cost codes.',
+        'Each entry must include category, code, description.',
+        'If a value is missing, return an empty string for that field.',
+      ],
+    };
+
+    const controller = new AbortController();
+    const timeoutMs = Number(process.env.AI_HTTP_TIMEOUT_MS || 15000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res: Response;
+    try {
+      res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: 4000,
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: JSON.stringify(user) },
+          ],
+        }),
+      });
+    } catch (err: any) {
+      if (err?.name === 'AbortError') throw new GatewayTimeoutException('AI request timed out.');
+      throw new BadGatewayException('AI request failed.');
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!res.ok) throw new BadGatewayException(`AI request failed (${res.status}).`);
+
+    const json = (await res.json()) as any;
+    const content = json?.choices?.[0]?.message?.content;
+    if (!content || typeof content !== 'string') throw new BadGatewayException('AI response missing content.');
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new BadGatewayException('AI response was not valid JSON.');
+    }
+
+    const rawCodes = Array.isArray(parsed?.codes)
+      ? parsed.codes
+      : Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.data)
+          ? parsed.data
+          : [];
+
+    return rawCodes.map((row: any) => ({
+      category: typeof row?.category === 'string' ? row.category : '',
+      code: typeof row?.code === 'string' ? row.code : '',
+      description: typeof row?.description === 'string' ? row.description : '',
+    }));
+  }
 }

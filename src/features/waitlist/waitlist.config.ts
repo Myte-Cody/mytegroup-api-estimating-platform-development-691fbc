@@ -52,11 +52,14 @@ export const waitlistConfig = {
     enforceGate: true, // when true, registration requires waitlist status=invited
     delayHours: 36, // minimum hours after join before auto-invite eligibility
     window: { start: '09:00', end: '17:00', timezone: 'America/New_York' }, // invite send window
-    batchLimit: 15, // max invites per automated batch
+    batchLimit: 40, // max invites per automated batch
     cohortTag: 'wave-1', // default cohort tag applied on invite
     autoInviteEnabled: true, // run automated invite batches
-    intervalMs: 10 * 60 * 1000, // how often the auto-invite worker runs
+    intervalMs: 10 * 1000, // how often the auto-invite worker runs
     domainGateEnabled: true, // when true, only the first registrant per domain can create an org
+    sendMode: 'bcc' as 'bcc' | 'token', // use bcc batch email by default
+    requireToken: false, // require per-user invite token when registering
+    batchToEmail: 'waitlist@mytegroup.com', // visible "to" address for bcc batches
   },
   rateLimit: {
     windowMs: 15 * 60 * 1000, // 15 minutes

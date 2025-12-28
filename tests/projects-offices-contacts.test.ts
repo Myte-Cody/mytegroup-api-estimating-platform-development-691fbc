@@ -12,6 +12,7 @@ import { Office, OfficeSchema } from '../src/features/offices/schemas/office.sch
 import { ContactsService } from '../src/features/contacts/contacts.service';
 import { Contact, ContactSchema } from '../src/features/contacts/schemas/contact.schema';
 import { Organization, OrganizationSchema } from '../src/features/organizations/schemas/organization.schema';
+import { CostCode, CostCodeSchema } from '../src/features/cost-codes/schemas/cost-code.schema';
 import { EventLog, EventLogSchema } from '../src/common/events/event-log.schema';
 import { EventLogService } from '../src/common/events/event-log.service';
 import { AuditLogService } from '../src/common/services/audit-log.service';
@@ -27,6 +28,7 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
   let projectModel: Model<Project>;
   let officeModel: Model<Office>;
   let contactModel: Model<Contact>;
+  let costCodeModel: Model<CostCode>;
   let orgModel: OrgModel;
   let eventLogModel: Model<EventLog>;
   let projects: ProjectsService;
@@ -41,12 +43,20 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
     projectModel = connection.model<Project>('Project', ProjectSchema);
     officeModel = connection.model<Office>('Office', OfficeSchema);
     contactModel = connection.model<Contact>('Contact', ContactSchema);
+    costCodeModel = connection.model<CostCode>('CostCode', CostCodeSchema);
     orgModel = connection.model<Organization>('Organization', OrganizationSchema);
     eventLogModel = connection.model<EventLog>('EventLog', EventLogSchema);
     const eventLog = new EventLogService(eventLogModel);
     const audit = new AuditLogService(eventLog);
     const tenant = new TenantConnectionService(connection, orgModel);
-    projects = new ProjectsService(projectModel, orgModel, officeModel, audit, tenant);
+    const personsStub = { getById: async () => null } as any;
+    const seatsStub = {
+      findActiveSeatForUser: async () => null,
+      allocateSeat: async () => null,
+      assignSeatToProject: async () => null,
+      clearSeatProject: async () => null,
+    } as any;
+    projects = new ProjectsService(projectModel, orgModel, officeModel, costCodeModel, audit, tenant, personsStub, seatsStub);
     offices = new OfficesService(officeModel, orgModel, audit, tenant);
     contacts = new ContactsService(contactModel, orgModel, audit, tenant);
   });
@@ -56,6 +66,7 @@ describe('Projects/Offices/Contacts services', { concurrency: 1 }, () => {
       projectModel.deleteMany({}),
       officeModel.deleteMany({}),
       contactModel.deleteMany({}),
+      costCodeModel.deleteMany({}),
       orgModel.deleteMany({}),
       eventLogModel.deleteMany({}),
     ]);

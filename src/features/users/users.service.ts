@@ -172,7 +172,7 @@ export class UsersService {
     }
 
     if (enforceSeat) {
-      await this.seats.allocateSeat(orgId, user.id, session);
+      await this.seats.allocateSeat(orgId, user.id, { role: primary, session });
     }
 
     await this.audit.log({
@@ -312,7 +312,7 @@ export class UsersService {
 
     const orgId = user.orgId as string;
     await this.seats.ensureOrgSeats(orgId, seatConfig.defaultSeatsPerOrg);
-    await this.seats.allocateSeat(orgId, user.id);
+    await this.seats.allocateSeat(orgId, user.id, { role: user.role });
 
     try {
       user.archivedAt = null;

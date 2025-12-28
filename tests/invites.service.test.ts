@@ -157,6 +157,7 @@ const createService = (
   const emailLog: any[] = [];
   const usersCreated: any[] = [];
   const personLinks: any[] = [];
+  const notificationsLog: any[] = [];
 
   const audit = { log: async (event: any) => auditLog.push(event) };
   const users = {
@@ -215,6 +216,11 @@ const createService = (
   };
 
   const seats = { ensureOrgSeats: async () => undefined };
+  const notifications = {
+    create: async (orgId: string, userId: string, type: string, payload: any) => {
+      notificationsLog.push({ orgId, userId, type, payload });
+    },
+  };
   const service = new InvitesService(
     model as any,
     orgModel as any,
@@ -222,13 +228,14 @@ const createService = (
     users as any,
     email as any,
     persons as any,
-    seats as any
+    seats as any,
+    notifications as any
   );
   if (tokenFactory) {
     (service as any).generateToken = tokenFactory;
   }
 
-  return { service, auditLog, emailLog, usersCreated, personLinks };
+  return { service, auditLog, emailLog, usersCreated, personLinks, notificationsLog };
 };
 
 describe('InvitesService', () => {

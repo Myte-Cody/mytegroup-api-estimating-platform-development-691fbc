@@ -13,6 +13,7 @@ import { SeatsService } from '../seats/seats.service';
 import { seatConfig } from '../../config/app.config';
 import { PersonsService } from '../persons/persons.service';
 import { Organization } from '../organizations/schemas/organization.schema';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class InvitesService {
@@ -23,7 +24,8 @@ export class InvitesService {
     private readonly users: UsersService,
     private readonly email: EmailService,
     private readonly persons: PersonsService,
-    private readonly seats: SeatsService
+    private readonly seats: SeatsService,
+    private readonly notifications: NotificationsService
   ) {}
 
   private async ensureOrgActive(orgId: string) {
@@ -139,6 +141,11 @@ export class InvitesService {
       entityId: invite.id,
       metadata: { email, role: dto.role, personId },
     });
+    await this.notifications.create(orgId, actorId, 'invite.created', {
+      email,
+      role: dto.role,
+      personId,
+    });
     return invite.toObject ? invite.toObject() : invite;
   }
 
@@ -192,6 +199,7 @@ export class InvitesService {
     let createdUser: any = null;
     let invitePersonId: string | null = invite.personId ? String(invite.personId) : null;
     let invitedUserId: string | null = null;
+    let createdByUserId: string | null = null;
 
     try {
       session.startTransaction();
@@ -206,6 +214,7 @@ export class InvitesService {
       if (inviteTx.status === 'expired') throw new BadRequestException('Invite expired');
       if (inviteTx.tokenExpires < new Date()) throw new BadRequestException('Invite expired');
       if (inviteTx.archivedAt) throw new ForbiddenException('Invite unavailable');
+      createdByUserId = inviteTx.createdByUserId ? String(inviteTx.createdByUserId) : null;
 
       createdUser = await this.users.create(
         {
@@ -265,6 +274,19 @@ export class InvitesService {
         await this.persons.linkUser(invite.orgId, invitePersonId, invitedUserId);
       } catch {
         // non-fatal: user accepted invite and has a seat; person linkage can be repaired later
+      }
+    }
+
+    if (createdByUserId) {
+      try {
+        await this.notifications.create(invite.orgId, createdByUserId, 'invite.accepted', {
+          email: invite.email,
+          invitedUserId,
+          personId: invitePersonId,
+          role: invite.role,
+        });
+      } catch {
+        // non-fatal: notification delivery shouldn't block invite accept
       }
     }
 

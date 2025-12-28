@@ -33,6 +33,8 @@ import { GraphEdgesModule } from './features/graph-edges/graph-edges.module';
 import { CrmContextModule } from './features/crm-context/crm-context.module';
 import { IngestionModule } from './features/ingestion/ingestion.module';
 import { DevSeedModule } from './features/dev-seed/dev-seed.module';
+import { CostCodesModule } from './features/cost-codes/cost-codes.module';
+import { NotificationsModule } from './features/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -67,6 +69,8 @@ import { DevSeedModule } from './features/dev-seed/dev-seed.module';
     CrmContextModule,
     IngestionModule,
     DevSeedModule,
+    CostCodesModule,
+    NotificationsModule,
   ],
   providers: [
     {

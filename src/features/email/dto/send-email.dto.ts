@@ -1,4 +1,4 @@
-import { IsEmail, IsObject, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsEmail, IsObject, IsOptional, IsString } from 'class-validator';
 
 export class SendEmailDto {
   @IsEmail()
@@ -34,4 +34,9 @@ export class SendEmailDto {
   @IsOptional()
   @IsString()
   mode?: 'test' | 'live';
+
+  @IsOptional()
+  @IsArray()
+  @IsEmail({}, { each: true })
+  bcc?: string[];
 }

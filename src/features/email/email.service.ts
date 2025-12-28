@@ -75,6 +75,7 @@ export class EmailService {
     const cfg = this.mailConfig;
     const text = this.resolveText(dto);
     const from = cfg.from || cfg.auth?.user || 'no-reply@myte.test';
+    const bcc = Array.isArray(dto.bcc) ? dto.bcc.filter(Boolean) : [];
     const metadata = {
       to: dto.email,
       subject: dto.subject,
@@ -82,6 +83,7 @@ export class EmailService {
       orgId: dto.orgId,
       variableKeys: dto.variables ? Object.keys(dto.variables) : undefined,
       mode: dto.mode || 'live',
+      bccCount: bcc.length || undefined,
     };
     await this.audit.log({
       eventType: 'email.send_attempt',
@@ -94,6 +96,7 @@ export class EmailService {
         subject: dto.subject,
         text,
         html: dto.html,
+        bcc: bcc.length ? bcc : undefined,
       });
     try {
       const info = await send();
@@ -125,6 +128,18 @@ export class EmailService {
         throw err2;
       }
     }
+  }
+
+  async sendBulkMail(opts: { bcc: string[]; subject: string; text?: string; html?: string; to?: string }) {
+    const cfg = this.mailConfig;
+    const to = opts.to || cfg.from || cfg.auth?.user || 'no-reply@myte.test';
+    return this.sendMail({
+      email: to,
+      subject: opts.subject,
+      text: opts.text,
+      html: opts.html,
+      bcc: opts.bcc,
+    });
   }
 
   private async sendTemplateEmail(

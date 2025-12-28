@@ -396,7 +396,15 @@ export class WaitlistService {
     this.mailScheduler.waitUntilReady().catch((err) => {
       this.logger.error(`[waitlist-mail] scheduler failed: ${err?.message || err}`)
     })
-    const worker = createWorker<{ type: 'verify' | 'invite'; email: string; code?: string; name?: string; domain?: string; registerLink?: string }>(
+    const worker = createWorker<{
+      type: 'verify' | 'invite';
+      email: string;
+      code?: string;
+      name?: string;
+      domain?: string;
+      registerLink?: string;
+      bcc?: string[];
+    }>(
       'waitlist-mail',
       async (job) => {
         if ((job.data as any).forceFail) {
@@ -410,7 +418,13 @@ export class WaitlistService {
           const calendly = 'https://calendly.com/ahmed-mekallach/thought-exchange'
           const domain = job.data.domain || 'your company'
           const t = waitlistInviteTemplate({ registerLink, domain, calendly })
-          await this.email.sendMail({ email: job.data.email, subject: t.subject, text: t.text, html: t.html })
+          await this.email.sendMail({
+            email: job.data.email,
+            subject: t.subject,
+            text: t.text,
+            html: t.html,
+            bcc: Array.isArray(job.data.bcc) ? job.data.bcc : undefined,
+          })
         }
       }
     )
@@ -938,6 +952,34 @@ export class WaitlistService {
     return { token, hash, expires }
   }
 
+  private inviteSendMode() {
+    return (waitlistConfig.invite.sendMode || 'token') as 'bcc' | 'token'
+  }
+
+  private inviteRequiresToken() {
+    if (waitlistConfig.invite.requireToken !== undefined) {
+      return !!waitlistConfig.invite.requireToken
+    }
+    return this.inviteSendMode() === 'token'
+  }
+
+  private resolveBatchToEmail() {
+    return (
+      waitlistConfig.invite.batchToEmail ||
+      this.ops.alertEmail ||
+      'waitlist@mytegroup.com'
+    )
+  }
+
+  private buildRegisterLink(email?: string, inviteToken?: string) {
+    const params = new URLSearchParams()
+    if (email) params.set('email', email)
+    if (inviteToken) params.set('invite', inviteToken)
+    const qs = params.toString()
+    const base = buildClientUrl('/auth/register')
+    return qs ? `${base}?${qs}` : base
+  }
+
   async markInvited(email: string, cohortTag?: string) {
     const normalizedEmail = this.normalizeEmail(email)
     const entry = await this.model.findOne({ email: normalizedEmail, archivedAt: null })
@@ -947,9 +989,10 @@ export class WaitlistService {
     }
 
     this.assertFullyVerified(entry as any)
-    const { token, hash, expires } = this.generateInviteToken()
+    const requireToken = this.inviteRequiresToken()
+    const tokenData = requireToken ? this.generateInviteToken() : null
     try {
-      await this.sendInviteEmail(normalizedEmail, token)
+      await this.sendInviteEmail(normalizedEmail, tokenData?.token || null)
     } catch (err) {
       await this.model.updateOne({ _id: entry._id }, { $inc: { inviteFailureCount: 1 } })
       throw err
@@ -967,8 +1010,8 @@ export class WaitlistService {
             verifyExpiresAt: null,
             phoneVerifyCode: null,
             phoneVerifyExpiresAt: null,
-            inviteTokenHash: hash,
-            inviteTokenExpiresAt: expires,
+            inviteTokenHash: tokenData?.hash || null,
+            inviteTokenExpiresAt: tokenData?.expires || null,
           },
         },
         { new: true }
@@ -1001,16 +1044,26 @@ export class WaitlistService {
     )
   }
 
-  private async sendInviteEmail(email: string, inviteToken: string) {
-    const registerLink = buildClientUrl(
-      `/auth/register?email=${encodeURIComponent(email)}&invite=${encodeURIComponent(inviteToken)}`
-    )
+  private async sendInviteEmail(email: string, inviteToken?: string | null) {
+    const registerLink = this.buildRegisterLink(email, inviteToken || undefined)
     const calendly = 'https://calendly.com/ahmed-mekallach/thought-exchange'
     const domain = normalizeDomainFromEmail(email) || 'your company'
     const t = waitlistInviteTemplate({ registerLink, domain, calendly })
     await this.mailQueue.add(
       'invite',
       { type: 'invite', email, domain, registerLink },
+      { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
+    )
+  }
+
+  private async sendInviteBatchEmail(emails: string[]) {
+    const bcc = (emails || []).map((e) => this.normalizeEmail(e)).filter(Boolean)
+    if (!bcc.length) return
+    const registerLink = this.buildRegisterLink()
+    const domain = 'your company'
+    await this.mailQueue.add(
+      'invite',
+      { type: 'invite', email: this.resolveBatchToEmail(), domain, registerLink, bcc },
       { removeOnComplete: true, removeOnFail: true, attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
     )
   }
@@ -1039,11 +1092,55 @@ export class WaitlistService {
       .limit(limit)
       .lean()
 
+    if (!eligible.length) return { invited: 0, skipped: false }
+
+    const sendMode = this.inviteSendMode()
+    const requireToken = this.inviteRequiresToken()
+    const effectiveMode = sendMode === 'bcc' && !requireToken ? 'bcc' : 'token'
+
+    if (effectiveMode === 'bcc') {
+      const emails = eligible.map((entry) => entry.email)
+      try {
+        await this.sendInviteBatchEmail(emails)
+      } catch (err) {
+        await this.model.updateMany({ _id: { $in: eligible.map((entry) => entry._id) } }, { $inc: { inviteFailureCount: 1 } })
+        this.logger.error(`Failed to send invite batch: ${(err as Error).message}`)
+        return { invited: 0, skipped: false, reason: 'send_failed' }
+      }
+
+      await this.model.updateMany(
+        { _id: { $in: eligible.map((entry) => entry._id) }, status: 'pending-cohort' },
+        {
+          $set: {
+            status: 'invited',
+            invitedAt: new Date(),
+            cohortTag: cohortTag || waitlistConfig.invite.cohortTag,
+            verifyCode: null,
+            verifyExpiresAt: null,
+            phoneVerifyCode: null,
+            phoneVerifyExpiresAt: null,
+            inviteTokenHash: null,
+            inviteTokenExpiresAt: null,
+          },
+        }
+      )
+
+      for (const entry of eligible) {
+        await this.audit.log({
+          eventType: 'marketing.waitlist_invited',
+          actor: entry.email,
+          metadata: { cohortTag: cohortTag || waitlistConfig.invite.cohortTag, via: 'auto-batch', mode: 'bcc' },
+        })
+      }
+
+      return { invited: eligible.length, skipped: false }
+    }
+
     let invited = 0
     for (const entry of eligible) {
       try {
-        const { token, hash, expires } = this.generateInviteToken()
-        await this.sendInviteEmail(entry.email, token)
+        const tokenData = requireToken ? this.generateInviteToken() : null
+        await this.sendInviteEmail(entry.email, tokenData?.token || null)
         const updated = await this.model.findOneAndUpdate(
           { _id: entry._id, status: 'pending-cohort' },
           {
@@ -1055,8 +1152,8 @@ export class WaitlistService {
               verifyExpiresAt: null,
               phoneVerifyCode: null,
               phoneVerifyExpiresAt: null,
-              inviteTokenHash: hash,
-              inviteTokenExpiresAt: expires,
+              inviteTokenHash: tokenData?.hash || null,
+              inviteTokenExpiresAt: tokenData?.expires || null,
             },
           },
           { new: true }
@@ -1066,7 +1163,7 @@ export class WaitlistService {
         await this.audit.log({
           eventType: 'marketing.waitlist_invited',
           actor: updated.email,
-          metadata: { cohortTag: cohortTag || waitlistConfig.invite.cohortTag, via: 'auto-batch' },
+          metadata: { cohortTag: cohortTag || waitlistConfig.invite.cohortTag, via: 'auto-batch', mode: 'token' },
         })
       } catch (err) {
         await this.model.updateOne({ _id: entry._id }, { $inc: { inviteFailureCount: 1 } })
@@ -1079,6 +1176,10 @@ export class WaitlistService {
 
   shouldEnforceInviteGate() {
     return !!waitlistConfig.invite.enforceGate
+  }
+
+  requiresInviteToken() {
+    return this.inviteRequiresToken()
   }
 
   domainGateEnabled() {

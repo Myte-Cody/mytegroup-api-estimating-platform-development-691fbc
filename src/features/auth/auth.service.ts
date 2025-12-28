@@ -114,15 +114,17 @@ export class AuthService {
         throw new ForbiddenException('Please verify your email and phone before creating your account.');
       }
 
-      const inviteToken = (dto as any).inviteToken;
-      if (!inviteToken) {
-        throw new ForbiddenException('Invite link required. Please use the invite email to register.');
-      }
-      const inviteHash = crypto.createHash('sha256').update(inviteToken).digest('hex');
-      const tokenExpiresAt = waitlistEntry?.inviteTokenExpiresAt ? new Date(waitlistEntry.inviteTokenExpiresAt) : null;
-      const tokenExpired = tokenExpiresAt ? tokenExpiresAt.getTime() < Date.now() : false;
-      if (!waitlistEntry?.inviteTokenHash || waitlistEntry.inviteTokenHash !== inviteHash || tokenExpired) {
-        throw new ForbiddenException('Invite link invalid or expired. Please request a fresh invite.');
+      if (this.waitlist.requiresInviteToken()) {
+        const inviteToken = (dto as any).inviteToken;
+        if (!inviteToken) {
+          throw new ForbiddenException('Invite link required. Please use the invite email to register.');
+        }
+        const inviteHash = crypto.createHash('sha256').update(inviteToken).digest('hex');
+        const tokenExpiresAt = waitlistEntry?.inviteTokenExpiresAt ? new Date(waitlistEntry.inviteTokenExpiresAt) : null;
+        const tokenExpired = tokenExpiresAt ? tokenExpiresAt.getTime() < Date.now() : false;
+        if (!waitlistEntry?.inviteTokenHash || waitlistEntry.inviteTokenHash !== inviteHash || tokenExpired) {
+          throw new ForbiddenException('Invite link invalid or expired. Please request a fresh invite.');
+        }
       }
     }
 

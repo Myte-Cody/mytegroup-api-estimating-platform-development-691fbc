@@ -94,9 +94,9 @@ export class AuthController {
   @Get('me')
   async me(@Req() req: Request) {
     const user = req.session.user;
-    if (user?.id && !user.orgId) {
+    if (user?.id && (!user.orgId || !user.role || user.role === 'user')) {
       try {
-        const dbUser: any = await this.users.getById(user.id, user, true);
+        const dbUser: any = await this.users.getByIdForSession(user.id);
         const resolvedOrgId = dbUser?.orgId || dbUser?.organizationId;
         if (resolvedOrgId) {
           req.session.user = {

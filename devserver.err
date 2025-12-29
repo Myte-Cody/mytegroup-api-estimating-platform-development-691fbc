@@ -1,0 +1,10 @@
+Error: listen EADDRINUSE: address already in use :::7070
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at ExpressAdapter.listen (C:\Users\ahmed\Documents\github\C0015-Myte-Constructon\mytegroup-api-estimating-platform-development-691fbc\node_modules\@nestjs\platform-express\adapters\express-adapter.js:127:32)
+    at C:\Users\ahmed\Documents\github\C0015-Myte-Constructon\mytegroup-api-estimating-platform-development-691fbc\node_modules\@nestjs\core\nest-application.js:188:30
+    at new Promise (<anonymous>)
+    at NestApplication.listen (C:\Users\ahmed\Documents\github\C0015-Myte-Constructon\mytegroup-api-estimating-platform-development-691fbc\node_modules\@nestjs\core\nest-application.js:178:16)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at bootstrap (C:\Users\ahmed\Documents\github\C0015-Myte-Constructon\mytegroup-api-estimating-platform-development-691fbc\src\main.ts:85:3)

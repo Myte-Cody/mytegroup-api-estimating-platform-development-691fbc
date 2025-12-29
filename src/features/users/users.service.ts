@@ -228,6 +228,12 @@ export class UsersService {
     return this.sanitize(user);
   }
 
+  async getByIdForSession(id: string) {
+    const user = await this.userModel.findById(id);
+    if (!user) throw new NotFoundException('User not found');
+    return this.sanitize(user);
+  }
+
   async findByVerificationToken(hash: string) {
     return this.userModel.findOne({
       verificationTokenHash: hash,

@@ -1,0 +1,101 @@
+MYTE SOURCE-AVAILABLE LICENSE (NO SAAS)
+
+Version 1.0 — Effective Date: [YYYY-MM-DD]
+
+Copyright © [YYYY] Myte Group Inc.
+All rights reserved.
+
+1. Grant of Rights
+
+Subject to the restrictions below, Myte Group Inc. (“Licensor”) grants you a limited, non-exclusive, non-transferable, revocable license to:
+
+View, copy, and modify the source code for internal use only
+
+Use the code for research, learning, evaluation, and private internal operations
+
+Submit contributions under the terms of Section 6
+
+
+2. Prohibited Uses (Strict)
+
+You may NOT, directly or indirectly:
+
+Use this code or any derivative work to build, operate, or offer a Software-as-a-Service (SaaS), hosted service, managed service, or multi-tenant system
+
+Provide the code as a service to third parties (paid or free)
+
+Resell, sublicense, license, rent, lease, or commercialize the code as a product or service
+
+Deploy the code in a way where third parties access it over a network as a service
+
+Use the code to create a competing platform or commercial offering
+
+
+3. Commercial Use
+
+Any commercial use outside your own internal operations requires explicit prior written permission from Myte Group Inc.
+
+Contact: ahmed.mekallach@mytegroup.com
+
+4. Ownership
+
+The software, architecture, concepts, and all original code are and remain the exclusive property of Myte Group Inc.
+
+This license does not grant any ownership rights.
+
+
+5. Derivative Works
+
+You may create derivative works for internal use only
+
+Derivative works remain subject to this license
+
+You may not remove or alter this license notice
+
+
+6. Contributions
+
+By submitting code, documentation, or other materials (“Contributions”), you agree that:
+
+Contributions are provided under this same license
+
+Myte Group Inc. may use, modify, relicense, and commercialize Contributions without restriction or obligation
+
+
+7. No Trademark Rights
+
+This license does not grant rights to use:
+
+MYTE
+
+Myte Group
+
+Myte Cody
+
+Any associated logos, names, or branding
+
+
+8. Termination
+
+This license terminates automatically if you violate any term.
+Upon termination, you must immediately cease use and destroy all copies.
+
+9. Disclaimer
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT.
+
+10. Limitation of Liability
+
+IN NO EVENT SHALL MYTE GROUP INC. BE LIABLE FOR ANY DAMAGES ARISING FROM USE OR INABILITY TO USE THE SOFTWARE.
+
+
+---
+
+Optional (Recommended) README Header
+
+Add this at the top of your README for instant clarity:
+
+> License Notice
+This repository is source-available.
+SaaS, hosted, or multi-tenant use is strictly prohibited.
+See the LICENSE file for full terms.

@@ -7,10 +7,12 @@ type TwilioConfig = {
   stub: boolean
 }
 
+const cleanEnv = (value?: string) => (value || '').trim().replace(/^['"]|['"]$/g, '')
+
 const twilioConfig = (): TwilioConfig => {
-  const accountSid = (process.env.TWILIO_ACCOUNT_SID || '').trim()
-  const authToken = (process.env.TWILIO_AUTH_TOKEN || '').trim()
-  const from = (process.env.TWILIO_PHONE_NUMBER || '').trim().replace(/^['"]|['"]$/g, '')
+  const accountSid = cleanEnv(process.env.TWILIO_ACCOUNT_SID)
+  const authToken = cleanEnv(process.env.TWILIO_AUTH_TOKEN)
+  const from = cleanEnv(process.env.TWILIO_PHONE_NUMBER)
   const stub = process.env.NODE_ENV === 'test' || !accountSid || !authToken || !from
   return { accountSid, authToken, from, stub }
 }

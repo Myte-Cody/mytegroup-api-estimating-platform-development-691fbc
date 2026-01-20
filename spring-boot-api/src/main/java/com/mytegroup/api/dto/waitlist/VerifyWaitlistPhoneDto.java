@@ -1,0 +1,24 @@
+package com.mytegroup.api.dto.waitlist;
+
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+
+public record VerifyWaitlistPhoneDto(
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email must be valid")
+    String email,
+    @NotBlank(message = "Verification code is required")
+    @Pattern(regexp = "^\\d{6}$", message = "Verification code must be 6 digits")
+    String code
+) {
+    public VerifyWaitlistPhoneDto {
+        if (email != null) {
+            email = email.toLowerCase().trim();
+        }
+        if (code != null) {
+            code = code.trim();
+        }
+    }
+}

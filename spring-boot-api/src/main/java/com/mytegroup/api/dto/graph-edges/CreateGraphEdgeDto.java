@@ -1,37 +1,48 @@
 package com.mytegroup.api.dto.graphedges;
 
-import com.mytegroup.api.entity.enums.organization.GraphNodeType;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.Map;
 
-public record CreateGraphEdgeDto(
-    @NotNull(message = "From node type is required")
-    GraphNodeType fromNodeType,
-    @NotBlank(message = "From node ID is required")
-    String fromNodeId,
-    @NotNull(message = "To node type is required")
-    GraphNodeType toNodeType,
-    @NotBlank(message = "To node ID is required")
-    String toNodeId,
-    @NotBlank(message = "Edge type key is required")
-    String edgeTypeKey,
-    Map<String, Object> metadata,
-    LocalDate effectiveFrom,
-    LocalDate effectiveTo
-) {
-    public CreateGraphEdgeDto {
-        if (fromNodeId != null) {
-            fromNodeId = fromNodeId.trim();
-        }
-        if (toNodeId != null) {
-            toNodeId = toNodeId.trim();
-        }
-        if (edgeTypeKey != null) {
-            edgeTypeKey = edgeTypeKey.trim().toLowerCase().replaceAll("[^a-z0-9_]", "_");
-        }
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CreateGraphEdgeDto {
+    
+    @NotBlank(message = "From type is required")
+    private String fromType;
+    
+    @NotBlank(message = "From ID is required")
+    private String fromId;
+    
+    @NotBlank(message = "To type is required")
+    private String toType;
+    
+    @NotBlank(message = "To ID is required")
+    private String toId;
+    
+    @NotBlank(message = "Edge type is required")
+    private String edgeType;
+    
+    private Map<String, Object> meta;
+    
+    private LocalDate effectiveFrom;
+    
+    private LocalDate effectiveTo;
+    
+    public void setFromId(String fromId) {
+        this.fromId = fromId != null ? fromId.trim() : null;
+    }
+    
+    public void setToId(String toId) {
+        this.toId = toId != null ? toId.trim() : null;
+    }
+    
+    public void setEdgeType(String edgeType) {
+        this.edgeType = edgeType != null ? edgeType.trim().toLowerCase().replaceAll("[^a-z0-9_]", "_") : null;
     }
 }
-

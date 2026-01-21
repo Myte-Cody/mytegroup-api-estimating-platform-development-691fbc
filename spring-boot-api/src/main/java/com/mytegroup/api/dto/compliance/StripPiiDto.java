@@ -1,20 +1,28 @@
 package com.mytegroup.api.dto.compliance;
 
 import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record StripPiiDto(
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class StripPiiDto {
+    
     @NotBlank(message = "Entity type is required")
-    String entityType,
+    private String entityType;
+    
     @NotBlank(message = "Entity ID is required")
-    String entityId
-) {
-    public StripPiiDto {
-        if (entityType != null) {
-            entityType = entityType.trim();
-        }
-        if (entityId != null) {
-            entityId = entityId.trim();
-        }
+    private String entityId;
+    
+    private String orgId;
+    
+    public void setEntityType(String entityType) {
+        this.entityType = entityType != null ? entityType.trim() : null;
+    }
+    
+    public void setEntityId(String entityId) {
+        this.entityId = entityId != null ? entityId.trim() : null;
     }
 }
-

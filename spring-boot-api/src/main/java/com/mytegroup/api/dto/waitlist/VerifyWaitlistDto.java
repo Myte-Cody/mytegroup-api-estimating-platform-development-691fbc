@@ -3,22 +3,28 @@ package com.mytegroup.api.dto.waitlist;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record VerifyWaitlistDto(
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class VerifyWaitlistDto {
+    
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be valid")
-    String email,
+    private String email;
+    
     @NotBlank(message = "Verification code is required")
     @Pattern(regexp = "^\\d{6}$", message = "Verification code must be 6 digits")
-    String code
-) {
-    public VerifyWaitlistDto {
-        if (email != null) {
-            email = email.toLowerCase().trim();
-        }
-        if (code != null) {
-            code = code.trim();
-        }
+    private String code;
+    
+    public void setEmail(String email) {
+        this.email = email != null ? email.toLowerCase().trim() : null;
+    }
+    
+    public void setCode(String code) {
+        this.code = code != null ? code.trim() : null;
     }
 }

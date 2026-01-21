@@ -1,7 +1,13 @@
 package com.mytegroup.api.dto.users;
 
-public record GetUserQueryDto(
-    Boolean includeArchived
-) {
-}
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class GetUserQueryDto {
+    
+    private Boolean includeArchived;
+}

@@ -2,15 +2,20 @@ package com.mytegroup.api.dto.waitlist;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record ResendWaitlistDto(
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ResendWaitlistDto {
+    
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be valid")
-    String email
-) {
-    public ResendWaitlistDto {
-        if (email != null) {
-            email = email.toLowerCase().trim();
-        }
+    private String email;
+    
+    public void setEmail(String email) {
+        this.email = email != null ? email.toLowerCase().trim() : null;
     }
 }

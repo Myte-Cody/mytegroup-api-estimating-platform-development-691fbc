@@ -1,15 +1,15 @@
 package com.mytegroup.api.dto.auth;
 
 import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record SetOrgDto(
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class SetOrgDto {
+    
     @NotBlank(message = "Organization ID is required")
-    String orgId
-) {
-    public SetOrgDto {
-        if (orgId != null) {
-            orgId = orgId.trim();
-        }
-    }
+    private String orgId;
 }
-

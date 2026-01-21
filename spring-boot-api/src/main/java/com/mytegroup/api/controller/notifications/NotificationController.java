@@ -1,23 +1,105 @@
 package com.mytegroup.api.controller.notifications;
 
-import com.mytegroup.api.dto.notifications.ListNotificationsQueryDto;
+import com.mytegroup.api.entity.core.Notification;
+import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.service.notifications.NotificationsService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notifications")
 @PreAuthorize("isAuthenticated()")
+@RequiredArgsConstructor
 public class NotificationController {
 
+    private final NotificationsService notificationsService;
+
     @GetMapping
-    public ResponseEntity<?> list(@ModelAttribute ListNotificationsQueryDto query) {
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> list(
+            @RequestParam(required = false) String orgId,
+            @RequestParam(required = false) Boolean unreadOnly,
+            @RequestParam(required = false, defaultValue = "0") int page,
+            @RequestParam(required = false, defaultValue = "25") int limit) {
+        
+        ActorContext actor = getActorContext();
+        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        
+        Page<Notification> notifications = notificationsService.listForUser(actor, resolvedOrgId, unreadOnly, page, limit);
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("data", notifications.getContent().stream().map(this::notificationToMap).toList());
+        response.put("total", notifications.getTotalElements());
+        response.put("page", page);
+        response.put("limit", limit);
+        
+        return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/{id}/read")
-    public ResponseEntity<?> markRead(@PathVariable String id) {
-        return ResponseEntity.ok().build();
+    public ResponseEntity<?> markRead(
+            @PathVariable Long id,
+            @RequestParam(required = false) String orgId) {
+        
+        ActorContext actor = getActorContext();
+        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        
+        Notification notification = notificationsService.markRead(id, actor, resolvedOrgId);
+        
+        return ResponseEntity.ok(notificationToMap(notification));
+    }
+
+    @PostMapping("/mark-all-read")
+    public ResponseEntity<?> markAllRead(@RequestParam(required = false) String orgId) {
+        ActorContext actor = getActorContext();
+        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        
+        int markedCount = notificationsService.markAllRead(actor, resolvedOrgId);
+        
+        return ResponseEntity.ok(Map.of("status", "ok", "marked", markedCount));
+    }
+    
+    // Helper methods
+    
+    private Map<String, Object> notificationToMap(Notification notification) {
+        Map<String, Object> map = new HashMap<>();
+        map.put("id", notification.getId());
+        map.put("userId", notification.getUser() != null ? notification.getUser().getId() : null);
+        map.put("type", notification.getType());
+        map.put("payload", notification.getPayload());
+        map.put("readAt", notification.getReadAt());
+        map.put("orgId", notification.getOrganization() != null ? notification.getOrganization().getId() : null);
+        map.put("createdAt", notification.getCreatedAt());
+        return map;
+    }
+    
+    private ActorContext getActorContext() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return new ActorContext(null, null, null, null);
+        }
+        
+        Long userId = null;
+        if (auth.getPrincipal() instanceof Long) {
+            userId = (Long) auth.getPrincipal();
+        } else if (auth.getPrincipal() instanceof String) {
+            try {
+                userId = Long.parseLong((String) auth.getPrincipal());
+            } catch (NumberFormatException ignored) {}
+        }
+        
+        return new ActorContext(
+            userId != null ? userId.toString() : null,
+            null,
+            null,
+            null
+        );
     }
 }
-

@@ -1,26 +1,34 @@
 package com.mytegroup.api.dto.contactinquiries;
 
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record VerifyContactInquiryDto(
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class VerifyContactInquiryDto {
+    
     @Size(min = 2, max = 120, message = "Name must be between 2 and 120 characters")
-    String name,
+    private String name;
+    
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be valid")
-    String email,
-    String trap
-) {
-    public VerifyContactInquiryDto {
-        if (name != null) {
-            name = name.trim();
-        }
-        if (email != null) {
-            email = email.toLowerCase().trim();
-        }
+    private String email;
+    
+    @NotBlank(message = "Code is required")
+    private String code;
+    
+    private String trap;
+    
+    public void setName(String name) {
+        this.name = name != null ? name.trim() : null;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email != null ? email.toLowerCase().trim() : null;
     }
 }
-

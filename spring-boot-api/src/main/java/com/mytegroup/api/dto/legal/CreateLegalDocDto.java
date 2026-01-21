@@ -1,30 +1,39 @@
 package com.mytegroup.api.dto.legal;
 
-import com.mytegroup.api.entity.enums.legal.LegalDocType;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
-public record CreateLegalDocDto(
-    @NotNull(message = "Type is required")
-    LegalDocType type,
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class CreateLegalDocDto {
+    
+    @NotBlank(message = "Type is required")
+    private String type;
+    
     @NotBlank(message = "Version is required")
     @Size(min = 1, message = "Version must be at least 1 character")
-    String version,
+    private String version;
+    
+    @NotBlank(message = "Title is required")
+    private String title;
+    
     @NotBlank(message = "Content is required")
     @Size(min = 10, message = "Content must be at least 10 characters")
-    String content,
-    LocalDateTime effectiveAt
-) {
-    public CreateLegalDocDto {
-        if (version != null) {
-            version = version.trim();
-        }
-        if (content != null) {
-            content = content.trim();
-        }
+    private String content;
+    
+    private LocalDateTime effectiveAt;
+    
+    public void setVersion(String version) {
+        this.version = version != null ? version.trim() : null;
+    }
+    
+    public void setContent(String content) {
+        this.content = content != null ? content.trim() : null;
     }
 }
-

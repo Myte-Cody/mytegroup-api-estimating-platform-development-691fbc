@@ -1,13 +1,19 @@
 package com.mytegroup.api.dto.users;
 
-public record ListUsersQueryDto(
-    Boolean includeArchived,
-    String orgId
-) {
-    public ListUsersQueryDto {
-        if (orgId != null) {
-            orgId = orgId.trim();
-        }
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ListUsersQueryDto {
+    
+    private Boolean includeArchived;
+    
+    private String orgId;
+    
+    public void setOrgId(String orgId) {
+        this.orgId = orgId != null ? orgId.trim() : null;
     }
 }
-

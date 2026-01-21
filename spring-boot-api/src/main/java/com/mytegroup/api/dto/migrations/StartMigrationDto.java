@@ -1,35 +1,45 @@
 package com.mytegroup.api.dto.migrations;
 
-import com.mytegroup.api.entity.enums.system.MigrationDirection;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record StartMigrationDto(
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class StartMigrationDto {
+    
     @NotBlank(message = "Organization ID is required")
-    String orgId,
-    @NotNull(message = "Direction is required")
-    MigrationDirection direction,
-    String targetUri,
-    String targetDbName,
-    Boolean dryRun,
-    Boolean resume,
-    Boolean overrideLegalHold,
+    private String orgId;
+    
+    private String targetDatastoreType;
+    
+    private String targetUri;
+    
+    private String targetDbName;
+    
+    private Boolean dryRun;
+    
+    private Boolean resume;
+    
+    private Boolean overrideLegalHold;
+    
     @Min(value = 1, message = "Chunk size must be at least 1")
     @Max(value = 5000, message = "Chunk size must be at most 5000")
-    Integer chunkSize
-) {
-    public StartMigrationDto {
-        if (orgId != null) {
-            orgId = orgId.trim();
-        }
-        if (targetUri != null) {
-            targetUri = targetUri.trim();
-        }
-        if (targetDbName != null) {
-            targetDbName = targetDbName.trim();
-        }
+    private Integer chunkSize;
+    
+    public void setOrgId(String orgId) {
+        this.orgId = orgId != null ? orgId.trim() : null;
+    }
+    
+    public void setTargetUri(String targetUri) {
+        this.targetUri = targetUri != null ? targetUri.trim() : null;
+    }
+    
+    public void setTargetDbName(String targetDbName) {
+        this.targetDbName = targetDbName != null ? targetDbName.trim() : null;
     }
 }
-

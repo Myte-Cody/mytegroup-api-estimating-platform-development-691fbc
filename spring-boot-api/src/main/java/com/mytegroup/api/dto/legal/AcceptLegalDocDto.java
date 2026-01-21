@@ -1,17 +1,23 @@
 package com.mytegroup.api.dto.legal;
 
-import com.mytegroup.api.entity.enums.legal.LegalDocType;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record AcceptLegalDocDto(
-    @NotNull(message = "Document type is required")
-    LegalDocType docType,
-    String version
-) {
-    public AcceptLegalDocDto {
-        if (version != null) {
-            version = version.trim();
-        }
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class AcceptLegalDocDto {
+    
+    @NotNull(message = "Document ID is required")
+    private Long docId;
+    
+    private String orgId;
+    
+    private String version;
+    
+    public void setVersion(String version) {
+        this.version = version != null ? version.trim() : null;
     }
 }
-

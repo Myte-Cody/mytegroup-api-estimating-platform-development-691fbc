@@ -6,38 +6,54 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-public record StartWaitlistDto(
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class StartWaitlistDto {
+    
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be valid")
-    String email,
+    private String email;
+    
     @NotBlank(message = "Name is required")
     @Size(min = 2, max = 120, message = "Name must be between 2 and 120 characters")
-    String name,
+    private String name;
+    
     @Pattern(regexp = ValidationConstants.E164_PHONE_REGEX, message = ValidationConstants.PHONE_REGEX_MESSAGE)
-    String phone,
-    Role role,
+    private String phone;
+    
+    private Role role;
+    
     @Size(max = 120, message = "Source must be at most 120 characters")
-    String source,
-    Boolean preCreateAccount,
-    Boolean marketingConsent,
-    String trap
-) {
-    public StartWaitlistDto {
-        if (email != null) {
-            email = email.toLowerCase().trim();
-        }
-        if (name != null) {
-            name = name.trim();
-        }
-        if (phone != null) {
-            phone = phone.trim();
-        }
-        if (source != null) {
-            source = source.trim();
-        }
-        if (trap != null) {
-            trap = trap.trim();
-        }
+    private String source;
+    
+    private Boolean preCreateAccount;
+    
+    private Boolean marketingConsent;
+    
+    private String trap;
+    
+    public void setEmail(String email) {
+        this.email = email != null ? email.toLowerCase().trim() : null;
+    }
+    
+    public void setName(String name) {
+        this.name = name != null ? name.trim() : null;
+    }
+    
+    public void setPhone(String phone) {
+        this.phone = phone != null ? phone.trim() : null;
+    }
+    
+    public void setSource(String source) {
+        this.source = source != null ? source.trim() : null;
+    }
+    
+    public void setTrap(String trap) {
+        this.trap = trap != null ? trap.trim() : null;
     }
 }

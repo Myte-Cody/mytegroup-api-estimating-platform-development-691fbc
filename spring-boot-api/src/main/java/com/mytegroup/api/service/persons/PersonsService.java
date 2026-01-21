@@ -353,13 +353,15 @@ public class PersonsService {
     }
     
     /**
-     * Finds a person by primary email
+     * Finds a person by primary email.
+     * Returns null if person not found (for existence checks).
+     * @throws BadRequestException if email is invalid
      */
     @Transactional(readOnly = true)
     public Person findByPrimaryEmail(ActorContext actor, String orgId, String email) {
         String normalizedEmail = validationHelper.normalizeEmail(email);
         if (normalizedEmail == null || normalizedEmail.isEmpty()) {
-            return null;
+            throw new BadRequestException("Email is required");
         }
         
         String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);

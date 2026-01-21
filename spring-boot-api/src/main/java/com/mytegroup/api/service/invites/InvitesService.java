@@ -8,6 +8,7 @@ import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.entity.enums.core.InviteStatus;
 import com.mytegroup.api.entity.people.Person;
 import com.mytegroup.api.exception.BadRequestException;
+import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.core.InviteRepository;
@@ -103,20 +104,20 @@ public class InvitesService {
         
         // Check if person already has a user
         if (person.getUser() != null) {
-            throw new BadRequestException("Person is already linked to a user; invite not required");
+            throw new ConflictException("Person is already linked to a user; invite not required");
         }
         
         // Check if user already exists with this email
         User existingUser = usersService.findAnyByEmail(email);
         if (existingUser != null) {
-            throw new BadRequestException("A user already exists with this email");
+            throw new ConflictException("A user already exists with this email");
         }
         
         // Check for existing pending invite
         Optional<Invite> existingInvite = inviteRepository.findPendingActiveInvite(
             orgIdLong, email, LocalDateTime.now());
         if (existingInvite.isPresent()) {
-            throw new BadRequestException("Pending invite already exists for this email");
+            throw new ConflictException("Pending invite already exists for this email");
         }
         
         // Throttle check

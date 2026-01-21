@@ -6,6 +6,7 @@ import com.mytegroup.api.entity.enums.projects.SeatStatus;
 import com.mytegroup.api.entity.projects.Project;
 import com.mytegroup.api.entity.projects.Seat;
 import com.mytegroup.api.entity.projects.embeddable.SeatHistoryEntry;
+import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.core.UserRepository;
@@ -116,7 +117,7 @@ public class SeatsService {
         // Check if user already has a seat
         Optional<Seat> existingSeat = seatRepository.findByOrgIdAndUserId(orgIdLong, userId);
         if (existingSeat.isPresent()) {
-            throw new ForbiddenException("User already has an allocated seat");
+            throw new ConflictException("User already has an allocated seat");
         }
         
         // Find a vacant seat
@@ -135,7 +136,7 @@ public class SeatsService {
         Project project = null;
         if (projectId != null) {
             project = projectRepository.findById(projectId)
-                .orElse(null);
+                .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         }
         
         // Update seat
@@ -180,11 +181,13 @@ public class SeatsService {
     
     /**
      * Releases a seat from a user, making it vacant.
+     * @throws BadRequestException if orgId or userId is null
+     * @throws ResourceNotFoundException if no seat found for user
      */
     @Transactional
     public Seat releaseSeatForUser(String orgId, Long userId) {
         if (orgId == null || userId == null) {
-            return null;
+            throw new BadRequestException("Organization ID and User ID are required");
         }
         
         Organization org = authHelper.validateOrg(orgId);
@@ -192,7 +195,7 @@ public class SeatsService {
         
         Optional<Seat> seatOpt = seatRepository.findByOrgIdAndUserId(orgIdLong, userId);
         if (seatOpt.isEmpty()) {
-            return null; // No seat to release
+            throw new ResourceNotFoundException("No seat found for user");
         }
         
         Seat seat = seatOpt.get();

@@ -212,11 +212,12 @@ public class UsersService {
     
     /**
      * Finds user by verification token hash.
+     * @throws BadRequestException if token is invalid or expired
      */
     @Transactional(readOnly = true)
     public User findByVerificationToken(String hash) {
         return userRepository.findByVerificationTokenHash(hash, LocalDateTime.now())
-            .orElse(null);
+            .orElseThrow(() -> new BadRequestException("Invalid or expired verification token"));
     }
     
     /**
@@ -239,11 +240,12 @@ public class UsersService {
     
     /**
      * Finds user by password reset token hash.
+     * @throws BadRequestException if token is invalid or expired
      */
     @Transactional(readOnly = true)
     public User findByResetToken(String hash) {
         return userRepository.findByResetTokenHash(hash, LocalDateTime.now())
-            .orElse(null);
+            .orElseThrow(() -> new BadRequestException("Invalid or expired reset token"));
     }
     
     /**
@@ -270,11 +272,13 @@ public class UsersService {
     
     /**
      * Marks last login timestamp.
+     * @throws ResourceNotFoundException if user not found
      */
     @Transactional
     public User markLastLogin(Long userId) {
         userRepository.updateLastLogin(userId, LocalDateTime.now());
-        return userRepository.findById(userId).orElse(null);
+        return userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
     
     /**

@@ -43,12 +43,14 @@ public class OrganizationsService {
     private final ServiceAuthorizationHelper authHelper;
     
     /**
-     * Finds an organization by domain
+     * Finds an organization by domain.
+     * Returns null if organization not found (for existence checks).
+     * @throws BadRequestException if domain is invalid
      */
     @Transactional(readOnly = true)
     public Organization findByDomain(String domain) {
         if (domain == null || domain.trim().isEmpty()) {
-            return null;
+            throw new BadRequestException("Domain is required");
         }
         String normalized = domain.toLowerCase().trim();
         return organizationRepository.findByPrimaryDomain(normalized)

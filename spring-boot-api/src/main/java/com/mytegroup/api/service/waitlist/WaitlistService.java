@@ -415,12 +415,14 @@ public class WaitlistService {
     /**
      * Finds a waitlist entry by email.
      * Returns as Map for compatibility with AuthService.
+     * Returns null if entry not found (for existence checks).
+     * @throws BadRequestException if email is invalid
      */
     @Transactional(readOnly = true)
     public Map<String, Object> findByEmail(String email) {
         String normalizedEmail = normalizeEmail(email);
         if (normalizedEmail == null || normalizedEmail.isEmpty()) {
-            return null;
+            throw new BadRequestException("Email is required");
         }
         
         return waitlistEntryRepository.findByEmail(normalizedEmail)
@@ -454,15 +456,13 @@ public class WaitlistService {
     @Transactional
     public WaitlistEntry markInvited(String email, String cohortTag) {
         String normalizedEmail = normalizeEmail(email);
+        if (normalizedEmail == null || normalizedEmail.isEmpty()) {
+            throw new BadRequestException("Email is required");
+        }
         
         WaitlistEntry entry = waitlistEntryRepository.findByEmail(normalizedEmail)
             .filter(e -> e.getArchivedAt() == null)
-            .orElse(null);
-        
-        if (entry == null) {
-            log.warn("No waitlist entry found to mark invited for {}", email);
-            return null;
-        }
+            .orElseThrow(() -> new ResourceNotFoundException("Waitlist entry not found"));
         
         assertFullyVerified(entry);
         

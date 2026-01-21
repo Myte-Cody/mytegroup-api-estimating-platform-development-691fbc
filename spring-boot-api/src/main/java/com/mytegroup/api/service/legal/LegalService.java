@@ -4,6 +4,7 @@ import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.entity.legal.LegalDoc;
 import com.mytegroup.api.entity.legal.LegalAcceptance;
 import com.mytegroup.api.exception.BadRequestException;
+import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.legal.LegalDocRepository;
 import com.mytegroup.api.repository.legal.LegalAcceptanceRepository;
@@ -54,7 +55,7 @@ public class LegalService {
         
         // Check for version collision
         if (legalDocRepository.findByTypeAndVersion(doc.getType(), doc.getVersion()).isPresent()) {
-            throw new BadRequestException("Legal document version already exists");
+            throw new ConflictException("Legal document version already exists");
         }
         
         LegalDoc savedDoc = legalDocRepository.save(doc);

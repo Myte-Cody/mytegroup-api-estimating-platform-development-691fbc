@@ -46,7 +46,7 @@ public class OrgTaxonomyService {
         
         Long orgIdLong = Long.parseLong(orgId);
         return orgTaxonomyRepository.findByOrgIdAndNamespace(orgIdLong, normalizedNamespace)
-            .orElse(null);
+            .orElseThrow(() -> new ResourceNotFoundException("Taxonomy not found"));
     }
     
     /**

@@ -32,11 +32,12 @@ public class NotificationsService {
     
     /**
      * Creates a notification
+     * @throws BadRequestException if required parameters are null
      */
     @Transactional
     public Notification create(String orgId, Long userId, String type, Map<String, Object> payload) {
         if (orgId == null || userId == null || type == null) {
-            return null;
+            throw new BadRequestException("Organization ID, User ID, and type are required");
         }
         
         Notification notification = new Notification();

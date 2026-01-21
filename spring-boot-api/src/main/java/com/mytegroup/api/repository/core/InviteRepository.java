@@ -31,5 +31,22 @@ public interface InviteRepository extends JpaRepository<Invite, Long> {
 
     // Find active invites for org
     List<Invite> findByOrgIdAndArchivedAtIsNull(Long orgId);
+    
+    // Find by org and status
+    List<Invite> findByOrgIdAndStatus(Long orgId, InviteStatus status);
+    
+    // Find pending invites that have expired
+    @Query("SELECT i FROM Invite i WHERE i.organization.id = :orgId AND i.status = 'PENDING' AND i.tokenExpires <= :now")
+    List<Invite> findExpiredPendingInvites(@Param("orgId") Long orgId, @Param("now") LocalDateTime now);
+    
+    // Count recent invites for throttling
+    @Query("SELECT COUNT(i) FROM Invite i WHERE i.organization.id = :orgId AND i.email = :email AND i.createdAt >= :since")
+    long countRecentInvites(@Param("orgId") Long orgId, @Param("email") String email, @Param("since") LocalDateTime since);
+    
+    // Find pending active invite
+    @Query("SELECT i FROM Invite i WHERE i.organization.id = :orgId AND i.email = :email " +
+           "AND i.status = 'PENDING' AND i.tokenExpires > :now AND i.archivedAt IS NULL")
+    Optional<Invite> findPendingActiveInvite(@Param("orgId") Long orgId, @Param("email") String email, 
+                                             @Param("now") LocalDateTime now);
 }
 

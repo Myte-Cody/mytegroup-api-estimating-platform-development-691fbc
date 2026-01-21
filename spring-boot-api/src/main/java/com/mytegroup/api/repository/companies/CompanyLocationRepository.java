@@ -2,6 +2,7 @@ package com.mytegroup.api.repository.companies;
 
 import com.mytegroup.api.entity.companies.CompanyLocation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -10,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface CompanyLocationRepository extends JpaRepository<CompanyLocation, Long> {
+public interface CompanyLocationRepository extends JpaRepository<CompanyLocation, Long>, JpaSpecificationExecutor<CompanyLocation> {
 
     // Find by org, company, and not archived
     List<CompanyLocation> findByOrgIdAndCompanyIdAndArchivedAtIsNull(Long orgId, Long companyId);

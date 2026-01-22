@@ -19,7 +19,7 @@ public class OrganizationMapper {
         org.setName(dto.name());
         org.setMetadata(dto.metadata());
         org.setDatabaseUri(dto.databaseUri());
-        org.setDatastoreUri(dto.datastoreUri());
+        // Note: datastoreUri is not a field in Organization entity, only databaseUri exists
         org.setDatabaseName(dto.databaseName());
         org.setPrimaryDomain(dto.primaryDomain());
         org.setUseDedicatedDb(dto.useDedicatedDb() != null ? dto.useDedicatedDb() : false);

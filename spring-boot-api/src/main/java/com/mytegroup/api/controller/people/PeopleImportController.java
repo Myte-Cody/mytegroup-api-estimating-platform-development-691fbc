@@ -1,8 +1,7 @@
 package com.mytegroup.api.controller.people;
 
 import com.mytegroup.api.dto.people.*;
-import com.mytegroup.api.service.common.ActorContext;
-import com.mytegroup.api.service.peopleimport.PeopleImportService;
+import com.mytegroup.api.service.people.PeopleImportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +11,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -28,12 +29,11 @@ public class PeopleImportController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Map<String, Object> preview = peopleImportService.preview(file, actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(preview);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        // TODO: Implement file parsing and preview
+        throw new UnsupportedOperationException("File preview not yet implemented - need to parse file first");
     }
 
     @PostMapping("/confirm")
@@ -42,10 +42,18 @@ public class PeopleImportController {
             @RequestBody @Valid PeopleImportConfirmDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Map<String, Object> result = peopleImportService.confirm(dto.getPreviewId(), dto.getConfirmedRows(), actor, resolvedOrgId);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        // Convert DTO rows to Map format expected by service
+        List<Map<String, Object>> confirmedRows = dto.getConfirmedRows().stream()
+            .map(row -> {
+                Map<String, Object> map = new java.util.HashMap<>();
+                // TODO: Map DTO fields to map
+                return map;
+            })
+            .toList();
+        Map<String, Object> result = peopleImportService.confirmImport(orgId, confirmedRows);
         
         return ResponseEntity.ok(result);
     }
@@ -56,12 +64,11 @@ public class PeopleImportController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Map<String, Object> preview = peopleImportService.previewV1(file, actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(preview);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        // TODO: Check if previewV1 exists
+        throw new UnsupportedOperationException("previewV1 not yet implemented");
     }
 
     @PostMapping("/v1/confirm")
@@ -70,34 +77,12 @@ public class PeopleImportController {
             @RequestBody @Valid PeopleImportV1ConfirmDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Map<String, Object> result = peopleImportService.confirmV1(dto, actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(result);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        // TODO: Check if confirmV1 exists
+        throw new UnsupportedOperationException("confirmV1 not yet implemented");
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
         
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

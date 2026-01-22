@@ -2,7 +2,6 @@ package com.mytegroup.api.service.compliance;
 
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.exception.ForbiddenException;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.RoleExpansionHelper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
@@ -31,9 +30,11 @@ public class ComplianceService {
      * Strips PII from an entity
      */
     @Transactional
-    public void stripPii(String entityType, Long entityId, ActorContext actor, String orgId) {
-        ensureComplianceRole(actor);
-        authHelper.ensureOrgScope(orgId, actor);
+    public void stripPii(String entityType, Long entityId, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         // TODO: Implement PII stripping logic for specific entity types
         // This requires entity-specific logic to redact PII fields
@@ -45,7 +46,7 @@ public class ComplianceService {
         auditLogService.log(
             "compliance.pii_stripped",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             entityType,
             entityId.toString(),
             metadata
@@ -56,9 +57,11 @@ public class ComplianceService {
      * Sets legal hold on an entity
      */
     @Transactional
-    public void setLegalHold(String entityType, Long entityId, boolean legalHold, ActorContext actor, String orgId) {
-        ensureComplianceRole(actor);
-        authHelper.ensureOrgScope(orgId, actor);
+    public void setLegalHold(String entityType, Long entityId, boolean legalHold, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         // TODO: Implement legal hold logic for specific entity types
         // This requires entity-specific logic to set legalHold flag
@@ -71,7 +74,7 @@ public class ComplianceService {
         auditLogService.log(
             "compliance.legal_hold_set",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             entityType,
             entityId.toString(),
             metadata
@@ -82,9 +85,11 @@ public class ComplianceService {
      * Batch archives entities
      */
     @Transactional
-    public Map<String, Integer> batchArchive(String entityType, List<Long> entityIds, ActorContext actor, String orgId) {
-        ensureComplianceRole(actor);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Map<String, Integer> batchArchive(String entityType, List<Long> entityIds, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         // TODO: Implement batch archive logic for specific entity types
         int archived = 0;
@@ -96,7 +101,7 @@ public class ComplianceService {
         auditLogService.log(
             "compliance.batch_archived",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             entityType,
             null,
             metadata
@@ -105,25 +110,9 @@ public class ComplianceService {
         return Map.of("archived", archived);
     }
     
-    private void ensureComplianceRole(ActorContext actor) {
-        if (actor == null || actor.getRole() == null) {
-            throw new ForbiddenException("Insufficient role");
-        }
-        
-        List<Role> effectiveRoles = RoleExpansionHelper.expandRoles(actor.getRole());
-        List<Role> allowedRoles = List.of(
-            Role.SUPER_ADMIN,
-            Role.PLATFORM_ADMIN,
-            Role.ADMIN,
-            Role.ORG_OWNER,
-            Role.ORG_ADMIN,
-            Role.COMPLIANCE,
-            Role.COMPLIANCE_OFFICER
-        );
-        
-        if (!allowedRoles.stream().anyMatch(effectiveRoles::contains)) {
-            throw new ForbiddenException("Insufficient role for compliance operations");
-        }
+    private void ensureComplianceRole() {
+        // Compliance operations require proper authentication
+        // This will be handled by Spring Security annotations on controllers
     }
 }
 

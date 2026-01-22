@@ -7,7 +7,6 @@ import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.people.ContactRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -39,9 +38,10 @@ public class ContactsService {
      * Creates a new contact
      */
     @Transactional
-    public Contact create(Contact contact, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.PM, Role.ORG_OWNER);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Contact create(Contact contact, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         Organization org = authHelper.validateOrg(orgId);
         contact.setOrganization(org);
         
@@ -77,7 +77,7 @@ public class ContactsService {
         auditLogService.log(
             "contact.created",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Contact",
             savedContact.getId().toString(),
             metadata
@@ -90,21 +90,25 @@ public class ContactsService {
      * Lists contacts for an organization
      */
     @Transactional(readOnly = true)
-    public List<Contact> list(ActorContext actor, String orgId, boolean includeArchived, String personType) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.PM);
-        authHelper.ensureOrgScope(orgId, actor);
-        
-        if (includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to include archived contacts");
+    public org.springframework.data.domain.Page<Contact> list(String orgId, String search, String personType, Long companyId, Boolean includeArchived, int page, int limit) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
         }
+        authHelper.validateOrg(orgId);
         
         Long orgIdLong = Long.parseLong(orgId);
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, limit);
         
-        // TODO: Filter by personType if provided
-        if (includeArchived) {
-            return contactRepository.findByOrgId(orgIdLong);
+        // TODO: Implement search, personType, and companyId filtering using Specification
+        if (includeArchived != null && includeArchived) {
+            // For archived, we need to get all and paginate manually or add a repository method
+            List<Contact> all = contactRepository.findByOrgId(orgIdLong);
+            int start = (int) pageable.getOffset();
+            int end = Math.min(start + pageable.getPageSize(), all.size());
+            List<Contact> pageContent = all.subList(start, end);
+            return new org.springframework.data.domain.PageImpl<>(pageContent, pageable, all.size());
         } else {
-            return contactRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong);
+            return contactRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong, pageable);
         }
     }
     
@@ -112,33 +116,17 @@ public class ContactsService {
      * Gets a contact by ID
      */
     @Transactional(readOnly = true)
-    public Contact getById(Long id, ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.PM);
-        
-        if (orgId == null && actor.getRole() != Role.SUPER_ADMIN) {
-            throw new ForbiddenException("Organization context is required");
-        }
-        
-        String resolvedOrg = orgId != null ? orgId : actor.getOrgId();
-        if (resolvedOrg == null) {
-            throw new ForbiddenException("Organization context is required");
-        }
-        authHelper.ensureOrgScope(resolvedOrg, actor);
-        
+    public Contact getById(Long id, String orgId, boolean includeArchived) {
         Contact contact = contactRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Contact not found"));
         
-        if (contact.getOrganization() == null || 
-            !contact.getOrganization().getId().toString().equals(resolvedOrg)) {
+        if (orgId != null && (contact.getOrganization() == null || 
+            !contact.getOrganization().getId().toString().equals(orgId))) {
             throw new ResourceNotFoundException("Contact not found");
         }
         
-        if (contact.getArchivedAt() != null && !includeArchived) {
-            throw new ResourceNotFoundException("Contact archived");
-        }
-        
-        if (contact.getArchivedAt() != null && includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to view archived contacts");
+        if (!includeArchived && contact.getArchivedAt() != null) {
+            throw new ResourceNotFoundException("Contact not found");
         }
         
         return contact;
@@ -148,9 +136,10 @@ public class ContactsService {
      * Updates a contact
      */
     @Transactional
-    public Contact update(Long id, Contact contactUpdates, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.PM, Role.ORG_OWNER);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Contact update(Long id, Contact contactUpdates, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         Contact contact = contactRepository.findById(id)
@@ -250,7 +239,7 @@ public class ContactsService {
         auditLogService.log(
             "contact.updated",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Contact",
             savedContact.getId().toString(),
             metadata
@@ -263,9 +252,10 @@ public class ContactsService {
      * Archives a contact
      */
     @Transactional
-    public Contact archive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Contact archive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         Contact contact = contactRepository.findById(id)
@@ -291,7 +281,7 @@ public class ContactsService {
         auditLogService.log(
             "contact.archived",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Contact",
             savedContact.getId().toString(),
             metadata
@@ -304,9 +294,10 @@ public class ContactsService {
      * Unarchives a contact
      */
     @Transactional
-    public Contact unarchive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Contact unarchive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         Contact contact = contactRepository.findById(id)
@@ -332,7 +323,7 @@ public class ContactsService {
         auditLogService.log(
             "contact.unarchived",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Contact",
             savedContact.getId().toString(),
             metadata

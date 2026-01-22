@@ -18,30 +18,30 @@ public class UserMapper {
      */
     public User toEntity(CreateUserDto dto, Organization organization) {
         User user = new User();
-        user.setUsername(dto.username());
-        user.setFirstName(dto.firstName());
-        user.setLastName(dto.lastName());
-        user.setEmail(dto.email());
+        user.setUsername(dto.getUsername());
+        user.setFirstName(dto.getFirstName());
+        user.setLastName(dto.getLastName());
+        user.setEmail(dto.getEmail());
         user.setOrganization(organization);
         
         // Set role - use provided role or default to USER
-        if (dto.role() != null) {
-            user.setRole(dto.role());
-            List<com.mytegroup.api.common.enums.Role> roles = dto.roles() != null && !dto.roles().isEmpty() 
-                ? new ArrayList<>(dto.roles()) 
-                : new ArrayList<>(List.of(dto.role()));
+        if (dto.getRole() != null) {
+            user.setRole(dto.getRole());
+            List<com.mytegroup.api.common.enums.Role> roles = dto.getRoles() != null && !dto.getRoles().isEmpty() 
+                ? new ArrayList<>(dto.getRoles()) 
+                : new ArrayList<>(List.of(dto.getRole()));
             user.setRoles(roles);
         } else {
             user.setRole(com.mytegroup.api.common.enums.Role.USER);
             user.setRoles(new ArrayList<>(List.of(com.mytegroup.api.common.enums.Role.USER)));
         }
         
-        user.setVerificationTokenHash(dto.verificationTokenHash());
-        user.setVerificationTokenExpires(dto.verificationTokenExpires());
-        user.setResetTokenHash(dto.resetTokenHash());
-        user.setResetTokenExpires(dto.resetTokenExpires());
-        user.setIsEmailVerified(dto.isEmailVerified() != null ? dto.isEmailVerified() : false);
-        user.setIsOrgOwner(dto.isOrgOwner() != null ? dto.isOrgOwner() : false);
+        user.setVerificationTokenHash(dto.getVerificationTokenHash());
+        user.setVerificationTokenExpires(dto.getVerificationTokenExpires());
+        user.setResetTokenHash(dto.getResetTokenHash());
+        user.setResetTokenExpires(dto.getResetTokenExpires());
+        user.setIsEmailVerified(dto.getIsEmailVerified() != null ? dto.getIsEmailVerified() : false);
+        user.setIsOrgOwner(dto.getIsOrgOwner() != null ? dto.getIsOrgOwner() : false);
         user.setPiiStripped(false);
         user.setLegalHold(false);
         
@@ -52,26 +52,26 @@ public class UserMapper {
      * Updates existing User entity with UpdateUserDto values.
      */
     public void updateEntity(User user, UpdateUserDto dto) {
-        if (dto.username() != null) {
-            user.setUsername(dto.username());
+        if (dto.getUsername() != null) {
+            user.setUsername(dto.getUsername());
         }
-        if (dto.firstName() != null) {
-            user.setFirstName(dto.firstName());
+        if (dto.getFirstName() != null) {
+            user.setFirstName(dto.getFirstName());
         }
-        if (dto.lastName() != null) {
-            user.setLastName(dto.lastName());
+        if (dto.getLastName() != null) {
+            user.setLastName(dto.getLastName());
         }
-        if (dto.email() != null) {
-            user.setEmail(dto.email());
+        if (dto.getEmail() != null) {
+            user.setEmail(dto.getEmail());
         }
-        if (dto.isEmailVerified() != null) {
-            user.setIsEmailVerified(dto.isEmailVerified());
+        if (dto.getIsEmailVerified() != null) {
+            user.setIsEmailVerified(dto.getIsEmailVerified());
         }
-        if (dto.piiStripped() != null) {
-            user.setPiiStripped(dto.piiStripped());
+        if (dto.getPiiStripped() != null) {
+            user.setPiiStripped(dto.getPiiStripped());
         }
-        if (dto.legalHold() != null) {
-            user.setLegalHold(dto.legalHold());
+        if (dto.getLegalHold() != null) {
+            user.setLegalHold(dto.getLegalHold());
         }
     }
 }

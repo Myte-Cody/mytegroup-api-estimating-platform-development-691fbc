@@ -2,15 +2,15 @@ package com.mytegroup.api.controller.companies;
 
 import com.mytegroup.api.dto.companies.*;
 import com.mytegroup.api.entity.companies.Company;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.mapper.companies.CompanyMapper;
+import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.companies.CompaniesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -33,6 +33,8 @@ import java.util.Map;
 public class CompanyController {
 
     private final CompaniesService companiesService;
+    private final CompanyMapper companyMapper;
+    private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
@@ -45,10 +47,11 @@ public class CompanyController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return Map.of("error", "orgId is required");
+        }
         
-        Page<Company> companies = companiesService.list(actor, resolvedOrgId, search, includeArchived, type, tag, page, limit);
+        Page<Company> companies = companiesService.list(orgId, search, includeArchived, type, tag, page, limit);
         
         Map<String, Object> response = new HashMap<>();
         response.put("data", companies.getContent().stream().map(this::companyToMap).toList());
@@ -66,21 +69,15 @@ public class CompanyController {
             @RequestBody @Valid CreateCompanyDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return Map.of("error", "orgId is required");
+        }
         
-        Company company = new Company();
-        company.setName(dto.getName());
-        company.setExternalId(dto.getExternalId());
-        company.setWebsite(dto.getWebsite());
-        company.setMainEmail(dto.getMainEmail());
-        company.setMainPhone(dto.getMainPhone());
-        company.setCompanyTypeKeys(dto.getCompanyTypeKeys());
-        company.setTagKeys(dto.getTagKeys());
-        company.setRating(dto.getRating());
-        company.setNotes(dto.getNotes());
+        // Get organization for mapper
+        Organization organization = authHelper.validateOrg(orgId);
+        Company company = companyMapper.toEntity(dto, organization);
         
-        Company savedCompany = companiesService.create(company, actor, resolvedOrgId);
+        Company savedCompany = companiesService.create(company, orgId);
         
         return companyToMap(savedCompany);
     }
@@ -92,10 +89,7 @@ public class CompanyController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Company company = companiesService.getById(id, actor, resolvedOrgId, includeArchived);
+        Company company = companiesService.getById(id, orgId, includeArchived);
         
         return companyToMap(company);
     }
@@ -107,21 +101,15 @@ public class CompanyController {
             @RequestBody @Valid UpdateCompanyDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return Map.of("error", "orgId is required");
+        }
         
+        // Create a Company object with updates using mapper
         Company companyUpdates = new Company();
-        companyUpdates.setName(dto.getName());
-        companyUpdates.setExternalId(dto.getExternalId());
-        companyUpdates.setWebsite(dto.getWebsite());
-        companyUpdates.setMainEmail(dto.getMainEmail());
-        companyUpdates.setMainPhone(dto.getMainPhone());
-        companyUpdates.setCompanyTypeKeys(dto.getCompanyTypeKeys());
-        companyUpdates.setTagKeys(dto.getTagKeys());
-        companyUpdates.setRating(dto.getRating());
-        companyUpdates.setNotes(dto.getNotes());
+        companyMapper.updateEntity(companyUpdates, dto);
         
-        Company updatedCompany = companiesService.update(id, companyUpdates, actor, resolvedOrgId);
+        Company updatedCompany = companiesService.update(id, companyUpdates, orgId);
         
         return companyToMap(updatedCompany);
     }
@@ -132,10 +120,11 @@ public class CompanyController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return Map.of("error", "orgId is required");
+        }
         
-        Company archivedCompany = companiesService.archive(id, actor, resolvedOrgId);
+        Company archivedCompany = companiesService.archive(id, orgId);
         
         return companyToMap(archivedCompany);
     }
@@ -146,10 +135,11 @@ public class CompanyController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return Map.of("error", "orgId is required");
+        }
         
-        Company unarchivedCompany = companiesService.unarchive(id, actor, resolvedOrgId);
+        Company unarchivedCompany = companiesService.unarchive(id, orgId);
         
         return companyToMap(unarchivedCompany);
     }
@@ -178,26 +168,4 @@ public class CompanyController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

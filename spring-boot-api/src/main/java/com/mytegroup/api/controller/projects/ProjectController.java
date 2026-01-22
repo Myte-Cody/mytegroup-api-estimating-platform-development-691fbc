@@ -2,7 +2,6 @@ package com.mytegroup.api.controller.projects;
 
 import com.mytegroup.api.dto.projects.*;
 import com.mytegroup.api.entity.projects.Project;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.projects.ProjectsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -45,10 +44,10 @@ public class ProjectController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Page<Project> projects = projectsService.list(actor, resolvedOrgId, search, status, includeArchived, page, limit);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Page<Project> projects = projectsService.list(orgId, search, status, includeArchived, page, limit);
         
         Map<String, Object> response = new HashMap<>();
         response.put("data", projects.getContent().stream().map(this::projectToMap).toList());
@@ -65,23 +64,26 @@ public class ProjectController {
             @RequestBody @Valid CreateProjectDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
         Project project = new Project();
-        project.setName(dto.getName());
-        project.setDescription(dto.getDescription());
-        project.setExternalId(dto.getExternalId());
-        project.setAddressLine1(dto.getAddressLine1());
-        project.setAddressLine2(dto.getAddressLine2());
-        project.setCity(dto.getCity());
-        project.setState(dto.getState());
-        project.setPostalCode(dto.getPostalCode());
-        project.setCountry(dto.getCountry());
-        project.setLatitude(dto.getLatitude());
-        project.setLongitude(dto.getLongitude());
+        project.setName(dto.name());
+        project.setDescription(dto.description());
+        if (dto.status() != null) {
+            project.setStatus(dto.status());
+        }
+        if (dto.projectCode() != null) {
+            project.setProjectCode(dto.projectCode());
+        }
+        if (dto.location() != null) {
+            project.setLocation(dto.location());
+        }
+        if (dto.officeId() != null) {
+            // Office will be set by service
+        }
         
-        Project savedProject = projectsService.create(project, actor, resolvedOrgId);
+        Project savedProject = projectsService.create(project, orgId);
         
         return ResponseEntity.status(HttpStatus.CREATED).body(projectToMap(savedProject));
     }
@@ -93,10 +95,10 @@ public class ProjectController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Project project = projectsService.getById(id, actor, resolvedOrgId, includeArchived);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Project project = projectsService.getById(id, orgId, includeArchived);
         
         return ResponseEntity.ok(projectToMap(project));
     }
@@ -108,23 +110,23 @@ public class ProjectController {
             @RequestBody @Valid UpdateProjectDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
         Project projectUpdates = new Project();
-        projectUpdates.setName(dto.getName());
-        projectUpdates.setDescription(dto.getDescription());
-        projectUpdates.setExternalId(dto.getExternalId());
-        projectUpdates.setAddressLine1(dto.getAddressLine1());
-        projectUpdates.setAddressLine2(dto.getAddressLine2());
-        projectUpdates.setCity(dto.getCity());
-        projectUpdates.setState(dto.getState());
-        projectUpdates.setPostalCode(dto.getPostalCode());
-        projectUpdates.setCountry(dto.getCountry());
-        projectUpdates.setLatitude(dto.getLatitude());
-        projectUpdates.setLongitude(dto.getLongitude());
+        projectUpdates.setName(dto.name());
+        projectUpdates.setDescription(dto.description());
+        if (dto.status() != null) {
+            projectUpdates.setStatus(dto.status());
+        }
+        if (dto.projectCode() != null) {
+            projectUpdates.setProjectCode(dto.projectCode());
+        }
+        if (dto.location() != null) {
+            projectUpdates.setLocation(dto.location());
+        }
         
-        Project updatedProject = projectsService.update(id, projectUpdates, actor, resolvedOrgId);
+        Project updatedProject = projectsService.update(id, projectUpdates, orgId);
         
         return ResponseEntity.ok(projectToMap(updatedProject));
     }
@@ -135,10 +137,10 @@ public class ProjectController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Project archivedProject = projectsService.archive(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Project archivedProject = projectsService.archive(id, orgId);
         
         return ResponseEntity.ok(projectToMap(archivedProject));
     }
@@ -149,10 +151,10 @@ public class ProjectController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Project unarchivedProject = projectsService.unarchive(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Project unarchivedProject = projectsService.unarchive(id, orgId);
         
         return ResponseEntity.ok(projectToMap(unarchivedProject));
     }
@@ -163,18 +165,11 @@ public class ProjectController {
         Map<String, Object> map = new HashMap<>();
         map.put("id", project.getId());
         map.put("name", project.getName());
-        map.put("normalizedName", project.getNormalizedName());
         map.put("description", project.getDescription());
-        map.put("externalId", project.getExternalId());
-        map.put("status", project.getStatus() != null ? project.getStatus().getValue() : null);
-        map.put("addressLine1", project.getAddressLine1());
-        map.put("addressLine2", project.getAddressLine2());
-        map.put("city", project.getCity());
-        map.put("state", project.getState());
-        map.put("postalCode", project.getPostalCode());
-        map.put("country", project.getCountry());
-        map.put("latitude", project.getLatitude());
-        map.put("longitude", project.getLongitude());
+        map.put("projectCode", project.getProjectCode());
+        map.put("status", project.getStatus());
+        map.put("location", project.getLocation());
+        map.put("officeId", project.getOffice() != null ? project.getOffice().getId() : null);
         map.put("piiStripped", project.getPiiStripped());
         map.put("legalHold", project.getLegalHold());
         map.put("archivedAt", project.getArchivedAt());
@@ -182,28 +177,5 @@ public class ProjectController {
         map.put("createdAt", project.getCreatedAt());
         map.put("updatedAt", project.getUpdatedAt());
         return map;
-    }
-    
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
     }
 }

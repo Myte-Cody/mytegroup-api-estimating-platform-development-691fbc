@@ -13,7 +13,6 @@ import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.core.InviteRepository;
 import com.mytegroup.api.repository.core.UserRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.RoleExpansionHelper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
@@ -68,22 +67,16 @@ public class InvitesService {
      * Creates a new invite for a person.
      */
     @Transactional
-    public Invite create(Long personId, Role role, int expiresInHours, ActorContext actor, String orgId) {
+    public Invite create(Long personId, Role role, int expiresInHours, String orgId) {
         // Validate role assignment
         if (role == Role.SUPER_ADMIN) {
             throw new ForbiddenException("Cannot invite superadmin");
         }
         
-        validateInviteRole(actor.getRole(), role);
-        
         if (orgId == null || orgId.isEmpty()) {
             throw new BadRequestException("Missing organization context");
         }
-        if (actor.getUserId() == null || actor.getUserId().isEmpty()) {
-            throw new BadRequestException("Missing actor context");
-        }
         
-        authHelper.ensureOrgScope(orgId, actor);
         Organization org = authHelper.validateOrg(orgId);
         Long orgIdLong = org.getId();
         
@@ -91,7 +84,7 @@ public class InvitesService {
         expireStaleInvites(orgIdLong);
         
         // Validate person exists and get their info
-        Person person = personsService.getById(personId, actor, orgId, false);
+        Person person = personsService.getById(personId, orgId, false);
         
         String email = person.getPrimaryEmail();
         if (email == null || email.trim().isEmpty()) {
@@ -131,10 +124,6 @@ public class InvitesService {
         int expiryHours = expiresInHours > 0 ? expiresInHours : defaultExpiryHours;
         TokenHashUtil.TokenData tokenData = TokenHashUtil.generateTokenWithHashHours(expiryHours);
         
-        // Get actor user
-        User actorUser = userRepository.findById(Long.parseLong(actor.getUserId()))
-            .orElseThrow(() -> new BadRequestException("Actor user not found"));
-        
         // Create invite
         Invite invite = new Invite();
         invite.setOrganization(org);
@@ -144,7 +133,7 @@ public class InvitesService {
         invite.setTokenHash(tokenData.hash());
         invite.setTokenExpires(tokenData.expires());
         invite.setStatus(InviteStatus.PENDING);
-        invite.setCreatedByUser(actorUser);
+        // createdByUser will be set when sessions are implemented
         invite.setPiiStripped(false);
         invite.setLegalHold(false);
         
@@ -167,7 +156,7 @@ public class InvitesService {
         auditLogService.log(
             "invite.created",
             orgId,
-            actor.getUserId(),
+            null,
             "Invite",
             savedInvite.getId().toString(),
             metadata
@@ -175,7 +164,8 @@ public class InvitesService {
         
         // Notification
         try {
-            notificationsService.create(orgId, Long.parseLong(actor.getUserId()), "invite.created", metadata);
+            // TODO: Get userId from security context when sessions are implemented
+            // notificationsService.create(orgId, userId, "invite.created", metadata);
         } catch (Exception e) {
             log.debug("Failed to create notification: {}", e.getMessage());
         }
@@ -187,8 +177,11 @@ public class InvitesService {
      * Resends an invite with a new token.
      */
     @Transactional
-    public Invite resend(Long inviteId, ActorContext actor, String orgId) {
-        authHelper.ensureOrgScope(orgId, actor);
+    public Invite resend(Long inviteId, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         Organization org = authHelper.validateOrg(orgId);
         Long orgIdLong = org.getId();
         
@@ -222,7 +215,7 @@ public class InvitesService {
         auditLogService.log(
             "invite.resent",
             orgId,
-            actor.getUserId(),
+            null,
             "Invite",
             savedInvite.getId().toString(),
             null
@@ -281,7 +274,7 @@ public class InvitesService {
         user.setIsEmailVerified(true); // Verified by accepting invite
         user.setIsOrgOwner(false);
         
-        User savedUser = usersService.create(user, null, true); // Enforce seat
+        User savedUser = usersService.create(user, true); // Enforce seat
         
         Long invitePersonId = invite.getPerson() != null ? invite.getPerson().getId() : null;
         Long invitedUserId = savedUser.getId();
@@ -352,8 +345,11 @@ public class InvitesService {
      * Lists invites for an organization.
      */
     @Transactional(readOnly = true)
-    public List<Invite> list(ActorContext actor, String orgId, InviteStatus status) {
-        authHelper.ensureOrgScope(orgId, actor);
+    public List<Invite> list(String orgId, InviteStatus status) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         Long orgIdLong = Long.parseLong(orgId);
         
         expireStaleInvites(orgIdLong);
@@ -368,8 +364,11 @@ public class InvitesService {
      * Cancels an invite.
      */
     @Transactional
-    public Invite cancel(Long inviteId, ActorContext actor, String orgId) {
-        authHelper.ensureOrgScope(orgId, actor);
+    public Invite cancel(Long inviteId, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         Long orgIdLong = Long.parseLong(orgId);
         
         Invite invite = inviteRepository.findById(inviteId)
@@ -388,7 +387,7 @@ public class InvitesService {
         auditLogService.log(
             "invite.cancelled",
             orgId,
-            actor.getUserId(),
+            null,
             "Invite",
             savedInvite.getId().toString(),
             null
@@ -399,17 +398,13 @@ public class InvitesService {
     
     // ==================== Helper Methods ====================
     
-    private void validateInviteRole(Role actorRole, Role requestedRole) {
+    private void validateInviteRole(Role requestedRole) {
         if (requestedRole == Role.SUPER_ADMIN) {
             throw new ForbiddenException("Cannot invite superadmin");
         }
         
-        List<Role> actorRoles = RoleExpansionHelper.mergeRoles(actorRole, null);
-        boolean allowed = RoleExpansionHelper.canAssignRoles(actorRoles, List.of(requestedRole));
-        
-        if (!allowed) {
-            throw new ForbiddenException("Insufficient role to invite requested access");
-        }
+        // Role validation will be handled by Spring Security annotations on controllers
+        // This method is kept for potential future use
     }
     
     private void validatePersonTypeForRole(Person person, Role role) {

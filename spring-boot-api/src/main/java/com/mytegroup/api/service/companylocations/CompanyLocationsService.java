@@ -9,7 +9,6 @@ import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.companies.CompanyLocationRepository;
 import com.mytegroup.api.repository.companies.CompanyRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -45,9 +44,10 @@ public class CompanyLocationsService {
      * Creates a new company location
      */
     @Transactional
-    public CompanyLocation create(CompanyLocation location, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public CompanyLocation create(CompanyLocation location, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         Organization org = authHelper.validateOrg(orgId);
         location.setOrganization(org);
         
@@ -106,7 +106,7 @@ public class CompanyLocationsService {
         auditLogService.log(
             "company_location.created",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "CompanyLocation",
             savedLocation.getId().toString(),
             metadata
@@ -119,15 +119,12 @@ public class CompanyLocationsService {
      * Lists company locations for an organization
      */
     @Transactional(readOnly = true)
-    public Page<CompanyLocation> list(ActorContext actor, String orgId, Long companyId, String search, 
+    public Page<CompanyLocation> list(String orgId, Long companyId, String search, 
                                       String tag, Boolean includeArchived, int page, int limit) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
-        authHelper.validateOrg(orgId);
-        
-        if (includeArchived != null && includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to include archived company locations");
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
         }
+        authHelper.validateOrg(orgId);
         
         Long orgIdLong = Long.parseLong(orgId);
         Specification<CompanyLocation> spec = Specification.where(
@@ -171,24 +168,17 @@ public class CompanyLocationsService {
      * Gets a company location by ID
      */
     @Transactional(readOnly = true)
-    public CompanyLocation getById(Long id, ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
-        
+    public CompanyLocation getById(Long id, String orgId, boolean includeArchived) {
         CompanyLocation location = companyLocationRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Company location not found"));
         
-        if (location.getOrganization() == null || 
-            !location.getOrganization().getId().toString().equals(orgId)) {
+        if (orgId != null && (location.getOrganization() == null || 
+            !location.getOrganization().getId().toString().equals(orgId))) {
             throw new ResourceNotFoundException("Company location not found");
         }
         
-        if (location.getArchivedAt() != null && !includeArchived) {
-            throw new ResourceNotFoundException("Company location archived");
-        }
-        
-        if (location.getArchivedAt() != null && includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to view archived company locations");
+        if (!includeArchived && location.getArchivedAt() != null) {
+            throw new ResourceNotFoundException("Company location not found");
         }
         
         return location;
@@ -198,9 +188,10 @@ public class CompanyLocationsService {
      * Updates a company location
      */
     @Transactional
-    public CompanyLocation update(Long id, CompanyLocation locationUpdates, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public CompanyLocation update(Long id, CompanyLocation locationUpdates, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         CompanyLocation location = companyLocationRepository.findById(id)
@@ -288,7 +279,7 @@ public class CompanyLocationsService {
         auditLogService.log(
             "company_location.updated",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "CompanyLocation",
             savedLocation.getId().toString(),
             metadata
@@ -301,9 +292,10 @@ public class CompanyLocationsService {
      * Archives a company location
      */
     @Transactional
-    public CompanyLocation archive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public CompanyLocation archive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         CompanyLocation location = companyLocationRepository.findById(id)
@@ -329,7 +321,7 @@ public class CompanyLocationsService {
         auditLogService.log(
             "company_location.archived",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "CompanyLocation",
             savedLocation.getId().toString(),
             metadata
@@ -342,9 +334,10 @@ public class CompanyLocationsService {
      * Unarchives a company location
      */
     @Transactional
-    public CompanyLocation unarchive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public CompanyLocation unarchive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         CompanyLocation location = companyLocationRepository.findById(id)
@@ -392,7 +385,7 @@ public class CompanyLocationsService {
         auditLogService.log(
             "company_location.unarchived",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "CompanyLocation",
             savedLocation.getId().toString(),
             metadata

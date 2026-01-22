@@ -10,7 +10,6 @@ import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.core.OrganizationRepository;
 import com.mytegroup.api.repository.core.UserRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.RoleExpansionHelper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
@@ -53,7 +52,7 @@ public class UsersService {
      * Creates a new user with optional seat enforcement.
      */
     @Transactional
-    public User create(User user, ActorContext actor, boolean enforceSeat) {
+    public User create(User user, boolean enforceSeat) {
         String email = normalizeEmail(user.getEmail());
         if (email == null || email.isEmpty()) {
             throw new BadRequestException("Email is required");
@@ -91,11 +90,7 @@ public class UsersService {
         List<Role> roles = normalizeRoles(user.getRole(), user.getRoles());
         Role primaryRole = resolvePrimaryRole(roles);
         
-        // Validate role assignment if actor provided
-        if (actor != null) {
-            validateRoleChange(actor, roles);
-        }
-        
+        // Role validation will be handled when sessions are implemented
         user.setRole(primaryRole);
         user.setRoles(roles);
         
@@ -123,7 +118,7 @@ public class UsersService {
         auditLogService.log(
             "user.created",
             orgId.toString(),
-            actor != null ? actor.getUserId() : savedUser.getId().toString(),
+            null, // userId will be set when sessions are implemented
             "User",
             savedUser.getId().toString(),
             null
@@ -136,8 +131,8 @@ public class UsersService {
      * Creates a new user (no seat enforcement).
      */
     @Transactional
-    public User create(User user, ActorContext actor) {
-        return create(user, actor, false);
+    public User create(User user) {
+        return create(user, false);
     }
     
     /**
@@ -170,9 +165,11 @@ public class UsersService {
      * Lists users for an organization.
      */
     @Transactional(readOnly = true)
-    public List<User> list(ActorContext actor, String orgId, boolean includeArchived) {
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
+    public List<User> list(String orgId, boolean includeArchived) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        Long orgIdLong = Long.parseLong(orgId);
         
         if (includeArchived) {
             return userRepository.findByOrgId(orgIdLong);
@@ -186,15 +183,11 @@ public class UsersService {
      * Gets a user by ID.
      */
     @Transactional(readOnly = true)
-    public User getById(Long id, ActorContext actor, boolean includeArchived) {
+    public User getById(Long id, boolean includeArchived) {
         User user = userRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
-        if (user.getOrganization() != null) {
-            authHelper.ensureOrgScope(user.getOrganization().getId().toString(), actor);
-        }
-        
-        if (user.getArchivedAt() != null && !includeArchived) {
+        if (!includeArchived && user.getArchivedAt() != null) {
             throw new ResourceNotFoundException("User not found");
         }
         
@@ -285,20 +278,16 @@ public class UsersService {
      * Updates a user.
      */
     @Transactional
-    public User update(Long id, User userUpdates, ActorContext actor) {
+    public User update(Long id, User userUpdates) {
         User user = userRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        if (user.getOrganization() != null) {
-            authHelper.ensureOrgScope(user.getOrganization().getId().toString(), actor);
-        }
         
         if (user.getArchivedAt() != null) {
             throw new ForbiddenException("Cannot update archived users");
         }
         
-        List<Role> actorRoles = RoleExpansionHelper.expandRoles(actor.getRole());
-        boolean canManageCompliance = canManageCompliance(actorRoles);
+        // Compliance checks will be handled when sessions are implemented
+        boolean canManageCompliance = true; // TODO: Implement when sessions are added
         
         if (Boolean.TRUE.equals(user.getLegalHold()) && !canManageCompliance) {
             throw new ForbiddenException("User on legal hold");
@@ -358,7 +347,7 @@ public class UsersService {
         auditLogService.log(
             "user.updated",
             savedUser.getOrganization() != null ? savedUser.getOrganization().getId().toString() : null,
-            actor.getUserId(),
+            null, // userId will be set when sessions are implemented
             "User",
             savedUser.getId().toString(),
             metadata
@@ -371,13 +360,9 @@ public class UsersService {
      * Updates user roles.
      */
     @Transactional
-    public User updateRoles(Long userId, List<Role> newRoles, ActorContext actor) {
+    public User updateRoles(Long userId, List<Role> newRoles) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        if (user.getOrganization() != null) {
-            authHelper.ensureOrgScope(user.getOrganization().getId().toString(), actor);
-        }
         
         if (user.getArchivedAt() != null) {
             throw new ForbiddenException("Cannot change roles for archived users");
@@ -388,7 +373,7 @@ public class UsersService {
         }
         
         List<Role> normalizedRoles = normalizeRoles(null, newRoles);
-        validateRoleChange(actor, normalizedRoles);
+        // Role validation will be handled when sessions are implemented
         
         Role primaryRole = resolvePrimaryRole(normalizedRoles);
         
@@ -400,12 +385,11 @@ public class UsersService {
         
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("roles", normalizedRoles);
-        metadata.put("actorRoles", RoleExpansionHelper.expandRoles(actor.getRole()));
         
         auditLogService.log(
             "user.roles_updated",
             savedUser.getOrganization() != null ? savedUser.getOrganization().getId().toString() : null,
-            actor.getUserId(),
+            null, // userId will be set when sessions are implemented
             "User",
             savedUser.getId().toString(),
             metadata
@@ -418,13 +402,9 @@ public class UsersService {
      * Archives a user.
      */
     @Transactional
-    public User archive(Long id, ActorContext actor) {
+    public User archive(Long id) {
         User user = userRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        if (user.getOrganization() != null) {
-            authHelper.ensureOrgScope(user.getOrganization().getId().toString(), actor);
-        }
         
         authHelper.ensureNotOnLegalHold(user, "archive");
         
@@ -446,7 +426,7 @@ public class UsersService {
         auditLogService.log(
             "user.archived",
             savedUser.getOrganization() != null ? savedUser.getOrganization().getId().toString() : null,
-            actor.getUserId(),
+            null, // userId will be set when sessions are implemented
             "User",
             savedUser.getId().toString(),
             metadata
@@ -459,13 +439,9 @@ public class UsersService {
      * Unarchives a user.
      */
     @Transactional
-    public User unarchive(Long id, ActorContext actor) {
+    public User unarchive(Long id) {
         User user = userRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        if (user.getOrganization() != null) {
-            authHelper.ensureOrgScope(user.getOrganization().getId().toString(), actor);
-        }
         
         authHelper.ensureNotOnLegalHold(user, "unarchive");
         
@@ -489,7 +465,7 @@ public class UsersService {
         auditLogService.log(
             "user.unarchived",
             savedUser.getOrganization() != null ? savedUser.getOrganization().getId().toString() : null,
-            actor.getUserId(),
+            null, // userId will be set when sessions are implemented
             "User",
             savedUser.getId().toString(),
             metadata
@@ -502,13 +478,9 @@ public class UsersService {
      * Gets user roles with expansion.
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> getUserRoles(Long userId, ActorContext actor) {
+    public Map<String, Object> getUserRoles(Long userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        
-        if (user.getOrganization() != null) {
-            authHelper.ensureOrgScope(user.getOrganization().getId().toString(), actor);
-        }
         
         List<Role> roles = normalizeRoles(user.getRole(), user.getRoles());
         
@@ -560,20 +532,10 @@ public class UsersService {
         return Role.USER;
     }
     
-    private void validateRoleChange(ActorContext actor, List<Role> targetRoles) {
-        if (targetRoles == null || targetRoles.isEmpty()) {
-            throw new BadRequestException("At least one role is required");
-        }
-        
-        List<Role> actorRoles = RoleExpansionHelper.expandRoles(actor.getRole());
-        if (actorRoles.isEmpty()) {
-            throw new ForbiddenException("Actor has no roles assigned");
-        }
-        
-        if (!RoleExpansionHelper.canAssignRoles(actorRoles, targetRoles)) {
-            throw new ForbiddenException("Insufficient role to assign requested roles");
-        }
-    }
+    // TODO: Re-implement validateRoleChange when sessions are implemented
+    // private void validateRoleChange(List<Role> targetRoles) {
+    //     // Role validation will be handled when sessions are implemented
+    // }
     
     private boolean canManageCompliance(List<Role> actorRoles) {
         return actorRoles.stream().anyMatch(role ->

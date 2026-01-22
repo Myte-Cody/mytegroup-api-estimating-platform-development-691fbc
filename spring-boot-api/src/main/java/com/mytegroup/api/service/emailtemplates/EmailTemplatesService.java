@@ -6,7 +6,6 @@ import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.communication.EmailTemplateRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
@@ -57,9 +56,11 @@ public class EmailTemplatesService {
      * Updates an email template
      */
     @Transactional
-    public EmailTemplate update(Long id, EmailTemplate templateUpdates, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public EmailTemplate update(Long id, EmailTemplate templateUpdates, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         EmailTemplate template = emailTemplateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Email template not found"));
@@ -89,7 +90,7 @@ public class EmailTemplatesService {
         auditLogService.log(
             "email_template.updated",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "EmailTemplate",
             savedTemplate.getId().toString(),
             metadata

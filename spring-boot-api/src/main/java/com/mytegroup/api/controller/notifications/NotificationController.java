@@ -1,7 +1,6 @@
 package com.mytegroup.api.controller.notifications;
 
-import com.mytegroup.api.entity.core.Notification;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.communication.Notification;
 import com.mytegroup.api.service.notifications.NotificationsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,10 +28,11 @@ public class NotificationController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Page<Notification> notifications = notificationsService.listForUser(actor, resolvedOrgId, unreadOnly, page, limit);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Boolean read = unreadOnly != null && unreadOnly ? false : null;
+        Page<Notification> notifications = notificationsService.list(orgId, read, page, limit);
         
         Map<String, Object> response = new HashMap<>();
         response.put("data", notifications.getContent().stream().map(this::notificationToMap).toList());
@@ -48,22 +48,21 @@ public class NotificationController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Notification notification = notificationsService.markRead(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Notification notification = notificationsService.markRead(id, orgId);
         
         return ResponseEntity.ok(notificationToMap(notification));
     }
 
     @PostMapping("/mark-all-read")
     public ResponseEntity<?> markAllRead(@RequestParam(required = false) String orgId) {
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        int markedCount = notificationsService.markAllRead(actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(Map.of("status", "ok", "marked", markedCount));
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        // TODO: Implement markAllRead method in service
+        throw new UnsupportedOperationException("markAllRead not yet implemented");
     }
     
     // Helper methods
@@ -80,26 +79,4 @@ public class NotificationController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

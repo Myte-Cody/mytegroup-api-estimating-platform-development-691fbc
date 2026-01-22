@@ -18,17 +18,17 @@ public class AuthMapper {
      */
     public User toEntity(RegisterDto dto, Organization organization) {
         User user = new User();
-        user.setFirstName(dto.firstName());
-        user.setLastName(dto.lastName());
-        user.setUsername(dto.username());
-        user.setEmail(dto.email());
+        user.setFirstName(dto.getFirstName());
+        user.setLastName(dto.getLastName());
+        user.setUsername(dto.getUsername());
+        user.setEmail(dto.getEmail());
         user.setOrganization(organization);
         
         // Set role - use provided role or default to USER
-        if (dto.role() != null) {
-            user.setRole(dto.role());
+        if (dto.getRole() != null) {
+            user.setRole(dto.getRole());
             List<com.mytegroup.api.common.enums.Role> roles = new ArrayList<>();
-            roles.add(dto.role());
+            roles.add(dto.getRole());
             user.setRoles(roles);
         } else {
             user.setRole(com.mytegroup.api.common.enums.Role.USER);
@@ -48,7 +48,7 @@ public class AuthMapper {
      * Returns a simple object with email and password for the service layer.
      */
     public LoginCredentials toLoginCredentials(LoginDto dto) {
-        return new LoginCredentials(dto.email(), dto.password());
+        return new LoginCredentials(dto.getEmail(), dto.getPassword());
     }
 
     /**

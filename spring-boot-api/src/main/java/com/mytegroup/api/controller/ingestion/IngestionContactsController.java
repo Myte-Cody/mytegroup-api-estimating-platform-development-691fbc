@@ -1,8 +1,7 @@
 package com.mytegroup.api.controller.ingestion;
 
 import com.mytegroup.api.dto.ingestion.*;
-import com.mytegroup.api.service.common.ActorContext;
-import com.mytegroup.api.service.ingestioncontacts.IngestionContactsService;
+import com.mytegroup.api.service.ingestion.IngestionContactsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,14 +26,13 @@ public class IngestionContactsController {
             @RequestBody @Valid IngestionContactsSuggestMappingDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
         Map<String, Object> mapping = ingestionContactsService.suggestMapping(
             dto.getHeaders(),
             dto.getSampleRows(),
-            actor,
-            resolvedOrgId
+            orgId
         );
         
         return ResponseEntity.ok(mapping);
@@ -46,14 +44,13 @@ public class IngestionContactsController {
             @RequestBody @Valid IngestionContactsParseRowDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
         Map<String, Object> result = ingestionContactsService.parseRow(
             dto.getRow(),
             dto.getMapping(),
-            actor,
-            resolvedOrgId
+            orgId
         );
         
         return ResponseEntity.ok(result);
@@ -65,38 +62,16 @@ public class IngestionContactsController {
             @RequestBody @Valid IngestionContactsEnrichDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
         Map<String, Object> result = ingestionContactsService.enrich(
             dto.getContact(),
-            actor,
-            resolvedOrgId
+            orgId
         );
         
         return ResponseEntity.ok(result);
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
         }
         
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
-}

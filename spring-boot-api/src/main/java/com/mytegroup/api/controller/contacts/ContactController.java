@@ -1,13 +1,10 @@
 package com.mytegroup.api.controller.contacts;
 
-import com.mytegroup.api.entity.people.Person;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.people.Contact;
 import com.mytegroup.api.service.contacts.ContactsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -32,10 +29,11 @@ public class ContactController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return Map.of("error", "orgId is required", "data", java.util.List.of(), "total", 0, "page", page, "limit", limit);
+        }
         
-        Page<Person> contacts = contactsService.list(actor, resolvedOrgId, search, personType, companyId, includeArchived, page, limit);
+        org.springframework.data.domain.Page<Contact> contacts = contactsService.list(orgId, search, personType, companyId, includeArchived, page, limit);
         
         Map<String, Object> response = new HashMap<>();
         response.put("data", contacts.getContent().stream().map(this::contactToMap).toList());
@@ -53,29 +51,25 @@ public class ContactController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Person contact = contactsService.getById(id, actor, resolvedOrgId, includeArchived);
+        Contact contact = contactsService.getById(id, orgId, includeArchived);
         
         return contactToMap(contact);
     }
     
     // Helper methods
     
-    private Map<String, Object> contactToMap(Person contact) {
+    private Map<String, Object> contactToMap(Contact contact) {
         Map<String, Object> map = new HashMap<>();
         map.put("id", contact.getId());
+        map.put("name", contact.getName());
         map.put("firstName", contact.getFirstName());
         map.put("lastName", contact.getLastName());
-        map.put("primaryEmail", contact.getPrimaryEmail());
-        map.put("primaryPhone", contact.getPrimaryPhone());
-        map.put("jobTitle", contact.getJobTitle());
+        map.put("email", contact.getEmail());
+        map.put("phone", contact.getPhone());
         map.put("personType", contact.getPersonType() != null ? contact.getPersonType().getValue() : null);
         map.put("notes", contact.getNotes());
-        map.put("externalId", contact.getExternalId());
-        map.put("companyId", contact.getCompany() != null ? contact.getCompany().getId() : null);
-        map.put("companyName", contact.getCompany() != null ? contact.getCompany().getName() : null);
+        map.put("ironworkerNumber", contact.getIronworkerNumber());
+        map.put("company", contact.getCompany());
         map.put("piiStripped", contact.getPiiStripped());
         map.put("legalHold", contact.getLegalHold());
         map.put("archivedAt", contact.getArchivedAt());
@@ -85,26 +79,4 @@ public class ContactController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

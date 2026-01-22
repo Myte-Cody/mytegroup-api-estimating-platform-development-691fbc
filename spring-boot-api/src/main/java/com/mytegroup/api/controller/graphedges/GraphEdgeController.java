@@ -1,8 +1,7 @@
 package com.mytegroup.api.controller.graphedges;
 
 import com.mytegroup.api.dto.graphedges.*;
-import com.mytegroup.api.entity.core.GraphEdge;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.organization.GraphEdge;
 import com.mytegroup.api.service.graphedges.GraphEdgesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +21,8 @@ import java.util.Map;
 public class GraphEdgeController {
 
     private final GraphEdgesService graphEdgesService;
+    private final com.mytegroup.api.mapper.graphedges.GraphEdgeMapper graphEdgeMapper;
+    private final com.mytegroup.api.service.common.ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
@@ -29,17 +30,12 @@ public class GraphEdgeController {
             @ModelAttribute ListGraphEdgesQueryDto query,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
         List<GraphEdge> edges = graphEdgesService.list(
-            query.getFromType(),
-            query.getFromId(),
-            query.getToType(),
-            query.getToId(),
-            query.getEdgeType(),
-            actor,
-            resolvedOrgId
+            orgId,
+            query.getEdgeType()
         );
         
         return edges.stream()
@@ -54,21 +50,15 @@ public class GraphEdgeController {
             @RequestBody @Valid CreateGraphEdgeDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
+        // Use mapper to convert DTO to entity
+        com.mytegroup.api.entity.core.Organization org = authHelper.validateOrg(orgId);
+        GraphEdge edge = graphEdgeMapper.toEntity(dto, org);
+        GraphEdge createdEdge = graphEdgesService.create(edge, orgId);
         
-        GraphEdge edge = graphEdgesService.create(
-            dto.getFromType(),
-            dto.getFromId(),
-            dto.getToType(),
-            dto.getToId(),
-            dto.getEdgeType(),
-            dto.getMeta(),
-            actor,
-            resolvedOrgId
-        );
-        
-        return edgeToResponse(edge);
+        return edgeToResponse(createdEdge);
     }
 
     @DeleteMapping("/{id}")
@@ -78,45 +68,24 @@ public class GraphEdgeController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        graphEdgesService.delete(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
+        graphEdgesService.delete(id, orgId);
     }
     
     private Map<String, Object> edgeToResponse(GraphEdge edge) {
         return Map.of(
             "id", edge.getId(),
-            "fromType", edge.getFromType() != null ? edge.getFromType() : "",
-            "fromId", edge.getFromId() != null ? edge.getFromId() : "",
-            "toType", edge.getToType() != null ? edge.getToType() : "",
-            "toId", edge.getToId() != null ? edge.getToId() : "",
-            "edgeType", edge.getEdgeType() != null ? edge.getEdgeType() : "",
-            "meta", edge.getMeta() != null ? edge.getMeta() : Map.of(),
+            "fromType", edge.getFromNodeType() != null ? edge.getFromNodeType().name() : "",
+            "fromId", edge.getFromNodeId() != null ? edge.getFromNodeId().toString() : "",
+            "toType", edge.getToNodeType() != null ? edge.getToNodeType().name() : "",
+            "toId", edge.getToNodeId() != null ? edge.getToNodeId().toString() : "",
+            "edgeType", edge.getEdgeTypeKey() != null ? edge.getEdgeTypeKey() : "",
+            "meta", edge.getMetadata() != null ? edge.getMetadata() : Map.of(),
             "createdAt", edge.getCreatedAt() != null ? edge.getCreatedAt().toString() : ""
         );
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
         
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

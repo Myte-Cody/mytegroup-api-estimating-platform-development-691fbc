@@ -3,7 +3,6 @@ package com.mytegroup.api.service.migrations;
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ForbiddenException;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
@@ -30,28 +29,26 @@ public class MigrationsService {
      * Starts a migration
      */
     @Transactional
-    public Map<String, Object> start(String orgId, String direction, Integer chunkSize, 
-                                     String targetUri, String targetDbName, ActorContext actor, boolean dryRun) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN);
+    public Map<String, Object> start(String orgId, String targetDatastoreType) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         
         // TODO: Implement migration logic
         // This requires complex logic to migrate data between datastores
         
         Map<String, Object> result = new HashMap<>();
         result.put("orgId", orgId);
-        result.put("direction", direction);
+        result.put("targetDatastoreType", targetDatastoreType);
         result.put("status", "started");
-        result.put("dryRun", dryRun);
         
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("direction", direction);
-        metadata.put("chunkSize", chunkSize);
-        metadata.put("dryRun", dryRun);
+        metadata.put("targetDatastoreType", targetDatastoreType);
         
         auditLogService.log(
             "migration.started",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "Migration",
             null,
             metadata
@@ -64,8 +61,10 @@ public class MigrationsService {
      * Gets migration status
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> getStatus(String orgId, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN);
+    public Map<String, Object> getStatus(String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         
         // TODO: Implement status retrieval
         Map<String, Object> status = new HashMap<>();
@@ -78,8 +77,10 @@ public class MigrationsService {
      * Aborts a migration
      */
     @Transactional
-    public Map<String, Object> abort(String orgId, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN);
+    public Map<String, Object> abort(String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         
         // TODO: Implement abort logic
         
@@ -89,7 +90,7 @@ public class MigrationsService {
         auditLogService.log(
             "migration.aborted",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "Migration",
             null,
             metadata
@@ -102,8 +103,10 @@ public class MigrationsService {
      * Finalizes a migration
      */
     @Transactional
-    public Map<String, Object> finalize(String orgId, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN);
+    public Map<String, Object> finalize(String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         
         // TODO: Implement finalize logic
         
@@ -113,7 +116,7 @@ public class MigrationsService {
         auditLogService.log(
             "migration.finalized",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "Migration",
             null,
             metadata

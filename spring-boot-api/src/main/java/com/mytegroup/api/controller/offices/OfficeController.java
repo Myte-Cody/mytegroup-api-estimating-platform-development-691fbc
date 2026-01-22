@@ -1,8 +1,10 @@
 package com.mytegroup.api.controller.offices;
 
 import com.mytegroup.api.dto.offices.*;
-import com.mytegroup.api.entity.core.Office;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.entity.organization.Office;
+import com.mytegroup.api.mapper.offices.OfficeMapper;
+import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.offices.OfficesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,11 +12,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -24,6 +25,8 @@ import java.util.Map;
 public class OfficeController {
 
     private final OfficesService officesService;
+    private final OfficeMapper officeMapper;
+    private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
@@ -33,14 +36,15 @@ public class OfficeController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        Page<Office> offices = officesService.list(actor, resolvedOrgId, includeArchived, page, limit);
+        List<Office> offices = officesService.list(orgId, includeArchived != null && includeArchived);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("data", offices.getContent().stream().map(this::officeToMap).toList());
-        response.put("total", offices.getTotalElements());
+        response.put("data", offices.stream().map(this::officeToMap).toList());
+        response.put("total", offices.size());
         response.put("page", page);
         response.put("limit", limit);
         
@@ -53,23 +57,20 @@ public class OfficeController {
             @RequestBody @Valid CreateOfficeDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        Office office = new Office();
-        office.setName(dto.getName());
-        office.setExternalId(dto.getExternalId());
-        office.setAddressLine1(dto.getAddressLine1());
-        office.setAddressLine2(dto.getAddressLine2());
-        office.setCity(dto.getCity());
-        office.setState(dto.getState());
-        office.setPostalCode(dto.getPostalCode());
-        office.setCountry(dto.getCountry());
-        office.setPhone(dto.getPhone());
-        office.setEmail(dto.getEmail());
-        office.setNotes(dto.getNotes());
+        // Get organization for mapper
+        Organization organization = authHelper.validateOrg(orgId);
+        Office parent = null;
+        if (dto.parentOrgLocationId() != null) {
+            // Parent will be validated by service
+        }
         
-        Office savedOffice = officesService.create(office, actor, resolvedOrgId);
+        Office office = officeMapper.toEntity(dto, organization, parent);
+        
+        Office savedOffice = officesService.create(office, orgId);
         
         return ResponseEntity.status(HttpStatus.CREATED).body(officeToMap(savedOffice));
     }
@@ -81,10 +82,7 @@ public class OfficeController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Office office = officesService.getById(id, actor, resolvedOrgId, includeArchived);
+        Office office = officesService.getById(id, orgId, includeArchived);
         
         return ResponseEntity.ok(officeToMap(office));
     }
@@ -96,23 +94,15 @@ public class OfficeController {
             @RequestBody @Valid UpdateOfficeDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        // Create an Office object with updates using mapper
         Office officeUpdates = new Office();
-        officeUpdates.setName(dto.getName());
-        officeUpdates.setExternalId(dto.getExternalId());
-        officeUpdates.setAddressLine1(dto.getAddressLine1());
-        officeUpdates.setAddressLine2(dto.getAddressLine2());
-        officeUpdates.setCity(dto.getCity());
-        officeUpdates.setState(dto.getState());
-        officeUpdates.setPostalCode(dto.getPostalCode());
-        officeUpdates.setCountry(dto.getCountry());
-        officeUpdates.setPhone(dto.getPhone());
-        officeUpdates.setEmail(dto.getEmail());
-        officeUpdates.setNotes(dto.getNotes());
+        Office parent = null;
+        if (dto.parentOrgLocationId() != null) {
+            // Parent will be handled by service
+        }
+        officeMapper.updateEntity(officeUpdates, dto, parent);
         
-        Office updatedOffice = officesService.update(id, officeUpdates, actor, resolvedOrgId);
+        Office updatedOffice = officesService.update(id, officeUpdates, orgId);
         
         return ResponseEntity.ok(officeToMap(updatedOffice));
     }
@@ -123,10 +113,7 @@ public class OfficeController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Office archivedOffice = officesService.archive(id, actor, resolvedOrgId);
+        Office archivedOffice = officesService.archive(id, orgId);
         
         return ResponseEntity.ok(officeToMap(archivedOffice));
     }
@@ -137,10 +124,7 @@ public class OfficeController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Office unarchivedOffice = officesService.unarchive(id, actor, resolvedOrgId);
+        Office unarchivedOffice = officesService.unarchive(id, orgId);
         
         return ResponseEntity.ok(officeToMap(unarchivedOffice));
     }
@@ -151,16 +135,14 @@ public class OfficeController {
         Map<String, Object> map = new HashMap<>();
         map.put("id", office.getId());
         map.put("name", office.getName());
-        map.put("externalId", office.getExternalId());
-        map.put("addressLine1", office.getAddressLine1());
-        map.put("addressLine2", office.getAddressLine2());
-        map.put("city", office.getCity());
-        map.put("state", office.getState());
-        map.put("postalCode", office.getPostalCode());
-        map.put("country", office.getCountry());
-        map.put("phone", office.getPhone());
-        map.put("email", office.getEmail());
-        map.put("notes", office.getNotes());
+        map.put("name", office.getName());
+        map.put("description", office.getDescription());
+        map.put("timezone", office.getTimezone());
+        map.put("orgLocationTypeKey", office.getOrgLocationTypeKey());
+        map.put("address", office.getAddress());
+        map.put("tagKeys", office.getTagKeys());
+        map.put("parentId", office.getParent() != null ? office.getParent().getId() : null);
+        map.put("sortOrder", office.getSortOrder());
         map.put("piiStripped", office.getPiiStripped());
         map.put("legalHold", office.getLegalHold());
         map.put("archivedAt", office.getArchivedAt());
@@ -170,26 +152,4 @@ public class OfficeController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

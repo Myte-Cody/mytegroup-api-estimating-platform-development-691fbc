@@ -3,11 +3,11 @@ package com.mytegroup.api.service.companies;
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.companies.CompanyRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -43,9 +43,10 @@ public class CompaniesService {
      * Creates a new company
      */
     @Transactional
-    public Company create(Company company, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Company create(Company company, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         Organization org = authHelper.validateOrg(orgId);
         company.setOrganization(org);
         
@@ -91,7 +92,7 @@ public class CompaniesService {
         auditLogService.log(
             "company.created",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Company",
             savedCompany.getId().toString(),
             metadata
@@ -104,15 +105,12 @@ public class CompaniesService {
      * Lists companies for an organization
      */
     @Transactional(readOnly = true)
-    public Page<Company> list(ActorContext actor, String orgId, String search, Boolean includeArchived, 
+    public Page<Company> list(String orgId, String search, Boolean includeArchived, 
                               String type, String tag, int page, int limit) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
-        authHelper.validateOrg(orgId);
-        
-        if (includeArchived != null && includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to include archived companies");
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
         }
+        authHelper.validateOrg(orgId);
         
         Long orgIdLong = Long.parseLong(orgId);
         Specification<Company> spec = Specification.where(
@@ -158,20 +156,17 @@ public class CompaniesService {
      * Gets a company by ID
      */
     @Transactional(readOnly = true)
-    public Company getById(Long id, ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
-        
+    public Company getById(Long id, String orgId, boolean includeArchived) {
         Company company = companyRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Company not found"));
         
-        if (company.getOrganization() == null || 
-            !company.getOrganization().getId().toString().equals(orgId)) {
+        if (orgId != null && (company.getOrganization() == null || 
+            !company.getOrganization().getId().toString().equals(orgId))) {
             throw new ForbiddenException("Cannot access companies outside your organization");
         }
         
-        if (company.getArchivedAt() != null && !includeArchived) {
-            throw new ResourceNotFoundException("Company archived");
+        if (!includeArchived && company.getArchivedAt() != null) {
+            throw new ResourceNotFoundException("Company not found");
         }
         
         return company;
@@ -181,9 +176,10 @@ public class CompaniesService {
      * Updates a company
      */
     @Transactional
-    public Company update(Long id, Company companyUpdates, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Company update(Long id, Company companyUpdates, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         Company company = companyRepository.findById(id)
@@ -256,7 +252,7 @@ public class CompaniesService {
         auditLogService.log(
             "company.updated",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Company",
             savedCompany.getId().toString(),
             metadata
@@ -269,9 +265,10 @@ public class CompaniesService {
      * Archives a company
      */
     @Transactional
-    public Company archive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Company archive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         Company company = companyRepository.findById(id)
@@ -297,7 +294,7 @@ public class CompaniesService {
         auditLogService.log(
             "company.archived",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Company",
             savedCompany.getId().toString(),
             metadata
@@ -310,9 +307,10 @@ public class CompaniesService {
      * Unarchives a company
      */
     @Transactional
-    public Company unarchive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Company unarchive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         authHelper.validateOrg(orgId);
         
         Company company = companyRepository.findById(id)
@@ -357,7 +355,7 @@ public class CompaniesService {
         auditLogService.log(
             "company.unarchived",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Company",
             savedCompany.getId().toString(),
             metadata

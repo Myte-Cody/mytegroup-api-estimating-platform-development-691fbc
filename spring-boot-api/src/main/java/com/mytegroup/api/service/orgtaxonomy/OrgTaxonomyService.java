@@ -7,7 +7,6 @@ import com.mytegroup.api.entity.organization.embeddable.OrgTaxonomyValue;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.organization.OrgTaxonomyRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -53,9 +52,10 @@ public class OrgTaxonomyService {
      * Creates or updates taxonomy values
      */
     @Transactional
-    public OrgTaxonomy putValues(String orgId, String namespace, List<OrgTaxonomyValue> values, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public OrgTaxonomy putValues(String orgId, String namespace, List<OrgTaxonomyValue> values) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         Organization org = authHelper.validateOrg(orgId);
         
         String normalizedNamespace = validationHelper.normalizeKey(namespace);
@@ -84,7 +84,7 @@ public class OrgTaxonomyService {
         auditLogService.log(
             "org_taxonomy.updated",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "OrgTaxonomy",
             savedTaxonomy.getId().toString(),
             metadata
@@ -97,9 +97,11 @@ public class OrgTaxonomyService {
      * Ensures taxonomy keys are active
      */
     @Transactional
-    public void ensureKeysActive(ActorContext actor, String orgId, String namespace, List<String> keys) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public void ensureKeysActive(String orgId, String namespace, List<String> keys) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         OrgTaxonomy taxonomy = getTaxonomy(orgId, namespace);
         if (taxonomy == null) {

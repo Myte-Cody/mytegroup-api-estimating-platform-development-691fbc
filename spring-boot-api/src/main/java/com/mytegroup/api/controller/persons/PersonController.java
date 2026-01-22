@@ -2,11 +2,10 @@ package com.mytegroup.api.controller.persons;
 
 import com.mytegroup.api.dto.persons.*;
 import com.mytegroup.api.entity.people.Person;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.persons.PersonsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,14 +44,14 @@ public class PersonController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Page<Person> persons = personsService.list(actor, resolvedOrgId, search, personType, includeArchived, page, limit);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        List<Person> persons = personsService.list(orgId, includeArchived != null && includeArchived);
         
         Map<String, Object> response = new HashMap<>();
-        response.put("data", persons.getContent().stream().map(this::personToMap).toList());
-        response.put("total", persons.getTotalElements());
+        response.put("data", persons.stream().map(this::personToMap).toList());
+        response.put("total", persons.size());
         response.put("page", page);
         response.put("limit", limit);
         
@@ -65,19 +64,27 @@ public class PersonController {
             @RequestBody @Valid CreatePersonDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
         Person person = new Person();
-        person.setFirstName(dto.getFirstName());
-        person.setLastName(dto.getLastName());
-        person.setPrimaryEmail(dto.getPrimaryEmail());
-        person.setPrimaryPhone(dto.getPrimaryPhone());
-        person.setJobTitle(dto.getJobTitle());
-        person.setNotes(dto.getNotes());
-        person.setExternalId(dto.getExternalId());
+        person.setDisplayName(dto.displayName());
+        person.setFirstName(dto.firstName());
+        person.setLastName(dto.lastName());
+        person.setPrimaryEmail(dto.primaryEmail());
+        person.setPrimaryPhoneE164(dto.primaryPhone());
+        person.setPersonType(dto.personType());
+        person.setDateOfBirth(dto.dateOfBirth());
+        // Emails and phones are complex types - will be set by service if needed
+        // person.setEmails(dto.emails());
+        // person.setPhones(dto.phones());
+        person.setTagKeys(dto.tagKeys());
+        person.setSkillKeys(dto.skillKeys());
+        person.setDepartmentKey(dto.departmentKey());
+        person.setIronworkerNumber(dto.ironworkerNumber());
+        person.setNotes(dto.notes());
         
-        Person savedPerson = personsService.create(person, actor, resolvedOrgId);
+        Person savedPerson = personsService.create(person, orgId);
         
         return ResponseEntity.status(HttpStatus.CREATED).body(personToMap(savedPerson));
     }
@@ -89,10 +96,10 @@ public class PersonController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Person person = personsService.getById(id, actor, resolvedOrgId, includeArchived);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Person person = personsService.getById(id, orgId, includeArchived);
         
         return ResponseEntity.ok(personToMap(person));
     }
@@ -104,19 +111,22 @@ public class PersonController {
             @RequestBody @Valid UpdatePersonDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+                if (orgId == null) { return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); }
         Person personUpdates = new Person();
-        personUpdates.setFirstName(dto.getFirstName());
-        personUpdates.setLastName(dto.getLastName());
-        personUpdates.setPrimaryEmail(dto.getPrimaryEmail());
-        personUpdates.setPrimaryPhone(dto.getPrimaryPhone());
-        personUpdates.setJobTitle(dto.getJobTitle());
-        personUpdates.setNotes(dto.getNotes());
-        personUpdates.setExternalId(dto.getExternalId());
+        personUpdates.setDisplayName(dto.displayName());
+        personUpdates.setFirstName(dto.firstName());
+        personUpdates.setLastName(dto.lastName());
+        personUpdates.setPrimaryEmail(dto.primaryEmail());
+        personUpdates.setPrimaryPhoneE164(dto.primaryPhone());
+        personUpdates.setPersonType(dto.personType());
+        personUpdates.setDateOfBirth(dto.dateOfBirth());
+        personUpdates.setTagKeys(dto.tagKeys());
+        personUpdates.setSkillKeys(dto.skillKeys());
+        personUpdates.setDepartmentKey(dto.departmentKey());
+        personUpdates.setIronworkerNumber(dto.ironworkerNumber());
+        personUpdates.setNotes(dto.notes());
         
-        Person updatedPerson = personsService.update(id, personUpdates, actor, resolvedOrgId);
+        Person updatedPerson = personsService.update(id, personUpdates, orgId);
         
         return ResponseEntity.ok(personToMap(updatedPerson));
     }
@@ -127,10 +137,10 @@ public class PersonController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Person archivedPerson = personsService.archive(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Person archivedPerson = personsService.archive(id, orgId);
         
         return ResponseEntity.ok(personToMap(archivedPerson));
     }
@@ -141,10 +151,10 @@ public class PersonController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Person unarchivedPerson = personsService.unarchive(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Person unarchivedPerson = personsService.unarchive(id, orgId);
         
         return ResponseEntity.ok(personToMap(unarchivedPerson));
     }
@@ -157,8 +167,8 @@ public class PersonController {
         map.put("firstName", person.getFirstName());
         map.put("lastName", person.getLastName());
         map.put("primaryEmail", person.getPrimaryEmail());
-        map.put("primaryPhone", person.getPrimaryPhone());
-        map.put("jobTitle", person.getJobTitle());
+        map.put("primaryPhone", person.getPrimaryPhoneE164());
+        map.put("title", person.getTitle());
         map.put("personType", person.getPersonType() != null ? person.getPersonType().getValue() : null);
         map.put("notes", person.getNotes());
         map.put("externalId", person.getExternalId());
@@ -173,26 +183,5 @@ public class PersonController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
         
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

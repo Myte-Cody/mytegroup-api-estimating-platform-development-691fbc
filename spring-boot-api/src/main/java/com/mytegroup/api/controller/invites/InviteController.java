@@ -5,7 +5,6 @@ import com.mytegroup.api.dto.invites.*;
 import com.mytegroup.api.entity.core.Invite;
 import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.entity.enums.core.InviteStatus;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.invites.InvitesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,10 +40,10 @@ public class InviteController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) InviteStatus status) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        List<Invite> invites = invitesService.list(actor, resolvedOrgId, status);
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
+        List<Invite> invites = invitesService.list(orgId, status);
         
         return invites.stream()
             .map(this::inviteToMap)
@@ -58,9 +57,9 @@ public class InviteController {
             @RequestBody @Valid CreateInviteDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
         Role role = dto.getRole() != null ? dto.getRole() : Role.USER;
         int expiresInHours = dto.getExpiresInHours() != null ? dto.getExpiresInHours() : 72;
         
@@ -68,8 +67,7 @@ public class InviteController {
             Long.parseLong(dto.getPersonId()),
             role,
             expiresInHours,
-            actor,
-            resolvedOrgId
+            orgId
         );
         
         return inviteToMap(invite);
@@ -81,10 +79,10 @@ public class InviteController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Invite invite = invitesService.resend(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
+        Invite invite = invitesService.resend(id, orgId);
         
         return inviteToMap(invite);
     }
@@ -95,10 +93,10 @@ public class InviteController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Invite invite = invitesService.cancel(id, actor, resolvedOrgId);
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
+        Invite invite = invitesService.cancel(id, orgId);
         
         return inviteToMap(invite);
     }
@@ -143,26 +141,4 @@ public class InviteController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

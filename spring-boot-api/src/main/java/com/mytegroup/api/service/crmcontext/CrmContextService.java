@@ -1,7 +1,6 @@
 package com.mytegroup.api.service.crmcontext;
 
 import com.mytegroup.api.common.enums.Role;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,10 +26,12 @@ public class CrmContextService {
      * Lists CRM context documents for entities
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> listDocuments(ActorContext actor, String orgId, String entityType, 
+    public Map<String, Object> listDocuments(String orgId, String entityType, 
                                              String entityId, int page, int limit) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         // TODO: Implement document listing logic
         // This requires querying indexed documents for the entity
@@ -49,9 +50,11 @@ public class CrmContextService {
      */
     @Transactional
     public void indexDocument(String orgId, String entityType, String entityId, String title, 
-                              String text, Map<String, Object> metadata, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+                              String text, Map<String, Object> metadata) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         // TODO: Implement document indexing logic
         // This requires storing documents in a searchable index

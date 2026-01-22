@@ -127,7 +127,7 @@ public class ServiceAuthorizationHelper {
             if (Boolean.TRUE.equals(legalHold)) {
                 throw new ForbiddenException("Cannot " + action + " while legal hold is active");
             }
-        } catch (NoSuchMethodException | ReflectiveOperationException e) {
+        } catch (ReflectiveOperationException e) {
             // Entity doesn't have legalHold field, skip check
         }
     }

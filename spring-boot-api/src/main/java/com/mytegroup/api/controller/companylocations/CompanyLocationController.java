@@ -1,8 +1,11 @@
 package com.mytegroup.api.controller.companylocations;
 
 import com.mytegroup.api.dto.companylocations.*;
+import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.companies.CompanyLocation;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.mapper.companylocations.CompanyLocationMapper;
+import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.companylocations.CompanyLocationsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,8 +13,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -24,6 +25,8 @@ import java.util.Map;
 public class CompanyLocationController {
 
     private final CompanyLocationsService companyLocationsService;
+    private final CompanyLocationMapper companyLocationMapper;
+    private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
@@ -34,10 +37,11 @@ public class CompanyLocationController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        Page<CompanyLocation> locations = companyLocationsService.list(actor, resolvedOrgId, companyId, includeArchived, page, limit);
+        Page<CompanyLocation> locations = companyLocationsService.list(orgId, companyId, null, null, includeArchived, page, limit);
         
         Map<String, Object> response = new HashMap<>();
         response.put("data", locations.getContent().stream().map(this::locationToMap).toList());
@@ -54,26 +58,18 @@ public class CompanyLocationController {
             @RequestBody @Valid CreateCompanyLocationDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        CompanyLocation location = new CompanyLocation();
-        location.setName(dto.getName());
-        location.setExternalId(dto.getExternalId());
-        location.setIsPrimary(dto.getIsPrimary());
-        location.setAddressLine1(dto.getAddressLine1());
-        location.setAddressLine2(dto.getAddressLine2());
-        location.setCity(dto.getCity());
-        location.setState(dto.getState());
-        location.setPostalCode(dto.getPostalCode());
-        location.setCountry(dto.getCountry());
-        location.setLatitude(dto.getLatitude());
-        location.setLongitude(dto.getLongitude());
-        location.setPhone(dto.getPhone());
-        location.setEmail(dto.getEmail());
-        location.setNotes(dto.getNotes());
+        // Get organization and company for mapper
+        Organization organization = authHelper.validateOrg(orgId);
+        Company company = new Company();
+        company.setId(Long.parseLong(dto.companyId())); // Service will validate this
         
-        CompanyLocation savedLocation = companyLocationsService.create(location, dto.getCompanyId(), actor, resolvedOrgId);
+        CompanyLocation location = companyLocationMapper.toEntity(dto, organization, company);
+        
+        CompanyLocation savedLocation = companyLocationsService.create(location, orgId);
         
         return ResponseEntity.status(HttpStatus.CREATED).body(locationToMap(savedLocation));
     }
@@ -85,10 +81,7 @@ public class CompanyLocationController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        CompanyLocation location = companyLocationsService.getById(id, actor, resolvedOrgId, includeArchived);
+        CompanyLocation location = companyLocationsService.getById(id, orgId, includeArchived);
         
         return ResponseEntity.ok(locationToMap(location));
     }
@@ -100,26 +93,15 @@ public class CompanyLocationController {
             @RequestBody @Valid UpdateCompanyLocationDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
+        // Create a CompanyLocation object with updates using mapper
         CompanyLocation locationUpdates = new CompanyLocation();
-        locationUpdates.setName(dto.getName());
-        locationUpdates.setExternalId(dto.getExternalId());
-        locationUpdates.setIsPrimary(dto.getIsPrimary());
-        locationUpdates.setAddressLine1(dto.getAddressLine1());
-        locationUpdates.setAddressLine2(dto.getAddressLine2());
-        locationUpdates.setCity(dto.getCity());
-        locationUpdates.setState(dto.getState());
-        locationUpdates.setPostalCode(dto.getPostalCode());
-        locationUpdates.setCountry(dto.getCountry());
-        locationUpdates.setLatitude(dto.getLatitude());
-        locationUpdates.setLongitude(dto.getLongitude());
-        locationUpdates.setPhone(dto.getPhone());
-        locationUpdates.setEmail(dto.getEmail());
-        locationUpdates.setNotes(dto.getNotes());
+        companyLocationMapper.updateEntity(locationUpdates, dto);
         
-        CompanyLocation updatedLocation = companyLocationsService.update(id, locationUpdates, actor, resolvedOrgId);
+        CompanyLocation updatedLocation = companyLocationsService.update(id, locationUpdates, orgId);
         
         return ResponseEntity.ok(locationToMap(updatedLocation));
     }
@@ -130,10 +112,11 @@ public class CompanyLocationController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        CompanyLocation archivedLocation = companyLocationsService.archive(id, actor, resolvedOrgId);
+        CompanyLocation archivedLocation = companyLocationsService.archive(id, orgId);
         
         return ResponseEntity.ok(locationToMap(archivedLocation));
     }
@@ -144,10 +127,11 @@ public class CompanyLocationController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        CompanyLocation unarchivedLocation = companyLocationsService.unarchive(id, actor, resolvedOrgId);
+        CompanyLocation unarchivedLocation = companyLocationsService.unarchive(id, orgId);
         
         return ResponseEntity.ok(locationToMap(unarchivedLocation));
     }
@@ -159,15 +143,12 @@ public class CompanyLocationController {
         map.put("id", location.getId());
         map.put("name", location.getName());
         map.put("externalId", location.getExternalId());
-        map.put("isPrimary", location.getIsPrimary());
         map.put("addressLine1", location.getAddressLine1());
         map.put("addressLine2", location.getAddressLine2());
         map.put("city", location.getCity());
-        map.put("state", location.getState());
-        map.put("postalCode", location.getPostalCode());
+        map.put("region", location.getRegion());
+        map.put("postal", location.getPostal());
         map.put("country", location.getCountry());
-        map.put("latitude", location.getLatitude());
-        map.put("longitude", location.getLongitude());
         map.put("phone", location.getPhone());
         map.put("email", location.getEmail());
         map.put("notes", location.getNotes());
@@ -178,26 +159,4 @@ public class CompanyLocationController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

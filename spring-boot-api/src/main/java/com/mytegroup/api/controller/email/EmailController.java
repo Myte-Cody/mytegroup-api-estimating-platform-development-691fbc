@@ -1,7 +1,6 @@
 package com.mytegroup.api.controller.email;
 
 import com.mytegroup.api.dto.email.SendEmailDto;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.email.EmailService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,33 +26,10 @@ public class EmailController {
             @RequestBody @Valid SendEmailDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        
-        emailService.sendEmail(dto.getTo(), dto.getSubject(), dto.getText(), dto.getHtml());
+        emailService.sendEmail(dto.getTo(), dto.getSubject(), dto.getText());
         
         return ResponseEntity.ok(Map.of("status", "ok", "to", dto.getTo()));
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
         }
         
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
-}

@@ -8,7 +8,6 @@ import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.people.PersonRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -43,14 +42,10 @@ public class PersonsService {
      * Creates a new person
      */
     @Transactional
-    public Person create(Person person, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        
-        String orgId = person.getOrganization() != null 
-            ? person.getOrganization().getId().toString() 
-            : null;
-        orgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Person create(Person person, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         Organization org = authHelper.validateOrg(orgId);
         person.setOrganization(org);
         
@@ -101,7 +96,7 @@ public class PersonsService {
         auditLogService.log(
             "person.created",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "Person",
             savedPerson.getId().toString(),
             metadata
@@ -114,18 +109,13 @@ public class PersonsService {
      * Lists persons for an organization
      */
     @Transactional(readOnly = true)
-    public List<Person> list(ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
-        authHelper.validateOrg(resolvedOrgId);
-        
-        if (includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to include archived persons");
+    public List<Person> list(String orgId, boolean includeArchived) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
         }
+        authHelper.validateOrg(orgId);
         
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
+        Long orgIdLong = Long.parseLong(orgId);
         
         if (includeArchived) {
             return personRepository.findByOrgId(orgIdLong);
@@ -139,26 +129,22 @@ public class PersonsService {
      * Gets a person by ID
      */
     @Transactional(readOnly = true)
-    public Person getById(Long id, ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
+    public Person getById(Long id, String orgId, boolean includeArchived) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Person person = personRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Person not found"));
         
         if (person.getOrganization() == null || 
-            !person.getOrganization().getId().toString().equals(resolvedOrgId)) {
-            throw new ForbiddenException("Cannot access persons outside your organization");
+            !person.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Person not found");
         }
         
         if (person.getArchivedAt() != null && !includeArchived) {
             throw new ResourceNotFoundException("Person archived");
-        }
-        
-        if (person.getArchivedAt() != null && includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to view archived persons");
         }
         
         return person;
@@ -168,19 +154,18 @@ public class PersonsService {
      * Updates a person
      */
     @Transactional
-    public Person update(Long id, Person personUpdates, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
-        authHelper.validateOrg(resolvedOrgId);
+    public Person update(Long id, Person personUpdates, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Person person = personRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Person not found"));
         
         if (person.getOrganization() == null || 
-            !person.getOrganization().getId().toString().equals(resolvedOrgId)) {
-            throw new ForbiddenException("Cannot access persons outside your organization");
+            !person.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Person not found");
         }
         
         if (person.getArchivedAt() != null) {
@@ -256,8 +241,8 @@ public class PersonsService {
         
         auditLogService.log(
             "person.updated",
-            resolvedOrgId,
-            actor != null ? actor.getUserId() : null,
+            orgId,
+            null,
             "Person",
             savedPerson.getId().toString(),
             metadata
@@ -270,19 +255,18 @@ public class PersonsService {
      * Archives a person
      */
     @Transactional
-    public Person archive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
-        authHelper.validateOrg(resolvedOrgId);
+    public Person archive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Person person = personRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Person not found"));
         
         if (person.getOrganization() == null || 
-            !person.getOrganization().getId().toString().equals(resolvedOrgId)) {
-            throw new ForbiddenException("Cannot access persons outside your organization");
+            !person.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Person not found");
         }
         
         authHelper.ensureNotOnLegalHold(person, "archive");
@@ -299,8 +283,8 @@ public class PersonsService {
         
         auditLogService.log(
             "person.archived",
-            resolvedOrgId,
-            actor != null ? actor.getUserId() : null,
+            orgId,
+            null,
             "Person",
             savedPerson.getId().toString(),
             metadata
@@ -313,19 +297,18 @@ public class PersonsService {
      * Unarchives a person
      */
     @Transactional
-    public Person unarchive(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
-        authHelper.validateOrg(resolvedOrgId);
+    public Person unarchive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Person person = personRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Person not found"));
         
         if (person.getOrganization() == null || 
-            !person.getOrganization().getId().toString().equals(resolvedOrgId)) {
-            throw new ForbiddenException("Cannot access persons outside your organization");
+            !person.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Person not found");
         }
         
         authHelper.ensureNotOnLegalHold(person, "unarchive");
@@ -342,8 +325,8 @@ public class PersonsService {
         
         auditLogService.log(
             "person.unarchived",
-            resolvedOrgId,
-            actor != null ? actor.getUserId() : null,
+            orgId,
+            null,
             "Person",
             savedPerson.getId().toString(),
             metadata
@@ -358,14 +341,17 @@ public class PersonsService {
      * @throws BadRequestException if email is invalid
      */
     @Transactional(readOnly = true)
-    public Person findByPrimaryEmail(ActorContext actor, String orgId, String email) {
+    public Person findByPrimaryEmail(String orgId, String email) {
         String normalizedEmail = validationHelper.normalizeEmail(email);
         if (normalizedEmail == null || normalizedEmail.isEmpty()) {
             throw new BadRequestException("Email is required");
         }
         
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
+        Long orgIdLong = Long.parseLong(orgId);
         
         return personRepository.findByOrgIdAndPrimaryEmail(orgIdLong, normalizedEmail)
             .filter(p -> p.getArchivedAt() == null)

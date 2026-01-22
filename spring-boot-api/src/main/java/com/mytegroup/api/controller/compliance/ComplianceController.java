@@ -1,7 +1,6 @@
 package com.mytegroup.api.controller.compliance;
 
 import com.mytegroup.api.dto.compliance.*;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.compliance.ComplianceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -24,14 +24,11 @@ public class ComplianceController {
     @PostMapping("/strip-pii")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> stripPii(@RequestBody @Valid StripPiiDto dto) {
-        ActorContext actor = getActorContext();
-        
-        Map<String, Object> result = complianceService.stripPii(
+        complianceService.stripPii(
             dto.getEntityType(),
-            dto.getEntityId(),
-            dto.getOrgId(),
-            actor
-        );
+            Long.parseLong(dto.getEntityId()),
+            dto.getOrgId());
+        Map<String, Object> result = Map.of("status", "ok");
         
         return ResponseEntity.ok(result);
     }
@@ -39,15 +36,12 @@ public class ComplianceController {
     @PostMapping("/legal-hold")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> setLegalHold(@RequestBody @Valid SetLegalHoldDto dto) {
-        ActorContext actor = getActorContext();
-        
-        Map<String, Object> result = complianceService.setLegalHold(
+        complianceService.setLegalHold(
             dto.getEntityType(),
-            dto.getEntityId(),
+            Long.parseLong(dto.getEntityId()),
             dto.getLegalHold(),
-            dto.getOrgId(),
-            actor
-        );
+            dto.getOrgId());
+        Map<String, Object> result = Map.of("status", "ok");
         
         return ResponseEntity.ok(result);
     }
@@ -55,38 +49,14 @@ public class ComplianceController {
     @PostMapping("/batch-archive")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> batchArchive(@RequestBody @Valid BatchArchiveDto dto) {
-        ActorContext actor = getActorContext();
-        
-        Map<String, Object> result = complianceService.batchArchive(
+        List<Long> entityIds = dto.getEntityIds().stream()
+            .map(Long::parseLong)
+            .toList();
+        Map<String, Integer> result = complianceService.batchArchive(
             dto.getEntityType(),
-            dto.getEntityIds(),
-            dto.getOrgId(),
-            actor
-        );
+            entityIds,
+            dto.getOrgId());
         
         return ResponseEntity.ok(result);
-    }
-    
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
     }
 }

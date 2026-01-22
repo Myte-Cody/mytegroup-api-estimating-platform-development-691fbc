@@ -1,7 +1,7 @@
 package com.mytegroup.api.dto.sessions;
 
-import jakarta.validation.constraints.Length;
 import jakarta.validation.constraints.NotBlank;
+import org.hibernate.validator.constraints.Length;
 
 public record RevokeSessionDto(
     @NotBlank(message = "Session ID is required")

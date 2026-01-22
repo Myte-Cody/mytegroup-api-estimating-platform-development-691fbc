@@ -10,7 +10,6 @@ import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.organization.OfficeRepository;
 import com.mytegroup.api.repository.projects.ProjectRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -47,13 +46,10 @@ public class ProjectsService {
      * Creates a new project
      */
     @Transactional
-    public Project create(Project project, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
-        
-        String orgId = project.getOrganization() != null 
-            ? project.getOrganization().getId().toString() 
-            : null;
-        orgId = authHelper.resolveOrgId(orgId, actor);
+    public Project create(Project project, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         Organization org = authHelper.validateOrg(orgId);
         project.setOrganization(org);
         
@@ -103,7 +99,7 @@ public class ProjectsService {
         auditLogService.log(
             "project.created",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "Project",
             savedProject.getId().toString(),
             metadata
@@ -116,44 +112,59 @@ public class ProjectsService {
      * Lists projects for an organization
      */
     @Transactional(readOnly = true)
-    public List<Project> list(ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.PM, Role.VIEWER);
+    public Page<Project> list(String orgId, String search, String status, Boolean includeArchived, int page, int limit) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
+        Long orgIdLong = Long.parseLong(orgId);
+        Pageable pageable = PageRequest.of(page, limit);
         
-        if (includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to include archived projects");
+        Specification<Project> spec = Specification.where((root, query, cb) -> 
+            cb.equal(root.get("organization").get("id"), orgIdLong));
+        
+        if (search != null && !search.trim().isEmpty()) {
+            String searchPattern = "%" + search.trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> 
+                cb.or(
+                    cb.like(cb.lower(root.get("name")), searchPattern),
+                    cb.like(cb.lower(root.get("projectCode")), searchPattern)
+                ));
         }
         
-        if (includeArchived) {
-            return projectRepository.findByOrgId(orgIdLong);
-        } else {
-            return projectRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong, 
-                PageRequest.of(0, Integer.MAX_VALUE)).getContent();
+        if (status != null && !status.trim().isEmpty()) {
+            spec = spec.and((root, query, cb) -> 
+                cb.equal(root.get("status"), status.trim()));
         }
+        
+        if (!Boolean.TRUE.equals(includeArchived)) {
+            spec = spec.and((root, query, cb) -> cb.isNull(root.get("archivedAt")));
+        }
+        
+        return projectRepository.findAll(spec, pageable);
     }
     
     /**
      * Gets a project by ID
      */
     @Transactional(readOnly = true)
-    public Project getById(Long id, ActorContext actor, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.PM, Role.VIEWER);
+    public Project getById(Long id, String orgId, boolean includeArchived) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Project project = projectRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         
-        if (project.getOrganization() != null) {
-            authHelper.ensureOrgScope(project.getOrganization().getId().toString(), actor);
+        if (project.getOrganization() == null || 
+            !project.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Project not found");
         }
         
         if (project.getArchivedAt() != null && !includeArchived) {
             throw new ResourceNotFoundException("Project archived");
-        }
-        
-        if (project.getArchivedAt() != null && includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to view archived projects");
         }
         
         return project;
@@ -163,17 +174,19 @@ public class ProjectsService {
      * Updates a project
      */
     @Transactional
-    public Project update(Long id, Project projectUpdates, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
+    public Project update(Long id, Project projectUpdates, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Project project = projectRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         
-        if (project.getOrganization() != null) {
-            authHelper.ensureOrgScope(project.getOrganization().getId().toString(), actor);
+        if (project.getOrganization() == null || 
+            !project.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Project not found");
         }
-        
-        authHelper.validateOrg(project.getOrganization().getId().toString());
         
         if (project.getArchivedAt() != null) {
             throw new ResourceNotFoundException("Project archived");
@@ -266,7 +279,7 @@ public class ProjectsService {
         auditLogService.log(
             "project.updated",
             savedProject.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Project",
             savedProject.getId().toString(),
             metadata
@@ -279,17 +292,19 @@ public class ProjectsService {
      * Archives a project
      */
     @Transactional
-    public Project archive(Long id, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
+    public Project archive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Project project = projectRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         
-        if (project.getOrganization() != null) {
-            authHelper.ensureOrgScope(project.getOrganization().getId().toString(), actor);
+        if (project.getOrganization() == null || 
+            !project.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Project not found");
         }
-        
-        authHelper.validateOrg(project.getOrganization().getId().toString());
         authHelper.ensureNotOnLegalHold(project, "archive");
         
         if (project.getArchivedAt() != null) {
@@ -305,7 +320,7 @@ public class ProjectsService {
         auditLogService.log(
             "project.archived",
             savedProject.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Project",
             savedProject.getId().toString(),
             metadata
@@ -318,17 +333,19 @@ public class ProjectsService {
      * Unarchives a project
      */
     @Transactional
-    public Project unarchive(Long id, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
+    public Project unarchive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Project project = projectRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         
-        if (project.getOrganization() != null) {
-            authHelper.ensureOrgScope(project.getOrganization().getId().toString(), actor);
+        if (project.getOrganization() == null || 
+            !project.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Project not found");
         }
-        
-        authHelper.validateOrg(project.getOrganization().getId().toString());
         authHelper.ensureNotOnLegalHold(project, "unarchive");
         
         if (project.getArchivedAt() == null) {
@@ -351,7 +368,7 @@ public class ProjectsService {
         auditLogService.log(
             "project.unarchived",
             savedProject.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Project",
             savedProject.getId().toString(),
             metadata

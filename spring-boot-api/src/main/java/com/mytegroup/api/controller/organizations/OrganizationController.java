@@ -2,7 +2,7 @@ package com.mytegroup.api.controller.organizations;
 
 import com.mytegroup.api.dto.organizations.*;
 import com.mytegroup.api.entity.core.Organization;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.mapper.organizations.OrganizationMapper;
 import com.mytegroup.api.service.organizations.OrganizationsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,8 +10,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -37,17 +35,15 @@ import java.util.Map;
 public class OrganizationController {
 
     private final OrganizationsService organizationsService;
+    private final OrganizationMapper organizationMapper;
 
     @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> create(@RequestBody @Valid CreateOrganizationDto dto) {
-        ActorContext actor = getActorContext();
+        // Use mapper to create organization (owner/createdBy can be set later via setOwner)
+        Organization org = organizationMapper.toEntity(dto, null, null);
         
-        Organization org = new Organization();
-        org.setName(dto.getName());
-        org.setPrimaryDomain(dto.getPrimaryDomain());
-        
-        Organization savedOrg = organizationsService.create(org, actor);
+        Organization savedOrg = organizationsService.create(org);
         
         return ResponseEntity.status(HttpStatus.CREATED).body(orgToMap(savedOrg));
     }
@@ -59,9 +55,7 @@ public class OrganizationController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
-        ActorContext actor = getActorContext();
-        
-        Page<Organization> orgs = organizationsService.list(actor, includeArchived, page, limit);
+        Page<Organization> orgs = organizationsService.list(null, includeArchived, null, null, null, page, limit);
         
         Map<String, Object> response = new HashMap<>();
         response.put("data", orgs.getContent().stream().map(this::orgToMap).toList());
@@ -78,9 +72,10 @@ public class OrganizationController {
             @PathVariable Long id,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
-        ActorContext actor = getActorContext();
-        
-        Organization org = organizationsService.getById(id, actor, includeArchived);
+        Organization org = organizationsService.findById(id);
+        if (!includeArchived && org.getArchivedAt() != null) {
+            throw new com.mytegroup.api.exception.ResourceNotFoundException("Organization not found");
+        }
         
         return ResponseEntity.ok(orgToMap(org));
     }
@@ -91,13 +86,11 @@ public class OrganizationController {
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationDto dto) {
         
-        ActorContext actor = getActorContext();
-        
+        // Create an Organization object with updates using mapper
         Organization orgUpdates = new Organization();
-        orgUpdates.setName(dto.getName());
-        orgUpdates.setPrimaryDomain(dto.getPrimaryDomain());
+        organizationMapper.updateEntity(orgUpdates, dto);
         
-        Organization updatedOrg = organizationsService.update(id, orgUpdates, actor);
+        Organization updatedOrg = organizationsService.update(id, orgUpdates);
         
         return ResponseEntity.ok(orgToMap(updatedOrg));
     }
@@ -105,9 +98,7 @@ public class OrganizationController {
     @PatchMapping("/{id}/archive")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> archive(@PathVariable Long id) {
-        ActorContext actor = getActorContext();
-        
-        Organization archivedOrg = organizationsService.archive(id, actor);
+        Organization archivedOrg = organizationsService.archive(id);
         
         return ResponseEntity.ok(orgToMap(archivedOrg));
     }
@@ -115,9 +106,7 @@ public class OrganizationController {
     @PatchMapping("/{id}/unarchive")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<?> unarchive(@PathVariable Long id) {
-        ActorContext actor = getActorContext();
-        
-        Organization unarchivedOrg = organizationsService.unarchive(id, actor);
+        Organization unarchivedOrg = organizationsService.unarchive(id);
         
         return ResponseEntity.ok(orgToMap(unarchivedOrg));
     }
@@ -128,9 +117,25 @@ public class OrganizationController {
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationDatastoreDto dto) {
         
-        ActorContext actor = getActorContext();
+        // Create Organization object with datastore updates
+        Organization datastoreUpdates = new Organization();
+        if (dto.type() != null) {
+            datastoreUpdates.setDatastoreType(dto.type());
+        }
+        if (dto.databaseUri() != null) {
+            datastoreUpdates.setDatabaseUri(dto.databaseUri());
+        }
+        if (dto.databaseName() != null) {
+            datastoreUpdates.setDatabaseName(dto.databaseName());
+        }
+        if (dto.dataResidency() != null) {
+            datastoreUpdates.setDataResidency(dto.dataResidency());
+        }
+        if (dto.useDedicatedDb() != null) {
+            datastoreUpdates.setUseDedicatedDb(dto.useDedicatedDb());
+        }
         
-        Organization updatedOrg = organizationsService.updateDatastore(id, dto.getDatastoreType(), dto.getDatastoreConfig(), actor);
+        Organization updatedOrg = organizationsService.updateDatastore(id, datastoreUpdates);
         
         return ResponseEntity.ok(orgToMap(updatedOrg));
     }
@@ -141,9 +146,7 @@ public class OrganizationController {
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationLegalHoldDto dto) {
         
-        ActorContext actor = getActorContext();
-        
-        Organization updatedOrg = organizationsService.setLegalHold(id, dto.getLegalHold(), actor);
+        Organization updatedOrg = organizationsService.setLegalHold(id, dto.legalHold());
         
         return ResponseEntity.ok(orgToMap(updatedOrg));
     }
@@ -154,9 +157,7 @@ public class OrganizationController {
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationPiiDto dto) {
         
-        ActorContext actor = getActorContext();
-        
-        Organization updatedOrg = organizationsService.stripPii(id, actor);
+        Organization updatedOrg = organizationsService.setPiiStripped(id, dto.piiStripped());
         
         return ResponseEntity.ok(orgToMap(updatedOrg));
     }
@@ -169,8 +170,12 @@ public class OrganizationController {
         map.put("name", org.getName());
         map.put("primaryDomain", org.getPrimaryDomain());
         map.put("datastoreType", org.getDatastoreType() != null ? org.getDatastoreType().getValue() : null);
-        map.put("datastoreConfig", org.getDatastoreConfig());
-        map.put("ownerId", org.getOwner() != null ? org.getOwner().getId() : null);
+        // datastoreConfig doesn't exist as a field - using databaseUri and databaseName instead
+        Map<String, Object> datastoreConfig = new HashMap<>();
+        datastoreConfig.put("databaseUri", org.getDatabaseUri());
+        datastoreConfig.put("databaseName", org.getDatabaseName());
+        map.put("datastoreConfig", datastoreConfig);
+        map.put("ownerId", org.getOwnerUser() != null ? org.getOwnerUser().getId() : null);
         map.put("piiStripped", org.getPiiStripped());
         map.put("legalHold", org.getLegalHold());
         map.put("archivedAt", org.getArchivedAt());
@@ -179,26 +184,4 @@ public class OrganizationController {
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

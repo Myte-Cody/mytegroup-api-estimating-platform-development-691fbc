@@ -3,7 +3,6 @@ package com.mytegroup.api.service.rbac;
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.exception.BadRequestException;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.RoleExpansionHelper;
 import com.mytegroup.api.service.users.UsersService;
 import lombok.RequiredArgsConstructor;
@@ -44,41 +43,39 @@ public class RbacService {
      * Gets roles for a user
      */
     @Transactional(readOnly = true)
-    public User getUserRoles(Long userId, ActorContext actor) {
-        return usersService.getById(userId, actor, false);
+    public User getUserRoles(Long userId) {
+        return usersService.getById(userId, false);
     }
     
     /**
      * Lists user roles for an organization
      */
     @Transactional(readOnly = true)
-    public List<User> listUserRoles(String orgId, ActorContext actor) {
-        return usersService.list(actor, orgId, false);
+    public List<User> listUserRoles(String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        return usersService.list(orgId, false);
     }
     
     /**
      * Updates user roles
      */
     @Transactional
-    public User updateUserRoles(Long userId, List<Role> roles, ActorContext actor) {
+    public User updateUserRoles(Long userId, List<Role> roles) {
         if (roles == null || roles.isEmpty()) {
             throw new BadRequestException("At least one role is required");
         }
         
-        User user = usersService.getById(userId, actor, false);
-        
-        // TODO: Implement role update logic in UsersService
-        // This requires updating the user's roles list and primary role
-        
-        return user;
+        return usersService.updateRoles(userId, roles);
     }
     
     /**
      * Revokes a specific role from a user
      */
     @Transactional
-    public User revokeRole(Long userId, Role role, ActorContext actor) {
-        User user = getUserRoles(userId, actor);
+    public User revokeRole(Long userId, Role role) {
+        User user = getUserRoles(userId);
         
         List<Role> currentRoles = user.getRoles();
         if (currentRoles == null || currentRoles.isEmpty()) {
@@ -93,7 +90,7 @@ public class RbacService {
             throw new BadRequestException("User must retain at least one role");
         }
         
-        return updateUserRoles(userId, remaining, actor);
+        return updateUserRoles(userId, remaining);
     }
 }
 

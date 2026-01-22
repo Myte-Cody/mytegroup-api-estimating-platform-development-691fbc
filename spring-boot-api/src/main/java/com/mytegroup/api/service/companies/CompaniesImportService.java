@@ -4,9 +4,9 @@ import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.companies.CompanyLocation;
 import com.mytegroup.api.exception.BadRequestException;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
+import com.mytegroup.api.service.companylocations.CompanyLocationsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,9 +35,11 @@ public class CompaniesImportService {
      * Previews import rows
      */
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> previewRows(ActorContext actor, String orgId, List<Map<String, String>> rows) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public List<Map<String, Object>> previewRows(String orgId, List<Map<String, String>> rows) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         // TODO: Implement row preview logic
         // This requires parsing rows, matching against existing companies, and suggesting actions
@@ -61,9 +63,11 @@ public class CompaniesImportService {
      * Confirms and imports rows
      */
     @Transactional
-    public Map<String, Object> confirmImport(ActorContext actor, String orgId, List<Map<String, Object>> confirmedRows) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Map<String, Object> confirmImport(String orgId, List<Map<String, Object>> confirmedRows) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         // TODO: Implement import confirmation logic
         // This requires creating/updating companies and locations based on confirmed rows
@@ -119,7 +123,7 @@ public class CompaniesImportService {
         auditLogService.log(
             "companies.import_completed",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "CompaniesImport",
             null,
             metadata

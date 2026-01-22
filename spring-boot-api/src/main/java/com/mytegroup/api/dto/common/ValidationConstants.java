@@ -6,6 +6,8 @@ public class ValidationConstants {
     public static final String VERIFICATION_CODE_REGEX = "^\\d{6}$";
     public static final String SNAKE_CASE_KEY_REGEX = "^[a-z0-9_]+$";
     
+    public static final String PHONE_REGEX_MESSAGE = "Phone must be in E.164 format (e.g., +1234567890)";
+    
     private ValidationConstants() {
         // Utility class
     }

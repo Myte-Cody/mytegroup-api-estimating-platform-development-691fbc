@@ -46,7 +46,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         long startTime = System.currentTimeMillis();
         
         // Wrap request and response to allow reading body multiple times
-        ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request);
+        // ContentCachingRequestWrapper in Spring Boot 4.0 requires contentCacheLimit parameter
+        ContentCachingRequestWrapper wrappedRequest = new ContentCachingRequestWrapper(request, 1024 * 1024); // 1MB cache limit
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
 
         String errorMessage = null;

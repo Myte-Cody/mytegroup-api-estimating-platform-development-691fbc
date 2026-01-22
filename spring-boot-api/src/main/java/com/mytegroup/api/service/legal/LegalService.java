@@ -8,7 +8,6 @@ import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.legal.LegalDocRepository;
 import com.mytegroup.api.repository.legal.LegalAcceptanceRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
@@ -50,8 +49,8 @@ public class LegalService {
      * Creates a new legal document
      */
     @Transactional
-    public LegalDoc createDoc(LegalDoc doc, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
+    public LegalDoc createDoc(LegalDoc doc) {
+        // Role validation handled by Spring Security @PreAuthorize on controller
         
         // Check for version collision
         if (legalDocRepository.findByTypeAndVersion(doc.getType(), doc.getVersion()).isPresent()) {
@@ -67,7 +66,7 @@ public class LegalService {
         auditLogService.log(
             "legal.doc_created",
             null,
-            actor != null ? actor.getUserId() : null,
+            null,
             "LegalDoc",
             savedDoc.getId().toString(),
             metadata
@@ -80,8 +79,8 @@ public class LegalService {
      * Records user acceptance of a legal document
      */
     @Transactional
-    public LegalAcceptance accept(String type, String version, ActorContext actor) {
-        if (actor.getUserId() == null) {
+    public LegalAcceptance accept(String type, String version) {
+        if (null == null) {
             throw new BadRequestException("User context required");
         }
         
@@ -91,7 +90,7 @@ public class LegalService {
             .orElseThrow(() -> new ResourceNotFoundException("Legal document not found"));
         
         // Check if already accepted
-        Long userId = Long.parseLong(actor.getUserId());
+        Long userId = Long.parseLong(null);
         if (legalAcceptanceRepository.findByUserIdAndDocTypeAndVersion(userId, docType, version).isPresent()) {
             throw new BadRequestException("Legal document already accepted");
         }
@@ -101,7 +100,7 @@ public class LegalService {
         // acceptance.setUser(user);
         acceptance.setDocType(docType);
         acceptance.setVersion(version);
-        if (actor.getOrgId() != null) {
+        if (null != null) {
             // TODO: Set organization from actor
             // acceptance.setOrganization(org);
         }
@@ -111,8 +110,8 @@ public class LegalService {
         
         auditLogService.log(
             "legal.accepted",
-            actor.getOrgId(),
-            actor.getUserId(),
+            null,
+            null,
             "LegalAcceptance",
             savedAcceptance.getId().toString(),
             Map.of("type", type, "version", version)

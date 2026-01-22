@@ -10,7 +10,6 @@ import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.projects.EstimateRepository;
 import com.mytegroup.api.repository.projects.ProjectRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
@@ -41,21 +40,25 @@ public class EstimatesService {
      * Creates a new estimate
      */
     @Transactional
-    public Estimate create(Estimate estimate, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.ESTIMATOR);
-        
-        if (estimate.getProject() == null || estimate.getProject().getId() == null) {
-            throw new BadRequestException("Project is required");
+    public Estimate create(Estimate estimate, Long projectId, String orgId) {
+        if (projectId == null) {
+            throw new BadRequestException("Project ID is required");
         }
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
-        Project project = projectRepository.findById(estimate.getProject().getId())
+        Project project = projectRepository.findById(projectId)
             .orElseThrow(() -> new ResourceNotFoundException("Project not found"));
         
-        if (project.getOrganization() != null) {
-            authHelper.ensureOrgScope(project.getOrganization().getId().toString(), actor);
+        if (project.getOrganization() == null || 
+            !project.getOrganization().getId().toString().equals(orgId)) {
+            throw new ResourceNotFoundException("Project not found");
         }
         
         estimate.setProject(project);
+        
         estimate.setOrganization(project.getOrganization());
         
         // Validate name
@@ -63,9 +66,7 @@ public class EstimatesService {
             throw new BadRequestException("Estimate name is required");
         }
         
-        // Check for name collision within project
-        String orgId = project.getOrganization().getId().toString();
-        Long orgIdLong = project.getOrganization().getId();
+        Long orgIdLong = Long.parseLong(orgId);
         if (estimateRepository.findByOrgIdAndProjectIdAndName(orgIdLong, project.getId(), estimate.getName())
             .filter(e -> e.getArchivedAt() == null)
             .isPresent()) {
@@ -83,7 +84,7 @@ public class EstimatesService {
         auditLogService.log(
             "estimate.created",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "Estimate",
             savedEstimate.getId().toString(),
             metadata
@@ -96,20 +97,23 @@ public class EstimatesService {
      * Lists estimates for a project
      */
     @Transactional(readOnly = true)
-    public List<Estimate> list(ActorContext actor, String orgId, Long projectId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.ESTIMATOR, Role.VIEWER);
+    public List<Estimate> listByProject(Long projectId, String orgId, Boolean includeArchived) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
+        Long orgIdLong = Long.parseLong(orgId);
         
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
-        
-        if (includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to include archived estimates");
+        if (includeArchived == null) {
+            includeArchived = false;
         }
         
-        if (includeArchived) {
-            return estimateRepository.findByOrgIdAndProjectId(orgIdLong, projectId);
+        if (Boolean.TRUE.equals(includeArchived)) {
+            // Filter by orgId manually since repository doesn't have this method
+            return estimateRepository.findByProjectId(projectId).stream()
+                .filter(e -> e.getOrganization() != null && e.getOrganization().getId().equals(orgIdLong))
+                .toList();
         } else {
             return estimateRepository.findByOrgIdAndProjectIdAndArchivedAtIsNull(orgIdLong, projectId);
         }
@@ -119,18 +123,26 @@ public class EstimatesService {
      * Gets an estimate by ID
      */
     @Transactional(readOnly = true)
-    public Estimate getById(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.ESTIMATOR, Role.VIEWER);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
+    public Estimate getById(Long id, Long projectId, String orgId, boolean includeArchived) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Estimate estimate = estimateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Estimate not found"));
         
         if (estimate.getOrganization() == null || 
-            !estimate.getOrganization().getId().toString().equals(resolvedOrgId)) {
+            !estimate.getOrganization().getId().toString().equals(orgId)) {
             throw new ForbiddenException("Cannot access estimate outside your organization");
+        }
+        
+        if (estimate.getProject() == null || !estimate.getProject().getId().equals(projectId)) {
+            throw new ResourceNotFoundException("Estimate not found for this project");
+        }
+        
+        if (!includeArchived && estimate.getArchivedAt() != null) {
+            throw new ResourceNotFoundException("Estimate not found");
         }
         
         return estimate;
@@ -140,14 +152,22 @@ public class EstimatesService {
      * Updates an estimate
      */
     @Transactional
-    public Estimate update(Long id, Estimate estimateUpdates, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.ESTIMATOR);
+    public Estimate update(Long id, Long projectId, Estimate estimateUpdates, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Estimate estimate = estimateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Estimate not found"));
         
-        if (estimate.getOrganization() != null) {
-            authHelper.ensureOrgScope(estimate.getOrganization().getId().toString(), actor);
+        if (estimate.getOrganization() == null || 
+            !estimate.getOrganization().getId().toString().equals(orgId)) {
+            throw new ForbiddenException("Cannot update estimate outside your organization");
+        }
+        
+        if (estimate.getProject() == null || !estimate.getProject().getId().equals(projectId)) {
+            throw new ResourceNotFoundException("Estimate not found for this project");
         }
         
         authHelper.ensureNotOnLegalHold(estimate, "update");
@@ -155,8 +175,8 @@ public class EstimatesService {
         // Update name with collision check
         if (estimateUpdates.getName() != null && !estimateUpdates.getName().equals(estimate.getName())) {
             Long orgIdLong = estimate.getOrganization().getId();
-            Long projectId = estimate.getProject().getId();
-            if (estimateRepository.findByOrgIdAndProjectIdAndName(orgIdLong, projectId, estimateUpdates.getName())
+            Long existingProjectId = estimate.getProject().getId();
+            if (estimateRepository.findByOrgIdAndProjectIdAndName(orgIdLong, existingProjectId, estimateUpdates.getName())
                 .filter(e -> !e.getId().equals(id) && e.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Estimate name already exists for this project");
@@ -189,7 +209,7 @@ public class EstimatesService {
         auditLogService.log(
             "estimate.updated",
             savedEstimate.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Estimate",
             savedEstimate.getId().toString(),
             metadata
@@ -202,14 +222,18 @@ public class EstimatesService {
      * Archives an estimate
      */
     @Transactional
-    public Estimate archive(Long id, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
+    public Estimate archive(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Estimate estimate = estimateRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Estimate not found"));
         
-        if (estimate.getOrganization() != null) {
-            authHelper.ensureOrgScope(estimate.getOrganization().getId().toString(), actor);
+        if (estimate.getOrganization() == null || 
+            !estimate.getOrganization().getId().toString().equals(orgId)) {
+            throw new ForbiddenException("Cannot archive estimate outside your organization");
         }
         
         authHelper.ensureNotOnLegalHold(estimate, "archive");
@@ -227,7 +251,7 @@ public class EstimatesService {
         auditLogService.log(
             "estimate.archived",
             savedEstimate.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Estimate",
             savedEstimate.getId().toString(),
             metadata

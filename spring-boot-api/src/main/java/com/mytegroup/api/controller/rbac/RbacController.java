@@ -3,7 +3,6 @@ package com.mytegroup.api.controller.rbac;
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.dto.users.UpdateUserRolesDto;
 import com.mytegroup.api.entity.core.User;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.RoleExpansionHelper;
 import com.mytegroup.api.service.rbac.RbacService;
 import com.mytegroup.api.service.users.UsersService;
@@ -30,8 +29,8 @@ public class RbacController {
 
     @GetMapping("/roles")
     public ResponseEntity<?> listRoles() {
-        List<Map<String, Object>> roles = rbacService.listRoles();
-        return ResponseEntity.ok(roles);
+        Map<String, Object> hierarchy = rbacService.hierarchy();
+        return ResponseEntity.ok(hierarchy);
     }
 
     @GetMapping("/roles/{role}/hierarchy")
@@ -57,10 +56,7 @@ public class RbacController {
             @RequestBody @Valid UpdateUserRolesDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        User updatedUser = usersService.updateRoles(userId, dto.getRoles(), actor);
+        User updatedUser = rbacService.updateUserRoles(userId, dto.getRoles());
         
         Map<String, Object> response = new HashMap<>();
         response.put("id", updatedUser.getId());
@@ -68,28 +64,5 @@ public class RbacController {
         response.put("roles", updatedUser.getRoles().stream().map(Role::getValue).toList());
         
         return ResponseEntity.ok(response);
-    }
-    
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
     }
 }

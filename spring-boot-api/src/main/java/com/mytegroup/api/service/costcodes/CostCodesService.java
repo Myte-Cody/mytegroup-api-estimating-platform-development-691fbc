@@ -8,7 +8,6 @@ import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.cost.CostCodeRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
@@ -42,18 +41,14 @@ public class CostCodesService {
      * Creates a new cost code
      */
     @Transactional
-    public CostCode create(CostCode costCode, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN, Role.ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN);
-        
-        if (orgId == null && actor.getOrgId() == null) {
-            throw new BadRequestException("Missing organization context");
+    public CostCode create(CostCode costCode, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
         }
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
-        Organization org = authHelper.validateOrg(resolvedOrgId);
+        Organization org = authHelper.validateOrg(orgId);
         costCode.setOrganization(org);
         
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
+        Long orgIdLong = Long.parseLong(orgId);
         
         // Validate required fields
         if (costCode.getCategory() == null || costCode.getCategory().trim().isEmpty()) {
@@ -89,8 +84,8 @@ public class CostCodesService {
         
         auditLogService.log(
             "cost_code.created",
-            resolvedOrgId,
-            actor != null ? actor.getUserId() : null,
+            orgId,
+            null, // userId will be set when sessions are implemented
             "CostCode",
             savedCostCode.getId().toString(),
             metadata
@@ -103,45 +98,49 @@ public class CostCodesService {
      * Lists cost codes for an organization
      */
     @Transactional(readOnly = true)
-    public List<CostCode> list(ActorContext actor, String orgId, Boolean active, String category, String q) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN, Role.ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN);
-        
-        if (orgId == null && actor.getOrgId() == null) {
-            throw new BadRequestException("Missing organization context");
+    public Page<CostCode> list(String orgId, String q, Boolean activeOnly, int page, int limit) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
         }
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        authHelper.ensureOrgScope(resolvedOrgId, actor);
+        authHelper.validateOrg(orgId);
         
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
+        Long orgIdLong = Long.parseLong(orgId);
+        Specification<CostCode> spec = Specification.where(
+            (root, query, cb) -> cb.equal(root.get("organization").get("id"), orgIdLong)
+        );
         
-        if (active != null) {
-            return costCodeRepository.findByOrgIdAndActive(orgIdLong, active);
-        }
-        if (category != null && !category.trim().isEmpty()) {
-            return costCodeRepository.findByOrgIdAndCategory(orgIdLong, category);
+        if (activeOnly != null && activeOnly) {
+            spec = spec.and((root, query, cb) -> cb.isTrue(root.get("active")));
         }
         
-        // TODO: Implement search query (q parameter) - requires Specification or custom query
-        return costCodeRepository.findByOrgId(orgIdLong);
+        if (q != null && !q.trim().isEmpty()) {
+            String searchPattern = "%" + q.toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> 
+                cb.or(
+                    cb.like(cb.lower(root.get("code")), searchPattern),
+                    cb.like(cb.lower(root.get("description")), searchPattern),
+                    cb.like(cb.lower(root.get("category")), searchPattern)
+                )
+            );
+        }
+        
+        int safeLimit = Math.min(Math.max(limit, 1), 100);
+        int safePage = Math.max(page, 0);
+        Pageable pageable = PageRequest.of(safePage, safeLimit);
+        
+        return costCodeRepository.findAll(spec, pageable);
     }
     
     /**
      * Gets a cost code by ID
      */
     @Transactional(readOnly = true)
-    public CostCode getById(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN, Role.ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN);
-        
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        if (resolvedOrgId != null) {
-            authHelper.ensureOrgScope(resolvedOrgId, actor);
-        }
-        
+    public CostCode getById(Long id, String orgId) {
         CostCode costCode = costCodeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Cost code not found"));
         
-        if (resolvedOrgId != null && costCode.getOrganization() != null && 
-            !costCode.getOrganization().getId().toString().equals(resolvedOrgId)) {
+        if (orgId != null && costCode.getOrganization() != null && 
+            !costCode.getOrganization().getId().toString().equals(orgId)) {
             throw new ForbiddenException("Cannot access cost codes outside your organization");
         }
         
@@ -152,19 +151,17 @@ public class CostCodesService {
      * Updates a cost code
      */
     @Transactional
-    public CostCode update(Long id, CostCode costCodeUpdates, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN, Role.ADMIN, Role.ORG_OWNER, Role.ORG_ADMIN);
-        
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        if (resolvedOrgId != null) {
-            authHelper.ensureOrgScope(resolvedOrgId, actor);
+    public CostCode update(Long id, CostCode costCodeUpdates, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
         }
+        authHelper.validateOrg(orgId);
         
         CostCode costCode = costCodeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Cost code not found"));
         
-        if (resolvedOrgId != null && costCode.getOrganization() != null && 
-            !costCode.getOrganization().getId().toString().equals(resolvedOrgId)) {
+        if (costCode.getOrganization() != null && 
+            !costCode.getOrganization().getId().toString().equals(orgId)) {
             throw new ForbiddenException("Cannot access cost codes outside your organization");
         }
         
@@ -204,8 +201,8 @@ public class CostCodesService {
         
         auditLogService.log(
             "cost_code.updated",
-            resolvedOrgId != null ? resolvedOrgId : savedCostCode.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            orgId,
+            null, // userId will be set when sessions are implemented
             "CostCode",
             savedCostCode.getId().toString(),
             metadata
@@ -218,8 +215,8 @@ public class CostCodesService {
      * Toggles cost code active status
      */
     @Transactional
-    public CostCode toggleActive(Long id, boolean active, ActorContext actor, String orgId) {
-        CostCode costCode = getById(id, actor, orgId);
+    public CostCode toggleActive(Long id, boolean active, String orgId) {
+        CostCode costCode = getById(id, orgId);
         costCode.setActive(active);
         if (!active) {
             costCode.setDeactivatedAt(LocalDateTime.now());
@@ -234,8 +231,8 @@ public class CostCodesService {
         
         auditLogService.log(
             "cost_code.toggled",
-            orgId != null ? orgId : savedCostCode.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            orgId,
+            null, // userId will be set when sessions are implemented
             "CostCode",
             savedCostCode.getId().toString(),
             metadata

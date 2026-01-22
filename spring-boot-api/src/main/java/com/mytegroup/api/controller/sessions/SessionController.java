@@ -1,8 +1,6 @@
 package com.mytegroup.api.controller.sessions;
 
 import com.mytegroup.api.dto.sessions.RevokeSessionDto;
-import com.mytegroup.api.entity.core.Session;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.sessions.SessionsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/sessions")
@@ -26,13 +25,18 @@ public class SessionController {
 
     @GetMapping
     public ResponseEntity<?> list(@RequestParam(required = false) String orgId) {
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        // TODO: Get userId from session when sessions are implemented
+        Set<Object> sessionIds = sessionsService.listUserSessions(null);
         
-        List<Session> sessions = sessionsService.listForUser(actor, resolvedOrgId);
-        
-        List<Map<String, Object>> response = sessions.stream()
-            .map(this::sessionToMap)
+        List<Map<String, Object>> response = sessionIds.stream()
+            .map(sessionId -> {
+                Map<String, Object> map = new HashMap<>();
+                map.put("id", sessionId);
+                return map;
+            })
             .toList();
         
         return ResponseEntity.ok(response);
@@ -43,57 +47,23 @@ public class SessionController {
             @RequestBody @Valid RevokeSessionDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        sessionsService.revoke(Long.parseLong(dto.getSessionId()), actor, resolvedOrgId);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        // TODO: Get userId from session when sessions are implemented
+        sessionsService.removeSession(dto.sessionId(), null);
         
         return ResponseEntity.ok(Map.of("status", "ok"));
     }
     
     @PostMapping("/revoke-all")
     public ResponseEntity<?> revokeAll(@RequestParam(required = false) String orgId) {
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        int revokedCount = sessionsService.revokeAllForUser(actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(Map.of("status", "ok", "revoked", revokedCount));
-    }
-    
-    // Helper methods
-    
-    private Map<String, Object> sessionToMap(Session session) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", session.getId());
-        map.put("userId", session.getUser() != null ? session.getUser().getId() : null);
-        map.put("isRevoked", session.getIsRevoked());
-        map.put("expiresAt", session.getExpiresAt());
-        map.put("createdAt", session.getCreatedAt());
-        map.put("updatedAt", session.getUpdatedAt());
-        return map;
-    }
-    
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
         }
+        // TODO: Get userId from session when sessions are implemented
+        sessionsService.removeAllUserSessions(null);
         
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
+        return ResponseEntity.ok(Map.of("status", "ok"));
     }
 }

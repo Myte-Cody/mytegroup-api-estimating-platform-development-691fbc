@@ -1,8 +1,10 @@
 package com.mytegroup.api.controller.costcodes;
 
 import com.mytegroup.api.dto.costcodes.*;
-import com.mytegroup.api.entity.projects.CostCode;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.entity.cost.CostCode;
+import com.mytegroup.api.mapper.costcodes.CostCodeMapper;
+import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.costcodes.CostCodesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,8 +12,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +26,8 @@ import java.util.Map;
 public class CostCodeController {
 
     private final CostCodesService costCodesService;
+    private final CostCodeMapper costCodeMapper;
+    private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     public ResponseEntity<?> list(
@@ -35,10 +37,11 @@ public class CostCodeController {
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "100") int limit) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        Page<CostCode> costCodes = costCodesService.list(actor, resolvedOrgId, q, activeOnly, page, limit);
+        Page<CostCode> costCodes = costCodesService.list(orgId, q, activeOnly, page, limit);
         
         Map<String, Object> response = new HashMap<>();
         response.put("data", costCodes.getContent().stream().map(this::costCodeToMap).toList());
@@ -55,17 +58,15 @@ public class CostCodeController {
             @RequestBody @Valid CreateCostCodeDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        CostCode costCode = new CostCode();
-        costCode.setCode(dto.getCode());
-        costCode.setLabel(dto.getLabel());
-        costCode.setDescription(dto.getDescription());
-        costCode.setCategory(dto.getCategory());
-        costCode.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
+        // Get organization for mapper
+        Organization organization = authHelper.validateOrg(orgId);
+        CostCode costCode = costCodeMapper.toEntity(dto, organization);
         
-        CostCode savedCostCode = costCodesService.create(costCode, actor, resolvedOrgId);
+        CostCode savedCostCode = costCodesService.create(costCode, orgId);
         
         return ResponseEntity.status(HttpStatus.CREATED).body(costCodeToMap(savedCostCode));
     }
@@ -75,10 +76,7 @@ public class CostCodeController {
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        CostCode costCode = costCodesService.getById(id, actor, resolvedOrgId);
+        CostCode costCode = costCodesService.getById(id, orgId);
         
         return ResponseEntity.ok(costCodeToMap(costCode));
     }
@@ -90,17 +88,15 @@ public class CostCodeController {
             @RequestBody @Valid UpdateCostCodeDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
+        // Create a CostCode object with updates using mapper
         CostCode costCodeUpdates = new CostCode();
-        costCodeUpdates.setCode(dto.getCode());
-        costCodeUpdates.setLabel(dto.getLabel());
-        costCodeUpdates.setDescription(dto.getDescription());
-        costCodeUpdates.setCategory(dto.getCategory());
-        costCodeUpdates.setIsActive(dto.getIsActive());
+        costCodeMapper.updateEntity(costCodeUpdates, dto);
         
-        CostCode updatedCostCode = costCodesService.update(id, costCodeUpdates, actor, resolvedOrgId);
+        CostCode updatedCostCode = costCodesService.update(id, costCodeUpdates, orgId);
         
         return ResponseEntity.ok(costCodeToMap(updatedCostCode));
     }
@@ -112,10 +108,11 @@ public class CostCodeController {
             @RequestBody @Valid ToggleCostCodeDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        CostCode toggledCostCode = costCodesService.toggle(id, dto.getIsActive(), actor, resolvedOrgId);
+        CostCode toggledCostCode = costCodesService.toggleActive(id, dto.active(), orgId);
         
         return ResponseEntity.ok(costCodeToMap(toggledCostCode));
     }
@@ -126,16 +123,12 @@ public class CostCodeController {
             @RequestBody @Valid BulkCostCodesDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        List<CostCode> costCodes = costCodesService.bulkCreate(dto.getCostCodes(), actor, resolvedOrgId);
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("created", costCodes.size());
-        response.put("data", costCodes.stream().map(this::costCodeToMap).toList());
-        
-        return ResponseEntity.ok(response);
+        // TODO: Implement bulkCreate method in service
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(Map.of("error", "Bulk create not yet implemented"));
     }
 
     @PostMapping("/seed")
@@ -144,16 +137,12 @@ public class CostCodeController {
             @RequestBody @Valid SeedCostCodesDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        List<CostCode> seededCostCodes = costCodesService.seedDefaults(actor, resolvedOrgId, dto.getTemplateId());
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("seeded", seededCostCodes.size());
-        response.put("data", seededCostCodes.stream().map(this::costCodeToMap).toList());
-        
-        return ResponseEntity.ok(response);
+        // TODO: Implement seedDefaults method in service
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(Map.of("error", "Seed defaults not yet implemented"));
     }
 
     @PostMapping("/import/preview")
@@ -162,12 +151,12 @@ public class CostCodeController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        Map<String, Object> preview = costCodesService.importPreview(file, actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(preview);
+        // TODO: Implement importPreview method in service
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(Map.of("error", "Import preview not yet implemented"));
     }
 
     @PostMapping("/import/commit")
@@ -176,12 +165,12 @@ public class CostCodeController {
             @RequestBody @Valid CostCodeImportCommitDto dto,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
+        if (orgId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+        }
         
-        Map<String, Object> result = costCodesService.importCommit(dto.getPreviewId(), dto.getConfirmedRows(), actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(result);
+        // TODO: Implement importCommit method in service
+        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).body(Map.of("error", "Import commit not yet implemented"));
     }
     
     // Helper methods
@@ -190,38 +179,14 @@ public class CostCodeController {
         Map<String, Object> map = new HashMap<>();
         map.put("id", costCode.getId());
         map.put("code", costCode.getCode());
-        map.put("label", costCode.getLabel());
         map.put("description", costCode.getDescription());
         map.put("category", costCode.getCategory());
-        map.put("isActive", costCode.getIsActive());
-        map.put("piiStripped", costCode.getPiiStripped());
-        map.put("legalHold", costCode.getLegalHold());
+        map.put("active", costCode.getActive());
+        map.put("isUsed", costCode.getIsUsed());
         map.put("orgId", costCode.getOrganization() != null ? costCode.getOrganization().getId() : null);
         map.put("createdAt", costCode.getCreatedAt());
         map.put("updatedAt", costCode.getUpdatedAt());
         return map;
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

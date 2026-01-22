@@ -10,7 +10,6 @@ import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.core.OrganizationRepository;
 import com.mytegroup.api.repository.core.UserRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
@@ -62,7 +61,7 @@ public class OrganizationsService {
      * Creates a new organization
      */
     @Transactional
-    public Organization create(Organization organization, ActorContext actor) {
+    public Organization create(Organization organization) {
         // Check for name collision
         if (organizationRepository.findByName(organization.getName()).isPresent()) {
             throw new ConflictException("Organization name already in use");
@@ -118,7 +117,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.created",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Organization",
             savedOrg.getId().toString(),
             metadata
@@ -134,7 +133,7 @@ public class OrganizationsService {
      * Sets the owner of an organization
      */
     @Transactional
-    public Organization setOwner(Long orgId, Long userId, ActorContext actor) {
+    public Organization setOwner(Long orgId, Long userId) {
         Organization org = getOrgOrThrow(orgId);
         authHelper.ensureNotOnLegalHold(org, "set owner");
         
@@ -153,7 +152,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.owner_assigned",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Organization",
             savedOrg.getId().toString(),
             metadata
@@ -166,7 +165,7 @@ public class OrganizationsService {
      * Updates an organization
      */
     @Transactional
-    public Organization update(Long id, Organization organizationUpdates, ActorContext actor) {
+    public Organization update(Long id, Organization organizationUpdates) {
         Organization org = getOrgOrThrow(id);
         authHelper.ensureNotOnLegalHold(org, "update");
         
@@ -191,7 +190,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.updated",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Organization",
             savedOrg.getId().toString(),
             metadata
@@ -204,7 +203,7 @@ public class OrganizationsService {
      * Updates organization datastore configuration
      */
     @Transactional
-    public Organization updateDatastore(Long id, Organization datastoreUpdates, ActorContext actor) {
+    public Organization updateDatastore(Long id, Organization datastoreUpdates) {
         Organization org = getOrgOrThrow(id);
         authHelper.ensureNotOnLegalHold(org, "update datastore");
         
@@ -256,7 +255,7 @@ public class OrganizationsService {
         historyEntry.put("toType", targetType.getValue());
         historyEntry.put("fromUri", before.get("databaseUri"));
         historyEntry.put("toUri", org.getDatabaseUri());
-        historyEntry.put("actorId", actor != null ? actor.getUserId() : null);
+        historyEntry.put("actorId", null);
         historyEntry.put("switchedAt", LocalDateTime.now());
         org.getDatastoreHistory().add(historyEntry);
         
@@ -271,7 +270,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.datastore_switched",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Organization",
             savedOrg.getId().toString(),
             metadata
@@ -284,7 +283,7 @@ public class OrganizationsService {
      * Sets legal hold status
      */
     @Transactional
-    public Organization setLegalHold(Long id, Boolean legalHold, ActorContext actor) {
+    public Organization setLegalHold(Long id, Boolean legalHold) {
         Organization org = getOrgOrThrow(id);
         if (Boolean.TRUE.equals(org.getLegalHold()) == Boolean.TRUE.equals(legalHold)) {
             return org;
@@ -298,7 +297,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.legal_hold_toggled",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Organization",
             savedOrg.getId().toString(),
             metadata
@@ -311,7 +310,7 @@ public class OrganizationsService {
      * Sets PII stripped status
      */
     @Transactional
-    public Organization setPiiStripped(Long id, Boolean piiStripped, ActorContext actor) {
+    public Organization setPiiStripped(Long id, Boolean piiStripped) {
         Organization org = getOrgOrThrow(id);
         if (Boolean.TRUE.equals(org.getPiiStripped()) == Boolean.TRUE.equals(piiStripped)) {
             return org;
@@ -325,7 +324,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.pii_stripped_toggled",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Organization",
             savedOrg.getId().toString(),
             metadata
@@ -356,7 +355,7 @@ public class OrganizationsService {
     @Transactional(readOnly = true)
     public Page<Organization> list(String search, Boolean includeArchived, DatastoreType datastoreType, 
                                     Boolean legalHold, Boolean piiStripped, int page, int limit) {
-        Specification<Organization> spec = Specification.where(null);
+        Specification<Organization> spec = Specification.where((root, query, cb) -> cb.conjunction());
         
         if (!Boolean.TRUE.equals(includeArchived)) {
             spec = spec.and((root, query, cb) -> cb.isNull(root.get("archivedAt")));
@@ -403,7 +402,7 @@ public class OrganizationsService {
      * Archives an organization
      */
     @Transactional
-    public Organization archive(Long id, ActorContext actor) {
+    public Organization archive(Long id) {
         Organization org = getOrgOrThrow(id);
         if (Boolean.TRUE.equals(org.getLegalHold())) {
             throw new ForbiddenException("Organization is under legal hold");
@@ -418,7 +417,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.archived",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Organization",
             savedOrg.getId().toString(),
             null
@@ -431,7 +430,7 @@ public class OrganizationsService {
      * Unarchives an organization
      */
     @Transactional
-    public Organization unarchive(Long id, ActorContext actor) {
+    public Organization unarchive(Long id) {
         Organization org = getOrgOrThrow(id);
         if (org.getArchivedAt() == null) {
             return org;
@@ -443,7 +442,7 @@ public class OrganizationsService {
         auditLogService.log(
             "organization.unarchived",
             savedOrg.getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null,
             "Organization",
             savedOrg.getId().toString(),
             null

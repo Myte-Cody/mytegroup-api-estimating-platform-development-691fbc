@@ -1,7 +1,6 @@
 package com.mytegroup.api.service.ingestion;
 
 import com.mytegroup.api.exception.ServiceUnavailableException;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +27,8 @@ public class IngestionContactsService {
      * Suggests field mappings for contact import
      */
     @Transactional(readOnly = true)
-    public Map<String, String> suggestMapping(ActorContext actor, List<String> headers, boolean allowAiProcessing) {
+    public Map<String, Object> suggestMapping(List<String> headers, List<Map<String, Object>> sampleRows, String orgId) {
+        boolean allowAiProcessing = false; // TODO: Check if AI is enabled for org
         if (allowAiProcessing) {
             // TODO: Implement AI-based mapping suggestion
             // if (!aiService.isEnabled()) {
@@ -50,14 +50,16 @@ public class IngestionContactsService {
             }
         }
         
-        return suggestions;
+        Map<String, Object> result = new HashMap<>();
+        result.put("mapping", suggestions);
+        return result;
     }
     
     /**
      * Parses a contact row
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> parseRow(ActorContext actor, Map<String, String> row, Map<String, String> mapping) {
+    public Map<String, Object> parseRow(Map<String, Object> row, Map<String, String> mapping, String orgId) {
         // TODO: Implement row parsing with mapping
         Map<String, Object> parsed = new HashMap<>();
         parsed.put("row", row);
@@ -69,7 +71,7 @@ public class IngestionContactsService {
      * Enriches contact data using AI
      */
     @Transactional(readOnly = true)
-    public Map<String, Object> enrich(ActorContext actor, Map<String, Object> contactData) {
+    public Map<String, Object> enrich(Map<String, Object> contactData, String orgId) {
         // TODO: Implement AI-based enrichment
         // if (!aiService.isEnabled()) {
         //     throw new ServiceUnavailableException("AI is not enabled");

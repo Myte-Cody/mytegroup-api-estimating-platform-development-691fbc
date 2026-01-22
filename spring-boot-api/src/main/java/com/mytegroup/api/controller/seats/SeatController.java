@@ -2,7 +2,6 @@ package com.mytegroup.api.controller.seats;
 
 import com.mytegroup.api.entity.enums.projects.SeatStatus;
 import com.mytegroup.api.entity.projects.Seat;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.seats.SeatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,12 +36,12 @@ public class SeatController {
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) String status) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
         SeatStatus seatStatus = status != null ? SeatStatus.valueOf(status.toUpperCase()) : null;
         
-        List<Seat> seats = seatsService.list(resolvedOrgId, seatStatus);
+        List<Seat> seats = seatsService.list(orgId, seatStatus);
         
         return seats.stream()
             .map(this::seatToMap)
@@ -52,10 +51,10 @@ public class SeatController {
     @GetMapping("/summary")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
     public Map<String, Object> summary(@RequestParam(required = false) String orgId) {
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        SeatsService.SeatSummary summary = seatsService.summary(resolvedOrgId);
+        if (orgId == null) { 
+            throw new IllegalArgumentException("orgId is required");
+        }
+        SeatsService.SeatSummary summary = seatsService.summary(orgId);
         
         Map<String, Object> response = new HashMap<>();
         response.put("orgId", summary.orgId());
@@ -157,28 +156,5 @@ public class SeatController {
         }
         
         return map;
-    }
-    
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
     }
 }

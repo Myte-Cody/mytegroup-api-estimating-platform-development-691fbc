@@ -1,7 +1,6 @@
 package com.mytegroup.api.controller.crmcontext;
 
 import com.mytegroup.api.dto.crmcontext.ListCrmContextDocumentsQueryDto;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.crmcontext.CrmContextService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,19 +26,18 @@ public class CrmContextController {
             @ModelAttribute ListCrmContextDocumentsQueryDto query,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        List<Map<String, Object>> documents = crmContextService.listDocuments(
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+        }
+        Map<String, Object> result = crmContextService.listDocuments(
+            orgId,
             query.getEntityType(),
             query.getEntityId(),
-            query.getPage(),
-            query.getLimit(),
-            actor,
-            resolvedOrgId
+            query.getPage() != null ? query.getPage() : 0,
+            query.getLimit() != null ? query.getLimit() : 25
         );
         
-        return ResponseEntity.ok(documents);
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/documents/{documentId}/index")
@@ -48,34 +46,10 @@ public class CrmContextController {
             @PathVariable String documentId,
             @RequestParam(required = false) String orgId) {
         
-        ActorContext actor = getActorContext();
-        String resolvedOrgId = orgId != null ? orgId : actor.getOrgId();
-        
-        Map<String, Object> result = crmContextService.indexDocument(documentId, actor, resolvedOrgId);
-        
-        return ResponseEntity.ok(result);
-    }
-    
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
+        if (orgId == null) { 
+            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
         }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
+        // TODO: Implement indexDocument method - need entityType, entityId, title, text, metadata
+        throw new UnsupportedOperationException("indexDocument not yet fully implemented");
     }
 }

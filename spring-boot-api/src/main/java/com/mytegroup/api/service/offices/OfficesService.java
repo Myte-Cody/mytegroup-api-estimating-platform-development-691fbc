@@ -8,7 +8,6 @@ import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.organization.OfficeRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -40,15 +39,12 @@ public class OfficesService {
      * Creates a new office
      */
     @Transactional
-    public Office create(Office office, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
-        
-        String orgId = office.getOrganization() != null 
-            ? office.getOrganization().getId().toString() 
-            : null;
-        orgId = authHelper.resolveOrgId(orgId, actor);
-        Organization org = authHelper.validateOrg(orgId);
-        office.setOrganization(org);
+    public Office create(Office office, String orgId) {
+        // Organization should already be set on the office entity from the controller/mapper
+        if (office.getOrganization() == null && orgId != null) {
+            Organization org = authHelper.validateOrg(orgId);
+            office.setOrganization(org);
+        }
         
         // Validate name
         String name = office.getName() != null ? office.getName().trim() : "";
@@ -59,6 +55,10 @@ public class OfficesService {
         
         // Normalize name and check for collision
         String normalizedName = validationHelper.normalizeName(name);
+        Organization org = office.getOrganization();
+        if (org == null) {
+            throw new BadRequestException("Organization is required");
+        }
         if (officeRepository.findByOrgIdAndNormalizedName(org.getId(), normalizedName)
             .filter(o -> o.getArchivedAt() == null)
             .isPresent()) {
@@ -90,8 +90,8 @@ public class OfficesService {
         
         auditLogService.log(
             "office.created",
-            orgId,
-            actor != null ? actor.getUserId() : null,
+            savedOffice.getOrganization() != null ? savedOffice.getOrganization().getId().toString() : null,
+            null, // userId will be set when sessions are implemented
             "Office",
             savedOffice.getId().toString(),
             metadata
@@ -104,15 +104,12 @@ public class OfficesService {
      * Lists offices for an organization
      */
     @Transactional(readOnly = true)
-    public List<Office> list(ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.PM, Role.VIEWER);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
-        if (includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new ForbiddenException("Not allowed to include archived offices");
+    public List<Office> list(String orgId, boolean includeArchived) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
         }
         
-        Long orgIdLong = Long.parseLong(resolvedOrgId);
+        Long orgIdLong = Long.parseLong(orgId);
         
         if (includeArchived) {
             return officeRepository.findByOrgId(orgIdLong);
@@ -125,16 +122,17 @@ public class OfficesService {
      * Gets an office by ID
      */
     @Transactional(readOnly = true)
-    public Office getById(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER, Role.PM, Role.VIEWER);
-        
-        String resolvedOrgId = authHelper.resolveOrgId(orgId, actor);
+    public Office getById(Long id, String orgId, boolean includeArchived) {
         Office office = officeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Office not found"));
         
-        if (office.getOrganization() == null || 
-            !office.getOrganization().getId().toString().equals(resolvedOrgId)) {
+        if (orgId != null && (office.getOrganization() == null || 
+            !office.getOrganization().getId().toString().equals(orgId))) {
             throw new ForbiddenException("Cannot access office outside your organization");
+        }
+        
+        if (!includeArchived && office.getArchivedAt() != null) {
+            throw new ResourceNotFoundException("Office not found");
         }
         
         return office;
@@ -144,17 +142,17 @@ public class OfficesService {
      * Updates an office
      */
     @Transactional
-    public Office update(Long id, Office officeUpdates, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
-        
+    public Office update(Long id, Office officeUpdates, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         Office office = officeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Office not found"));
         
         if (office.getOrganization() != null) {
-            authHelper.ensureOrgScope(office.getOrganization().getId().toString(), actor);
+            authHelper.validateOrg(office.getOrganization().getId().toString());
         }
-        
-        authHelper.validateOrg(office.getOrganization().getId().toString());
         authHelper.ensureNotOnLegalHold(office, "update");
         
         // Update name with normalization and collision check
@@ -208,7 +206,7 @@ public class OfficesService {
         auditLogService.log(
             "office.updated",
             savedOffice.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Office",
             savedOffice.getId().toString(),
             metadata
@@ -221,17 +219,18 @@ public class OfficesService {
      * Archives an office
      */
     @Transactional
-    public Office archive(Long id, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
-        
+    public Office archive(Long id, String orgId) {
         Office office = officeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Office not found"));
         
-        if (office.getOrganization() != null) {
-            authHelper.ensureOrgScope(office.getOrganization().getId().toString(), actor);
+        if (orgId != null && office.getOrganization() != null && 
+            !office.getOrganization().getId().toString().equals(orgId)) {
+            throw new ForbiddenException("Cannot access office outside your organization");
         }
         
-        authHelper.validateOrg(office.getOrganization().getId().toString());
+        if (office.getOrganization() != null) {
+            authHelper.validateOrg(office.getOrganization().getId().toString());
+        }
         authHelper.ensureNotOnLegalHold(office, "archive");
         
         if (office.getArchivedAt() != null) {
@@ -247,7 +246,7 @@ public class OfficesService {
         auditLogService.log(
             "office.archived",
             savedOffice.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Office",
             savedOffice.getId().toString(),
             metadata
@@ -260,17 +259,18 @@ public class OfficesService {
      * Unarchives an office
      */
     @Transactional
-    public Office unarchive(Long id, ActorContext actor) {
-        authHelper.ensureRole(actor, Role.ADMIN, Role.MANAGER, Role.ORG_OWNER);
-        
+    public Office unarchive(Long id, String orgId) {
         Office office = officeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Office not found"));
         
-        if (office.getOrganization() != null) {
-            authHelper.ensureOrgScope(office.getOrganization().getId().toString(), actor);
+        if (orgId != null && office.getOrganization() != null && 
+            !office.getOrganization().getId().toString().equals(orgId)) {
+            throw new ForbiddenException("Cannot access office outside your organization");
         }
         
-        authHelper.validateOrg(office.getOrganization().getId().toString());
+        if (office.getOrganization() != null) {
+            authHelper.validateOrg(office.getOrganization().getId().toString());
+        }
         authHelper.ensureNotOnLegalHold(office, "unarchive");
         
         if (office.getArchivedAt() == null) {
@@ -296,7 +296,7 @@ public class OfficesService {
         auditLogService.log(
             "office.unarchived",
             savedOffice.getOrganization().getId().toString(),
-            actor != null ? actor.getUserId() : null,
+            null, // userId will be set when sessions are implemented
             "Office",
             savedOffice.getId().toString(),
             metadata

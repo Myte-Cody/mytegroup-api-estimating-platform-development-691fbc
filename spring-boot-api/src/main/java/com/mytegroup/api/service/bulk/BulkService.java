@@ -2,7 +2,6 @@ package com.mytegroup.api.service.bulk;
 
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.exception.BadRequestException;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
@@ -30,10 +29,12 @@ public class BulkService {
      * Imports entities from a file
      */
     @Transactional
-    public Map<String, Object> importEntities(String entityType, MultipartFile file, String format, 
-                                               ActorContext actor, String orgId, boolean dryRun) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public Map<String, Object> importEntities(String entityType, org.springframework.web.multipart.MultipartFile file, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
+        boolean dryRun = false; // TODO: Add as parameter if needed
         
         // TODO: Implement file parsing and entity import logic
         // This requires parsing CSV/JSON, validating rows, and creating/updating entities
@@ -48,13 +49,12 @@ public class BulkService {
         
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("entityType", entityType);
-        metadata.put("format", format);
         metadata.put("dryRun", dryRun);
         
         auditLogService.log(
             "bulk.import_started",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "BulkImport",
             null,
             metadata
@@ -67,26 +67,24 @@ public class BulkService {
      * Exports entities to a file
      */
     @Transactional(readOnly = true)
-    public byte[] exportEntities(String entityType, String format, ActorContext actor, String orgId, boolean includeArchived) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
-        
-        if (includeArchived && !authHelper.canViewArchived(actor)) {
-            throw new BadRequestException("Not allowed to export archived entities");
+    public byte[] exportEntities(String entityType, String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
         }
+        authHelper.validateOrg(orgId);
+        boolean includeArchived = false; // TODO: Add as parameter if needed
         
         // TODO: Implement entity export logic
         // This requires querying entities and formatting as CSV/JSON
         
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("entityType", entityType);
-        metadata.put("format", format);
         metadata.put("includeArchived", includeArchived);
         
         auditLogService.log(
             "bulk.export_started",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "BulkExport",
             null,
             metadata

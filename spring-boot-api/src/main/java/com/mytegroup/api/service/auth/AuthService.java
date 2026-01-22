@@ -9,7 +9,6 @@ import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.UnauthorizedException;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.email.EmailService;
 import com.mytegroup.api.service.organizations.OrganizationsService;
@@ -225,7 +224,7 @@ public class AuthService {
                 Organization newOrg = new Organization();
                 newOrg.setName(organizationName != null ? organizationName : derivedUsername + "'s Organization");
                 newOrg.setPrimaryDomain(domain);
-                org = organizationsService.create(newOrg, null);
+                org = organizationsService.create(newOrg);
                 createdOrgId = org.getId();
             } else {
                 org = organizationsService.findById(Long.parseLong(orgId));
@@ -254,11 +253,11 @@ public class AuthService {
             user.setVerificationTokenHash(emailVerification != null ? emailVerification.hash() : null);
             user.setVerificationTokenExpires(emailVerification != null ? emailVerification.expires() : null);
             
-            User savedUser = usersService.create(user, null, true); // Enforce seat
+            User savedUser = usersService.create(user, true); // Enforce seat
             
             // Set org owner if new org was created
             if (createdOrgId != null) {
-                organizationsService.setOwner(createdOrgId, savedUser.getId(), null);
+                organizationsService.setOwner(createdOrgId, savedUser.getId());
             }
             
             // Mark activated in waitlist
@@ -446,8 +445,10 @@ public class AuthService {
      * Lists users for an organization.
      */
     @Transactional(readOnly = true)
-    public List<User> listUsers(String orgId, ActorContext actor) {
-        ActorContext resolvedActor = actor != null ? actor : new ActorContext(null, null, orgId, null);
-        return usersService.list(resolvedActor, orgId, false);
+    public List<User> listUsers(String orgId) {
+        if (orgId == null) {
+            throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
+        }
+        return usersService.list(orgId, false);
     }
 }

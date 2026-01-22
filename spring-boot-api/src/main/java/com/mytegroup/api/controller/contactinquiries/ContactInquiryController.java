@@ -1,8 +1,7 @@
 package com.mytegroup.api.controller.contactinquiries;
 
 import com.mytegroup.api.dto.contactinquiries.*;
-import com.mytegroup.api.entity.core.ContactInquiry;
-import com.mytegroup.api.service.common.ActorContext;
+import com.mytegroup.api.entity.communication.ContactInquiry;
 import com.mytegroup.api.service.contactinquiries.ContactInquiriesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +10,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 import java.util.Map;
@@ -25,47 +26,41 @@ public class ContactInquiryController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> create(@RequestBody @Valid CreateContactInquiryDto dto) {
-        ContactInquiry inquiry = contactInquiriesService.create(
-            dto.getName(),
-            dto.getEmail(),
-            dto.getPhone(),
-            dto.getCompanyName(),
-            dto.getMessage(),
-            dto.getSource(),
-            dto.getTrap()
-        );
+        ContactInquiry inquiry = new ContactInquiry();
+        inquiry.setName(dto.getName());
+        inquiry.setEmail(dto.getEmail());
+        inquiry.setMessage(dto.getMessage());
+        inquiry.setSource(dto.getSource());
         
-        return inquiryToResponse(inquiry);
+        ContactInquiry savedInquiry = contactInquiriesService.create(inquiry);
+        
+        return inquiryToResponse(savedInquiry);
     }
 
     @PostMapping("/verify")
     public Map<String, Object> verify(@RequestBody @Valid VerifyContactInquiryDto dto) {
-        ContactInquiry inquiry = contactInquiriesService.verify(dto.getEmail(), dto.getCode());
-        
-        return inquiryToResponse(inquiry);
+        // TODO: Implement verify method in service
+        throw new UnsupportedOperationException("Verify not yet implemented");
     }
 
     @PostMapping("/confirm")
     public Map<String, Object> confirm(@RequestBody @Valid ConfirmContactInquiryDto dto) {
-        ContactInquiry inquiry = contactInquiriesService.confirm(dto.getEmail());
-        
-        return inquiryToResponse(inquiry);
+        // TODO: Implement confirm method in service
+        throw new UnsupportedOperationException("Confirm not yet implemented");
     }
 
     @GetMapping
     @PreAuthorize("isAuthenticated() && hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
     public List<Map<String, Object>> list(@ModelAttribute ListContactInquiriesDto query) {
-        ActorContext actor = getActorContext();
+        int page = query.getPage() != null ? query.getPage() : 0;
+        int limit = query.getLimit() != null ? query.getLimit() : 25;
         
-        List<ContactInquiry> inquiries = contactInquiriesService.list(
+        Page<ContactInquiry> pageResult = contactInquiriesService.list(
             query.getStatus(),
-            query.getEmailContains(),
-            query.getPage(),
-            query.getLimit(),
-            actor
-        );
+            page,
+            limit);
         
-        return inquiries.stream()
+        return pageResult.getContent().stream()
             .map(this::inquiryToResponse)
             .toList();
     }
@@ -76,9 +71,11 @@ public class ContactInquiryController {
             @PathVariable Long id,
             @RequestBody @Valid UpdateContactInquiryDto dto) {
         
-        ActorContext actor = getActorContext();
+        ContactInquiry inquiryUpdates = new ContactInquiry();
+        inquiryUpdates.setStatus(dto.getStatus());
+        // Note is not stored in ContactInquiry entity, it's only in the DTO
         
-        ContactInquiry inquiry = contactInquiriesService.update(id, dto.getStatus(), dto.getNote(), actor);
+        ContactInquiry inquiry = contactInquiriesService.update(id, inquiryUpdates);
         
         return inquiryToResponse(inquiry);
     }
@@ -88,8 +85,6 @@ public class ContactInquiryController {
             "id", inquiry.getId(),
             "name", inquiry.getName() != null ? inquiry.getName() : "",
             "email", inquiry.getEmail() != null ? inquiry.getEmail() : "",
-            "phone", inquiry.getPhone() != null ? inquiry.getPhone() : "",
-            "companyName", inquiry.getCompanyName() != null ? inquiry.getCompanyName() : "",
             "message", inquiry.getMessage() != null ? inquiry.getMessage() : "",
             "status", inquiry.getStatus() != null ? inquiry.getStatus().name() : "",
             "source", inquiry.getSource() != null ? inquiry.getSource() : "",
@@ -97,26 +92,4 @@ public class ContactInquiryController {
         );
     }
     
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return new ActorContext(null, null, null, null);
-        }
-        
-        Long userId = null;
-        if (auth.getPrincipal() instanceof Long) {
-            userId = (Long) auth.getPrincipal();
-        } else if (auth.getPrincipal() instanceof String) {
-            try {
-                userId = Long.parseLong((String) auth.getPrincipal());
-            } catch (NumberFormatException ignored) {}
-        }
-        
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
-    }
 }

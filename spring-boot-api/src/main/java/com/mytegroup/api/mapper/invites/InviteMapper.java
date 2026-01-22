@@ -9,12 +9,16 @@ import java.time.LocalDateTime;
 
 @Component
 public class InviteMapper {
-    public Invite toEntity(CreateInviteDto dto, Person person) {
+    public Invite toEntity(CreateInviteDto dto, com.mytegroup.api.entity.core.Organization organization, Person person) {
         Invite invite = new Invite();
+        invite.setOrganization(organization);
         invite.setPerson(person);
-        invite.setRole(dto.role());
-        if (dto.expiresInHours() != null) {
-            invite.setExpiresAt(LocalDateTime.now().plusHours(dto.expiresInHours()));
+        invite.setRole(dto.getRole());
+        // Token hash and expires will be set by the service
+        if (dto.getExpiresInHours() != null) {
+            invite.setTokenExpires(LocalDateTime.now().plusHours(dto.getExpiresInHours()));
+        } else {
+            invite.setTokenExpires(LocalDateTime.now().plusDays(7)); // Default 7 days
         }
         return invite;
     }

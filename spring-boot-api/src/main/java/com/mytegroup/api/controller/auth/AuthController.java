@@ -5,7 +5,6 @@ import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.exception.UnauthorizedException;
 import com.mytegroup.api.security.JwtTokenProvider;
 import com.mytegroup.api.service.auth.AuthService;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.users.UsersService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -70,8 +69,17 @@ public class AuthController {
     public Map<String, Object> login(@RequestBody @Valid LoginDto dto) {
         User user = authService.login(dto.getEmail(), dto.getPassword());
         
-        // Generate JWT token
-        String token = jwtTokenProvider.createToken(user);
+        // Generate JWT token - convert User to UserDetails
+        org.springframework.security.core.userdetails.UserDetails userDetails = 
+            org.springframework.security.core.userdetails.User.builder()
+                .username(user.getEmail())
+                .password(user.getPasswordHash() != null ? user.getPasswordHash() : "")
+                .authorities(user.getRoles() != null ? user.getRoles().stream()
+                    .map(role -> new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role.getValue()))
+                    .toArray(org.springframework.security.core.GrantedAuthority[]::new)
+                    : new org.springframework.security.core.GrantedAuthority[0])
+                .build();
+        String token = jwtTokenProvider.generateToken(userDetails);
         
         Map<String, Object> response = new HashMap<>();
         response.put("token", token);
@@ -163,8 +171,7 @@ public class AuthController {
     @GetMapping("/users")
     @PreAuthorize("hasAnyRole('ADMIN', 'ORG_ADMIN', 'SUPER_ADMIN', 'ORG_OWNER', 'PLATFORM_ADMIN')")
     public List<Map<String, Object>> listUsers(@RequestParam(required = false) String orgId) {
-        ActorContext actor = getActorContext();
-        List<User> users = authService.listUsers(orgId, actor);
+                List<User> users = authService.listUsers(orgId);
         
         return users.stream().map(user -> {
             Map<String, Object> map = new HashMap<>();
@@ -193,19 +200,5 @@ public class AuthController {
             }
         }
         return null;
-    }
-    
-    private ActorContext getActorContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return null;
-        }
-        Long userId = extractUserId(auth);
-        return new ActorContext(
-            userId != null ? userId.toString() : null,
-            null,
-            null,
-            null
-        );
     }
 }

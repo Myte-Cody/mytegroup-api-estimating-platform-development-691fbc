@@ -8,7 +8,6 @@ import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.organization.GraphEdgeRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -40,9 +39,10 @@ public class GraphEdgesService {
      * Creates a new graph edge
      */
     @Transactional
-    public GraphEdge create(GraphEdge edge, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public GraphEdge create(GraphEdge edge, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
         Organization org = authHelper.validateOrg(orgId);
         edge.setOrganization(org);
         
@@ -65,7 +65,7 @@ public class GraphEdgesService {
         auditLogService.log(
             "graph_edge.created",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "GraphEdge",
             savedEdge.getId().toString(),
             metadata
@@ -78,21 +78,15 @@ public class GraphEdgesService {
      * Lists graph edges for an organization
      */
     @Transactional(readOnly = true)
-    public List<GraphEdge> list(ActorContext actor, String orgId, String edgeTypeKey, 
-                                 GraphNodeType fromNodeType, Long fromNodeId,
-                                 GraphNodeType toNodeType, Long toNodeId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public List<GraphEdge> list(String orgId, String edgeTypeKey) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         Long orgIdLong = Long.parseLong(orgId);
         
-        if (fromNodeType != null && fromNodeId != null) {
-            return graphEdgeRepository.findByOrgIdAndFromNodeTypeAndFromNodeId(orgIdLong, fromNodeType, fromNodeId);
-        }
-        if (toNodeType != null && toNodeId != null) {
-            return graphEdgeRepository.findByOrgIdAndToNodeTypeAndToNodeId(orgIdLong, toNodeType, toNodeId);
-        }
-        if (edgeTypeKey != null) {
+        if (edgeTypeKey != null && !edgeTypeKey.trim().isEmpty()) {
             return graphEdgeRepository.findByOrgIdAndEdgeTypeKey(orgIdLong, edgeTypeKey);
         }
         
@@ -103,9 +97,11 @@ public class GraphEdgesService {
      * Deletes a graph edge
      */
     @Transactional
-    public void delete(Long id, ActorContext actor, String orgId) {
-        authHelper.ensureRole(actor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        authHelper.ensureOrgScope(orgId, actor);
+    public void delete(Long id, String orgId) {
+        if (orgId == null) {
+            throw new BadRequestException("orgId is required");
+        }
+        authHelper.validateOrg(orgId);
         
         GraphEdge edge = graphEdgeRepository.findById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Graph edge not found"));
@@ -121,7 +117,7 @@ public class GraphEdgesService {
         auditLogService.log(
             "graph_edge.deleted",
             orgId,
-            actor != null ? actor.getUserId() : null,
+            null,
             "GraphEdge",
             edge.getId().toString(),
             null

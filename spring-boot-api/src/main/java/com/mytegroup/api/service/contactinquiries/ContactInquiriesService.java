@@ -5,7 +5,6 @@ import com.mytegroup.api.entity.enums.communication.ContactInquiryStatus;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.communication.ContactInquiryRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
 import lombok.RequiredArgsConstructor;
@@ -37,13 +36,13 @@ public class ContactInquiriesService {
      * Creates a new contact inquiry
      */
     @Transactional
-    public ContactInquiry create(ContactInquiry inquiry, ActorContext actor) {
+    public ContactInquiry create(ContactInquiry inquiry) {
         String email = validationHelper.normalizeEmail(inquiry.getEmail());
         if (email == null || email.isEmpty()) {
             throw new BadRequestException("Email is required");
         }
         inquiry.setEmail(email);
-        inquiry.setStatus(ContactInquiryStatus.PENDING);
+        inquiry.setStatus(ContactInquiryStatus.NEW);
         
         ContactInquiry savedInquiry = contactInquiryRepository.save(inquiry);
         

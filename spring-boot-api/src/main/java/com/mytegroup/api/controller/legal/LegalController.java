@@ -1,9 +1,11 @@
 package com.mytegroup.api.controller.legal;
 
 import com.mytegroup.api.dto.legal.*;
+import com.mytegroup.api.dto.response.LegalDocResponseDto;
 import com.mytegroup.api.entity.legal.LegalDoc;
 import com.mytegroup.api.entity.enums.legal.LegalDocType;
 import com.mytegroup.api.mapper.legal.LegalMapper;
+import com.mytegroup.api.mapper.response.LegalDocResponseMapper;
 import com.mytegroup.api.service.legal.LegalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,9 +26,10 @@ public class LegalController {
 
     private final LegalService legalService;
     private final LegalMapper legalMapper;
+    private final LegalDocResponseMapper legalDocResponseMapper;
 
     @GetMapping("/docs")
-    public List<Map<String, Object>> listDocs(
+    public List<LegalDocResponseDto> listDocs(
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Boolean currentOnly) {
         
@@ -40,12 +43,12 @@ public class LegalController {
         }
         
         return docs.stream()
-            .map(this::docToResponse)
+            .map(legalDocResponseMapper::toDto)
             .toList();
     }
 
     @GetMapping("/docs/{id}")
-    public Map<String, Object> getDoc(@PathVariable Long id) {
+    public LegalDocResponseDto getDoc(@PathVariable Long id) {
         // TODO: Implement getById method in service
         throw new UnsupportedOperationException("getById not yet implemented");
     }
@@ -53,11 +56,11 @@ public class LegalController {
     @PostMapping("/docs")
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public Map<String, Object> createDoc(@RequestBody @Valid CreateLegalDocDto dto) {
+    public LegalDocResponseDto createDoc(@RequestBody @Valid CreateLegalDocDto dto) {
         LegalDoc doc = legalMapper.toEntity(dto);
         LegalDoc savedDoc = legalService.createDoc(doc);
         
-        return docToResponse(savedDoc);
+        return legalDocResponseMapper.toDto(savedDoc);
     }
 
     @PostMapping("/accept")
@@ -73,18 +76,6 @@ public class LegalController {
             @RequestParam(required = false) String orgId) {
         // TODO: Implement getAcceptanceStatus method in service
         throw new UnsupportedOperationException("getAcceptanceStatus not yet implemented");
-    }
-    
-    private Map<String, Object> docToResponse(LegalDoc doc) {
-        return Map.of(
-            "id", doc.getId(),
-            "type", doc.getType() != null ? doc.getType().name() : "",
-            "version", doc.getVersion() != null ? doc.getVersion() : "",
-            "content", doc.getContent() != null ? doc.getContent() : "",
-            "effectiveAt", doc.getEffectiveAt() != null ? doc.getEffectiveAt().toString() : "",
-            "isCurrent", doc.getArchivedAt() == null,
-            "createdAt", doc.getCreatedAt() != null ? doc.getCreatedAt().toString() : ""
-        );
     }
     
 }

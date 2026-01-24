@@ -1,7 +1,10 @@
 package com.mytegroup.api.controller.contactinquiries;
 
 import com.mytegroup.api.dto.contactinquiries.*;
+import com.mytegroup.api.dto.response.ContactInquiryResponseDto;
 import com.mytegroup.api.entity.communication.ContactInquiry;
+import com.mytegroup.api.mapper.contactinquiries.ContactInquiryMapper;
+import com.mytegroup.api.mapper.response.ContactInquiryResponseMapper;
 import com.mytegroup.api.service.contactinquiries.ContactInquiriesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,19 +25,17 @@ import java.util.Map;
 public class ContactInquiryController {
 
     private final ContactInquiriesService contactInquiriesService;
+    private final ContactInquiryMapper contactInquiryMapper;
+    private final ContactInquiryResponseMapper contactInquiryResponseMapper;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> create(@RequestBody @Valid CreateContactInquiryDto dto) {
-        ContactInquiry inquiry = new ContactInquiry();
-        inquiry.setName(dto.getName());
-        inquiry.setEmail(dto.getEmail());
-        inquiry.setMessage(dto.getMessage());
-        inquiry.setSource(dto.getSource());
+    public ContactInquiryResponseDto create(@RequestBody @Valid CreateContactInquiryDto dto) {
+        ContactInquiry inquiry = contactInquiryMapper.toEntity(dto);
         
         ContactInquiry savedInquiry = contactInquiriesService.create(inquiry);
         
-        return inquiryToResponse(savedInquiry);
+        return contactInquiryResponseMapper.toDto(savedInquiry);
     }
 
     @PostMapping("/verify")
@@ -51,7 +52,7 @@ public class ContactInquiryController {
 
     @GetMapping
     @PreAuthorize("isAuthenticated() && hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public List<Map<String, Object>> list(@ModelAttribute ListContactInquiriesDto query) {
+    public List<ContactInquiryResponseDto> list(@ModelAttribute ListContactInquiriesDto query) {
         int page = query.getPage() != null ? query.getPage() : 0;
         int limit = query.getLimit() != null ? query.getLimit() : 25;
         
@@ -61,13 +62,13 @@ public class ContactInquiryController {
             limit);
         
         return pageResult.getContent().stream()
-            .map(this::inquiryToResponse)
+            .map(contactInquiryResponseMapper::toDto)
             .toList();
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> update(
+    public ContactInquiryResponseDto update(
             @PathVariable Long id,
             @RequestBody @Valid UpdateContactInquiryDto dto) {
         
@@ -77,19 +78,7 @@ public class ContactInquiryController {
         
         ContactInquiry inquiry = contactInquiriesService.update(id, inquiryUpdates);
         
-        return inquiryToResponse(inquiry);
-    }
-    
-    private Map<String, Object> inquiryToResponse(ContactInquiry inquiry) {
-        return Map.of(
-            "id", inquiry.getId(),
-            "name", inquiry.getName() != null ? inquiry.getName() : "",
-            "email", inquiry.getEmail() != null ? inquiry.getEmail() : "",
-            "message", inquiry.getMessage() != null ? inquiry.getMessage() : "",
-            "status", inquiry.getStatus() != null ? inquiry.getStatus().name() : "",
-            "source", inquiry.getSource() != null ? inquiry.getSource() : "",
-            "createdAt", inquiry.getCreatedAt() != null ? inquiry.getCreatedAt().toString() : ""
-        );
+        return contactInquiryResponseMapper.toDto(inquiry);
     }
     
 }

@@ -1,9 +1,12 @@
 package com.mytegroup.api.controller.companies;
 
 import com.mytegroup.api.dto.companies.*;
+import com.mytegroup.api.dto.response.CompanyResponseDto;
+import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.mapper.companies.CompanyMapper;
+import com.mytegroup.api.mapper.response.CompanyResponseMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.companies.CompaniesService;
 import jakarta.validation.Valid;
@@ -34,11 +37,10 @@ public class CompanyController {
 
     private final CompaniesService companiesService;
     private final CompanyMapper companyMapper;
+    private final CompanyResponseMapper companyResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
-
-    @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> list(
+    public PaginatedResponseDto<CompanyResponseDto> list(
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean includeArchived,
@@ -48,29 +50,33 @@ public class CompanyController {
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
         if (orgId == null) {
-            return Map.of("error", "orgId is required");
+            return PaginatedResponseDto.<CompanyResponseDto>builder()
+                    .data(java.util.List.of())
+                    .total(0)
+                    .page(page)
+                    .limit(limit)
+                    .build();
         }
         
         Page<Company> companies = companiesService.list(orgId, search, includeArchived, type, tag, page, limit);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", companies.getContent().stream().map(this::companyToMap).toList());
-        response.put("total", companies.getTotalElements());
-        response.put("page", page);
-        response.put("limit", limit);
-        
-        return response;
+        return PaginatedResponseDto.<CompanyResponseDto>builder()
+                .data(companies.getContent().stream().map(companyResponseMapper::toDto).toList())
+                .total(companies.getTotalElements())
+                .page(page)
+                .limit(limit)
+                .build();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> create(
+    public CompanyResponseDto create(
             @RequestBody @Valid CreateCompanyDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) {
-            return Map.of("error", "orgId is required");
+            throw new IllegalArgumentException("orgId is required");
         }
         
         // Get organization for mapper
@@ -79,30 +85,30 @@ public class CompanyController {
         
         Company savedCompany = companiesService.create(company, orgId);
         
-        return companyToMap(savedCompany);
+        return companyResponseMapper.toDto(savedCompany);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> getById(
+    public CompanyResponseDto getById(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
         Company company = companiesService.getById(id, orgId, includeArchived);
         
-        return companyToMap(company);
+        return companyResponseMapper.toDto(company);
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> update(
+    public CompanyResponseDto update(
             @PathVariable Long id,
             @RequestBody @Valid UpdateCompanyDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) {
-            return Map.of("error", "orgId is required");
+            throw new IllegalArgumentException("orgId is required");
         }
         
         // Create a Company object with updates using mapper
@@ -111,61 +117,38 @@ public class CompanyController {
         
         Company updatedCompany = companiesService.update(id, companyUpdates, orgId);
         
-        return companyToMap(updatedCompany);
+        return companyResponseMapper.toDto(updatedCompany);
     }
 
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> archive(
+    public CompanyResponseDto archive(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) {
-            return Map.of("error", "orgId is required");
+            throw new IllegalArgumentException("orgId is required");
         }
         
         Company archivedCompany = companiesService.archive(id, orgId);
         
-        return companyToMap(archivedCompany);
+        return companyResponseMapper.toDto(archivedCompany);
     }
 
     @PostMapping("/{id}/unarchive")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> unarchive(
+    public CompanyResponseDto unarchive(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) {
-            return Map.of("error", "orgId is required");
+            throw new IllegalArgumentException("orgId is required");
         }
         
         Company unarchivedCompany = companiesService.unarchive(id, orgId);
         
-        return companyToMap(unarchivedCompany);
-    }
-    
-    // Helper methods
-    
-    private Map<String, Object> companyToMap(Company company) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", company.getId());
-        map.put("name", company.getName());
-        map.put("normalizedName", company.getNormalizedName());
-        map.put("externalId", company.getExternalId());
-        map.put("website", company.getWebsite());
-        map.put("mainEmail", company.getMainEmail());
-        map.put("mainPhone", company.getMainPhone());
-        map.put("companyTypeKeys", company.getCompanyTypeKeys());
-        map.put("tagKeys", company.getTagKeys());
-        map.put("rating", company.getRating());
-        map.put("notes", company.getNotes());
-        map.put("piiStripped", company.getPiiStripped());
-        map.put("legalHold", company.getLegalHold());
-        map.put("archivedAt", company.getArchivedAt());
-        map.put("orgId", company.getOrganization() != null ? company.getOrganization().getId() : null);
-        map.put("createdAt", company.getCreatedAt());
-        map.put("updatedAt", company.getUpdatedAt());
-        return map;
+        return companyResponseMapper.toDto(unarchivedCompany);
     }
     
 }
+

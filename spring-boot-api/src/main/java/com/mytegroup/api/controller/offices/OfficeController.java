@@ -1,9 +1,12 @@
 package com.mytegroup.api.controller.offices;
 
 import com.mytegroup.api.dto.offices.*;
+import com.mytegroup.api.dto.response.OfficeResponseDto;
+import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.organization.Office;
 import com.mytegroup.api.mapper.offices.OfficeMapper;
+import com.mytegroup.api.mapper.response.OfficeResponseMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.offices.OfficesService;
 import jakarta.validation.Valid;
@@ -26,39 +29,44 @@ public class OfficeController {
 
     private final OfficesService officesService;
     private final OfficeMapper officeMapper;
+    private final OfficeResponseMapper officeResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> list(
+    public ResponseEntity<PaginatedResponseDto<OfficeResponseDto>> list(
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) Boolean includeArchived,
             @RequestParam(required = false, defaultValue = "0") int page,
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
         if (orgId == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+            return ResponseEntity.badRequest().body(PaginatedResponseDto.<OfficeResponseDto>builder()
+                    .data(List.of())
+                    .total(0)
+                    .page(page)
+                    .limit(limit)
+                    .build());
         }
         
         List<Office> offices = officesService.list(orgId, includeArchived != null && includeArchived);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", offices.stream().map(this::officeToMap).toList());
-        response.put("total", offices.size());
-        response.put("page", page);
-        response.put("limit", limit);
-        
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(PaginatedResponseDto.<OfficeResponseDto>builder()
+                .data(offices.stream().map(officeResponseMapper::toDto).toList())
+                .total(offices.size())
+                .page(page)
+                .limit(limit)
+                .build());
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> create(
+    public ResponseEntity<OfficeResponseDto> create(
             @RequestBody @Valid CreateOfficeDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required"));
+            throw new IllegalArgumentException("orgId is required");
         }
         
         // Get organization for mapper
@@ -72,24 +80,24 @@ public class OfficeController {
         
         Office savedOffice = officesService.create(office, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(officeToMap(savedOffice));
+        return ResponseEntity.status(HttpStatus.CREATED).body(officeResponseMapper.toDto(savedOffice));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> getById(
+    public ResponseEntity<OfficeResponseDto> getById(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
         Office office = officesService.getById(id, orgId, includeArchived);
         
-        return ResponseEntity.ok(officeToMap(office));
+        return ResponseEntity.ok(officeResponseMapper.toDto(office));
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> update(
+    public ResponseEntity<OfficeResponseDto> update(
             @PathVariable Long id,
             @RequestBody @Valid UpdateOfficeDto dto,
             @RequestParam(required = false) String orgId) {
@@ -104,52 +112,29 @@ public class OfficeController {
         
         Office updatedOffice = officesService.update(id, officeUpdates, orgId);
         
-        return ResponseEntity.ok(officeToMap(updatedOffice));
+        return ResponseEntity.ok(officeResponseMapper.toDto(updatedOffice));
     }
 
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> archive(
+    public ResponseEntity<OfficeResponseDto> archive(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         Office archivedOffice = officesService.archive(id, orgId);
         
-        return ResponseEntity.ok(officeToMap(archivedOffice));
+        return ResponseEntity.ok(officeResponseMapper.toDto(archivedOffice));
     }
 
     @PostMapping("/{id}/unarchive")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> unarchive(
+    public ResponseEntity<OfficeResponseDto> unarchive(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         Office unarchivedOffice = officesService.unarchive(id, orgId);
         
-        return ResponseEntity.ok(officeToMap(unarchivedOffice));
-    }
-    
-    // Helper methods
-    
-    private Map<String, Object> officeToMap(Office office) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", office.getId());
-        map.put("name", office.getName());
-        map.put("name", office.getName());
-        map.put("description", office.getDescription());
-        map.put("timezone", office.getTimezone());
-        map.put("orgLocationTypeKey", office.getOrgLocationTypeKey());
-        map.put("address", office.getAddress());
-        map.put("tagKeys", office.getTagKeys());
-        map.put("parentId", office.getParent() != null ? office.getParent().getId() : null);
-        map.put("sortOrder", office.getSortOrder());
-        map.put("piiStripped", office.getPiiStripped());
-        map.put("legalHold", office.getLegalHold());
-        map.put("archivedAt", office.getArchivedAt());
-        map.put("orgId", office.getOrganization() != null ? office.getOrganization().getId() : null);
-        map.put("createdAt", office.getCreatedAt());
-        map.put("updatedAt", office.getUpdatedAt());
-        return map;
+        return ResponseEntity.ok(officeResponseMapper.toDto(unarchivedOffice));
     }
     
 }

@@ -1,7 +1,9 @@
 package com.mytegroup.api.controller.emailtemplates;
 
 import com.mytegroup.api.dto.emailtemplates.*;
+import com.mytegroup.api.dto.response.EmailTemplateResponseDto;
 import com.mytegroup.api.entity.communication.EmailTemplate;
+import com.mytegroup.api.mapper.response.EmailTemplateResponseMapper;
 import com.mytegroup.api.service.emailtemplates.EmailTemplatesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,17 +24,18 @@ import java.util.Map;
 public class EmailTemplateController {
 
     private final EmailTemplatesService emailTemplatesService;
+    private final EmailTemplateResponseMapper emailTemplateResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> list(@RequestParam(required = false) String orgId) {
+    public ResponseEntity<List<EmailTemplateResponseDto>> list(@RequestParam(required = false) String orgId) {
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         List<EmailTemplate> templates = emailTemplatesService.list(orgId, null);
         
-        List<Map<String, Object>> response = templates.stream()
-            .map(this::templateToMap)
+        List<EmailTemplateResponseDto> response = templates.stream()
+            .map(emailTemplateResponseMapper::toDto)
             .toList();
         
         return ResponseEntity.ok(response);
@@ -40,27 +43,27 @@ public class EmailTemplateController {
 
     @GetMapping("/{name}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> get(
+    public ResponseEntity<EmailTemplateResponseDto> get(
             @PathVariable String name,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         EmailTemplate template = emailTemplatesService.getTemplate(orgId, name, null);
         
-        return ResponseEntity.ok(templateToMap(template));
+        return ResponseEntity.ok(emailTemplateResponseMapper.toDto(template));
     }
 
     @PutMapping("/{name}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> update(
+    public ResponseEntity<EmailTemplateResponseDto> update(
             @PathVariable String name,
             @RequestBody @Valid UpdateEmailTemplateDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         // Get template first to get its ID
         EmailTemplate existingTemplate = emailTemplatesService.getTemplate(orgId, name, dto.locale());
@@ -71,7 +74,7 @@ public class EmailTemplateController {
         
         EmailTemplate updatedTemplate = emailTemplatesService.update(existingTemplate.getId(), templateUpdates, orgId);
         
-        return ResponseEntity.ok(templateToMap(updatedTemplate));
+        return ResponseEntity.ok(emailTemplateResponseMapper.toDto(updatedTemplate));
     }
 
     @PostMapping("/{name}/preview")
@@ -82,7 +85,7 @@ public class EmailTemplateController {
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Map<String, String> preview = emailTemplatesService.render(orgId, name, dto.locale(), dto.variables());
         
@@ -97,7 +100,7 @@ public class EmailTemplateController {
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         // TODO: Implement testSend method in EmailTemplatesService
         // For now, just return success
@@ -106,32 +109,17 @@ public class EmailTemplateController {
 
     @PostMapping("/{name}/reset")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> reset(
+    public ResponseEntity<EmailTemplateResponseDto> reset(
             @PathVariable String name,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         // TODO: Implement resetToDefault method in EmailTemplatesService
         // For now, return the existing template
         EmailTemplate template = emailTemplatesService.getTemplate(orgId, name, null);
-        return ResponseEntity.ok(templateToMap(template));
+        return ResponseEntity.ok(emailTemplateResponseMapper.toDto(template));
     }
     
-    // Helper methods
-    
-    private Map<String, Object> templateToMap(EmailTemplate template) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", template.getId());
-        map.put("name", template.getName());
-        map.put("locale", template.getLocale());
-        map.put("subject", template.getSubject());
-        map.put("html", template.getHtml());
-        map.put("text", template.getText());
-        map.put("orgId", template.getOrganization() != null ? template.getOrganization().getId() : null);
-        map.put("createdAt", template.getCreatedAt());
-        map.put("updatedAt", template.getUpdatedAt());
-        return map;
-    }
 }

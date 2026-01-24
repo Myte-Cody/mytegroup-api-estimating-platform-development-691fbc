@@ -1,9 +1,12 @@
 package com.mytegroup.api.controller.waitlist;
 
 import com.mytegroup.api.dto.waitlist.*;
+import com.mytegroup.api.dto.response.WaitlistEntryResponseDto;
+import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.core.WaitlistEntry;
 import com.mytegroup.api.entity.enums.core.WaitlistStatus;
 import com.mytegroup.api.entity.enums.core.WaitlistVerifyStatus;
+import com.mytegroup.api.mapper.response.WaitlistEntryResponseMapper;
 import com.mytegroup.api.service.waitlist.WaitlistService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -37,6 +40,7 @@ import java.util.Map;
 public class WaitlistController {
 
     private final WaitlistService waitlistService;
+    private final WaitlistEntryResponseMapper waitlistEntryResponseMapper;
 
     @PostMapping("/start")
     public ResponseEntity<?> start(@RequestBody @Valid StartWaitlistDto dto, HttpServletRequest request) {
@@ -57,22 +61,22 @@ public class WaitlistController {
         
         WaitlistEntry entry = (WaitlistEntry) result.get("entry");
         if (entry != null) {
-            response.put("entry", entryToMap(entry));
+            response.put("entry", waitlistEntryResponseMapper.toDto(entry));
         }
         
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<?> verify(@RequestBody @Valid VerifyWaitlistDto dto) {
+    public ResponseEntity<WaitlistEntryResponseDto> verify(@RequestBody @Valid VerifyWaitlistDto dto) {
         WaitlistEntry entry = waitlistService.verifyEmail(dto.getEmail(), dto.getCode());
-        return ResponseEntity.ok(entryToMap(entry));
+        return ResponseEntity.ok(waitlistEntryResponseMapper.toDto(entry));
     }
 
     @PostMapping("/verify-phone")
-    public ResponseEntity<?> verifyPhone(@RequestBody @Valid VerifyWaitlistPhoneDto dto) {
+    public ResponseEntity<WaitlistEntryResponseDto> verifyPhone(@RequestBody @Valid VerifyWaitlistPhoneDto dto) {
         WaitlistEntry entry = waitlistService.verifyPhone(dto.getEmail(), dto.getCode());
-        return ResponseEntity.ok(entryToMap(entry));
+        return ResponseEntity.ok(waitlistEntryResponseMapper.toDto(entry));
     }
 
     @PostMapping("/resend")
@@ -90,7 +94,7 @@ public class WaitlistController {
 
     @GetMapping
     @PreAuthorize("isAuthenticated() and hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> list(
+    public ResponseEntity<PaginatedResponseDto<WaitlistEntryResponseDto>> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String verifyStatus,
             @RequestParam(required = false) String cohortTag,
@@ -105,13 +109,12 @@ public class WaitlistController {
         
         Page<WaitlistEntry> entries = waitlistService.list(statusEnum, verifyStatusEnum, page, limit);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", entries.getContent().stream().map(this::entryToMap).toList());
-        response.put("total", entries.getTotalElements());
-        response.put("page", page);
-        response.put("limit", limit);
-        
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(PaginatedResponseDto.<WaitlistEntryResponseDto>builder()
+                .data(entries.getContent().stream().map(waitlistEntryResponseMapper::toDto).toList())
+                .total(entries.getTotalElements())
+                .page(page)
+                .limit(limit)
+                .build());
     }
 
     @GetMapping("/stats")
@@ -133,14 +136,14 @@ public class WaitlistController {
 
     @PostMapping("/approve")
     @PreAuthorize("isAuthenticated() and hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> approve(@RequestBody @Valid ApproveWaitlistDto dto) {
+    public ResponseEntity<WaitlistEntryResponseDto> approve(@RequestBody @Valid ApproveWaitlistDto dto) {
         WaitlistEntry entry = waitlistService.markInvited(dto.getEmail(), dto.getCohortTag());
         
         if (entry == null) {
             return ResponseEntity.notFound().build();
         }
         
-        return ResponseEntity.ok(entryToMap(entry));
+        return ResponseEntity.ok(waitlistEntryResponseMapper.toDto(entry));
     }
 
     @PostMapping("/event")
@@ -154,30 +157,6 @@ public class WaitlistController {
         }
         
         return ResponseEntity.ok(Map.of("status", "ok"));
-    }
-    
-    // Helper methods
-    
-    private Map<String, Object> entryToMap(WaitlistEntry entry) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", entry.getId());
-        map.put("email", entry.getEmail());
-        map.put("name", entry.getName());
-        map.put("phone", entry.getPhone());
-        map.put("role", entry.getRole());
-        map.put("source", entry.getSource());
-        map.put("status", entry.getStatus() != null ? entry.getStatus().name().toLowerCase() : null);
-        map.put("verifyStatus", entry.getVerifyStatus() != null ? entry.getVerifyStatus().name().toLowerCase() : null);
-        map.put("phoneVerifyStatus", entry.getPhoneVerifyStatus() != null ? entry.getPhoneVerifyStatus().name().toLowerCase() : null);
-        map.put("verifiedAt", entry.getVerifiedAt());
-        map.put("phoneVerifiedAt", entry.getPhoneVerifiedAt());
-        map.put("invitedAt", entry.getInvitedAt());
-        map.put("activatedAt", entry.getActivatedAt());
-        map.put("cohortTag", entry.getCohortTag());
-        map.put("preCreateAccount", entry.getPreCreateAccount());
-        map.put("marketingConsent", entry.getMarketingConsent());
-        map.put("createdAt", entry.getCreatedAt());
-        return map;
     }
     
     private String getClientIp(HttpServletRequest request) {

@@ -1,7 +1,11 @@
 package com.mytegroup.api.controller.projects;
 
 import com.mytegroup.api.dto.projects.*;
+import com.mytegroup.api.dto.response.ProjectResponseDto;
+import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.projects.Project;
+import com.mytegroup.api.mapper.projects.ProjectMapper;
+import com.mytegroup.api.mapper.response.ProjectResponseMapper;
 import com.mytegroup.api.service.projects.ProjectsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,10 +37,12 @@ import java.util.Map;
 public class ProjectController {
 
     private final ProjectsService projectsService;
+    private final ProjectMapper projectMapper;
+    private final ProjectResponseMapper projectResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'PM', 'VIEWER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> list(
+    public ResponseEntity<PaginatedResponseDto<ProjectResponseDto>> list(
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
@@ -45,137 +51,98 @@ public class ProjectController {
             @RequestParam(required = false, defaultValue = "25") int limit) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            return ResponseEntity.badRequest().body(PaginatedResponseDto.<ProjectResponseDto>builder()
+                    .data(java.util.List.of())
+                    .total(0)
+                    .page(page)
+                    .limit(limit)
+                    .build());
         }
         Page<Project> projects = projectsService.list(orgId, search, status, includeArchived, page, limit);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", projects.getContent().stream().map(this::projectToMap).toList());
-        response.put("total", projects.getTotalElements());
-        response.put("page", page);
-        response.put("limit", limit);
-        
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(PaginatedResponseDto.<ProjectResponseDto>builder()
+                .data(projects.getContent().stream().map(projectResponseMapper::toDto).toList())
+                .total(projects.getTotalElements())
+                .page(page)
+                .limit(limit)
+                .build());
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> create(
+    public ResponseEntity<ProjectResponseDto> create(
             @RequestBody @Valid CreateProjectDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
-        Project project = new Project();
-        project.setName(dto.name());
-        project.setDescription(dto.description());
-        if (dto.status() != null) {
-            project.setStatus(dto.status());
-        }
-        if (dto.projectCode() != null) {
-            project.setProjectCode(dto.projectCode());
-        }
-        if (dto.location() != null) {
-            project.setLocation(dto.location());
-        }
-        if (dto.officeId() != null) {
-            // Office will be set by service
-        }
+        Project project = projectMapper.toEntity(dto, null, null);
         
         Project savedProject = projectsService.create(project, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(projectToMap(savedProject));
+        return ResponseEntity.status(HttpStatus.CREATED).body(projectResponseMapper.toDto(savedProject));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'PM', 'VIEWER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> getById(
+    public ResponseEntity<ProjectResponseDto> getById(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Project project = projectsService.getById(id, orgId, includeArchived);
         
-        return ResponseEntity.ok(projectToMap(project));
+        return ResponseEntity.ok(projectResponseMapper.toDto(project));
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> update(
+    public ResponseEntity<ProjectResponseDto> update(
             @PathVariable Long id,
             @RequestBody @Valid UpdateProjectDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Project projectUpdates = new Project();
-        projectUpdates.setName(dto.name());
-        projectUpdates.setDescription(dto.description());
-        if (dto.status() != null) {
-            projectUpdates.setStatus(dto.status());
-        }
-        if (dto.projectCode() != null) {
-            projectUpdates.setProjectCode(dto.projectCode());
-        }
-        if (dto.location() != null) {
-            projectUpdates.setLocation(dto.location());
-        }
+        projectMapper.updateEntity(projectUpdates, dto, null);
         
         Project updatedProject = projectsService.update(id, projectUpdates, orgId);
         
-        return ResponseEntity.ok(projectToMap(updatedProject));
+        return ResponseEntity.ok(projectResponseMapper.toDto(updatedProject));
     }
 
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> archive(
+    public ResponseEntity<ProjectResponseDto> archive(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Project archivedProject = projectsService.archive(id, orgId);
         
-        return ResponseEntity.ok(projectToMap(archivedProject));
+        return ResponseEntity.ok(projectResponseMapper.toDto(archivedProject));
     }
 
     @PostMapping("/{id}/unarchive")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> unarchive(
+    public ResponseEntity<ProjectResponseDto> unarchive(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Project unarchivedProject = projectsService.unarchive(id, orgId);
         
-        return ResponseEntity.ok(projectToMap(unarchivedProject));
+        return ResponseEntity.ok(projectResponseMapper.toDto(unarchivedProject));
     }
     
-    // Helper methods
-    
-    private Map<String, Object> projectToMap(Project project) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", project.getId());
-        map.put("name", project.getName());
-        map.put("description", project.getDescription());
-        map.put("projectCode", project.getProjectCode());
-        map.put("status", project.getStatus());
-        map.put("location", project.getLocation());
-        map.put("officeId", project.getOffice() != null ? project.getOffice().getId() : null);
-        map.put("piiStripped", project.getPiiStripped());
-        map.put("legalHold", project.getLegalHold());
-        map.put("archivedAt", project.getArchivedAt());
-        map.put("orgId", project.getOrganization() != null ? project.getOrganization().getId() : null);
-        map.put("createdAt", project.getCreatedAt());
-        map.put("updatedAt", project.getUpdatedAt());
-        return map;
-    }
 }

@@ -1,7 +1,10 @@
 package com.mytegroup.api.controller.estimates;
 
 import com.mytegroup.api.dto.estimates.*;
+import com.mytegroup.api.dto.response.EstimateResponseDto;
 import com.mytegroup.api.entity.projects.Estimate;
+import com.mytegroup.api.mapper.estimates.EstimateMapper;
+import com.mytegroup.api.mapper.response.EstimateResponseMapper;
 import com.mytegroup.api.service.estimates.EstimatesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,21 +36,23 @@ import java.util.Map;
 public class EstimateController {
 
     private final EstimatesService estimatesService;
+    private final EstimateMapper estimateMapper;
+    private final EstimateResponseMapper estimateResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'PM', 'VIEWER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> list(
+    public ResponseEntity<List<EstimateResponseDto>> list(
             @PathVariable Long projectId,
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) Boolean includeArchived) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         List<Estimate> estimates = estimatesService.listByProject(projectId, orgId, includeArchived);
         
-        List<Map<String, Object>> response = estimates.stream()
-            .map(this::estimateToMap)
+        List<EstimateResponseDto> response = estimates.stream()
+            .map(estimateResponseMapper::toDto)
             .toList();
         
         return ResponseEntity.ok(response);
@@ -55,111 +60,83 @@ public class EstimateController {
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> create(
+    public ResponseEntity<EstimateResponseDto> create(
             @PathVariable Long projectId,
             @RequestBody @Valid CreateEstimateDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
-        Estimate estimate = new Estimate();
-        estimate.setName(dto.name());
-        estimate.setDescription(dto.description());
-        estimate.setRevision(dto.lineItems() != null && !dto.lineItems().isEmpty() ? 1 : 1);
-        estimate.setNotes(dto.notes());
+        Estimate estimate = estimateMapper.toEntity(dto, null, null, null);
         
         Estimate savedEstimate = estimatesService.create(estimate, projectId, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(estimateToMap(savedEstimate));
+        return ResponseEntity.status(HttpStatus.CREATED).body(estimateResponseMapper.toDto(savedEstimate));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'PM', 'VIEWER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> getById(
+    public ResponseEntity<EstimateResponseDto> getById(
             @PathVariable Long projectId,
             @PathVariable Long id,
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Estimate estimate = estimatesService.getById(id, projectId, orgId, includeArchived);
         
-        return ResponseEntity.ok(estimateToMap(estimate));
+        return ResponseEntity.ok(estimateResponseMapper.toDto(estimate));
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> update(
+    public ResponseEntity<EstimateResponseDto> update(
             @PathVariable Long projectId,
             @PathVariable Long id,
             @RequestBody @Valid UpdateEstimateDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Estimate estimateUpdates = new Estimate();
-        estimateUpdates.setName(dto.name());
-        estimateUpdates.setDescription(dto.description());
-        estimateUpdates.setNotes(dto.notes());
-        if (dto.status() != null) {
-            estimateUpdates.setStatus(dto.status());
-        }
+        estimateMapper.updateEntity(estimateUpdates, dto);
         
         Estimate updatedEstimate = estimatesService.update(id, projectId, estimateUpdates, orgId);
         
-        return ResponseEntity.ok(estimateToMap(updatedEstimate));
+        return ResponseEntity.ok(estimateResponseMapper.toDto(updatedEstimate));
     }
 
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> archive(
+    public ResponseEntity<EstimateResponseDto> archive(
             @PathVariable Long projectId,
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         Estimate archivedEstimate = estimatesService.archive(id, orgId);
         
-        return ResponseEntity.ok(estimateToMap(archivedEstimate));
+        return ResponseEntity.ok(estimateResponseMapper.toDto(archivedEstimate));
     }
 
     @PostMapping("/{id}/unarchive")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> unarchive(
+    public ResponseEntity<EstimateResponseDto> unarchive(
             @PathVariable Long projectId,
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         // TODO: Implement unarchive method in EstimatesService
         throw new com.mytegroup.api.exception.ServiceUnavailableException("Unarchive not yet implemented");
     }
     
-    // Helper methods
-    
-    private Map<String, Object> estimateToMap(Estimate estimate) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", estimate.getId());
-        map.put("name", estimate.getName());
-        map.put("description", estimate.getDescription());
-        map.put("revision", estimate.getRevision());
-        map.put("notes", estimate.getNotes());
-        map.put("projectId", estimate.getProject() != null ? estimate.getProject().getId() : null);
-        map.put("createdByUserId", estimate.getCreatedByUser() != null ? estimate.getCreatedByUser().getId() : null);
-        map.put("piiStripped", estimate.getPiiStripped());
-        map.put("legalHold", estimate.getLegalHold());
-        map.put("archivedAt", estimate.getArchivedAt());
-        map.put("orgId", estimate.getOrganization() != null ? estimate.getOrganization().getId() : null);
-        map.put("createdAt", estimate.getCreatedAt());
-        map.put("updatedAt", estimate.getUpdatedAt());
-        return map;
-    }
 }

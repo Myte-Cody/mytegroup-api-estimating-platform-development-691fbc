@@ -2,9 +2,11 @@ package com.mytegroup.api.controller.invites;
 
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.dto.invites.*;
+import com.mytegroup.api.dto.response.InviteResponseDto;
 import com.mytegroup.api.entity.core.Invite;
 import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.entity.enums.core.InviteStatus;
+import com.mytegroup.api.mapper.response.InviteResponseMapper;
 import com.mytegroup.api.service.invites.InvitesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,10 +35,11 @@ import java.util.Map;
 public class InviteController {
 
     private final InvitesService invitesService;
+    private final InviteResponseMapper inviteResponseMapper;
 
     @GetMapping
     @PreAuthorize("isAuthenticated() and hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public List<Map<String, Object>> list(
+    public List<InviteResponseDto> list(
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) InviteStatus status) {
         
@@ -46,14 +49,14 @@ public class InviteController {
         List<Invite> invites = invitesService.list(orgId, status);
         
         return invites.stream()
-            .map(this::inviteToMap)
+            .map(inviteResponseMapper::toDto)
             .toList();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("isAuthenticated() and hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> create(
+    public InviteResponseDto create(
             @RequestBody @Valid CreateInviteDto dto,
             @RequestParam(required = false) String orgId) {
         
@@ -70,12 +73,12 @@ public class InviteController {
             orgId
         );
         
-        return inviteToMap(invite);
+        return inviteResponseMapper.toDto(invite);
     }
 
     @PostMapping("/{id}/resend")
     @PreAuthorize("isAuthenticated() and hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> resend(
+    public InviteResponseDto resend(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
@@ -84,12 +87,12 @@ public class InviteController {
         }
         Invite invite = invitesService.resend(id, orgId);
         
-        return inviteToMap(invite);
+        return inviteResponseMapper.toDto(invite);
     }
 
     @PostMapping("/{id}/cancel")
     @PreAuthorize("isAuthenticated() and hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> cancel(
+    public InviteResponseDto cancel(
             @PathVariable Long id,
             @RequestParam(required = false) String orgId) {
         
@@ -98,7 +101,7 @@ public class InviteController {
         }
         Invite invite = invitesService.cancel(id, orgId);
         
-        return inviteToMap(invite);
+        return inviteResponseMapper.toDto(invite);
     }
 
     @PostMapping("/accept")
@@ -121,24 +124,6 @@ public class InviteController {
         ));
         
         return response;
-    }
-    
-    // Helper methods
-    
-    private Map<String, Object> inviteToMap(Invite invite) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", invite.getId());
-        map.put("email", invite.getEmail());
-        map.put("role", invite.getRole() != null ? invite.getRole().getValue() : null);
-        map.put("status", invite.getStatus() != null ? invite.getStatus().name() : null);
-        map.put("personId", invite.getPerson() != null ? invite.getPerson().getId() : null);
-        map.put("tokenExpires", invite.getTokenExpires());
-        map.put("acceptedAt", invite.getAcceptedAt());
-        map.put("invitedUserId", invite.getInvitedUser() != null ? invite.getInvitedUser().getId() : null);
-        map.put("createdByUserId", invite.getCreatedByUser() != null ? invite.getCreatedByUser().getId() : null);
-        map.put("orgId", invite.getOrganization() != null ? invite.getOrganization().getId() : null);
-        map.put("createdAt", invite.getCreatedAt());
-        return map;
     }
     
 }

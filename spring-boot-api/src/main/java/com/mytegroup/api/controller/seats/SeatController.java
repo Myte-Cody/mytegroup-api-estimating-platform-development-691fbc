@@ -1,7 +1,9 @@
 package com.mytegroup.api.controller.seats;
 
+import com.mytegroup.api.dto.response.SeatResponseDto;
 import com.mytegroup.api.entity.enums.projects.SeatStatus;
 import com.mytegroup.api.entity.projects.Seat;
+import com.mytegroup.api.mapper.response.SeatResponseMapper;
 import com.mytegroup.api.service.seats.SeatsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,10 +31,11 @@ import java.util.Map;
 public class SeatController {
 
     private final SeatsService seatsService;
+    private final SeatResponseMapper seatResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public List<Map<String, Object>> list(
+    public List<SeatResponseDto> list(
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) String status) {
         
@@ -44,7 +47,7 @@ public class SeatController {
         List<Seat> seats = seatsService.list(orgId, seatStatus);
         
         return seats.stream()
-            .map(this::seatToMap)
+            .map(seatResponseMapper::toDto)
             .toList();
     }
 
@@ -78,7 +81,7 @@ public class SeatController {
 
     @PostMapping("/{seatId}/assign-project")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> assignProject(
+    public SeatResponseDto assignProject(
             @PathVariable Long seatId,
             @RequestParam String orgId,
             @RequestParam Long projectId,
@@ -86,24 +89,24 @@ public class SeatController {
         
         Seat seat = seatsService.assignSeatToProject(orgId, seatId, projectId, role);
         
-        return seatToMap(seat);
+        return seatResponseMapper.toDto(seat);
     }
 
     @PostMapping("/{seatId}/clear-project")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> clearProject(
+    public SeatResponseDto clearProject(
             @PathVariable Long seatId,
             @RequestParam String orgId,
             @RequestParam Long projectId) {
         
         Seat seat = seatsService.clearSeatProject(orgId, seatId, projectId);
         
-        return seatToMap(seat);
+        return seatResponseMapper.toDto(seat);
     }
 
     @PostMapping("/allocate")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> allocate(
+    public SeatResponseDto allocate(
             @RequestParam String orgId,
             @RequestParam Long userId,
             @RequestParam(required = false) String role,
@@ -111,7 +114,7 @@ public class SeatController {
         
         Seat seat = seatsService.allocateSeat(orgId, userId, role, projectId);
         
-        return seatToMap(seat);
+        return seatResponseMapper.toDto(seat);
     }
 
     @PostMapping("/release")
@@ -126,35 +129,7 @@ public class SeatController {
             return Map.of("status", "no_seat_found");
         }
         
-        return seatToMap(seat);
+        return Map.of("status", "ok", "seat", seatResponseMapper.toDto(seat));
     }
     
-    // Helper methods
-    
-    private Map<String, Object> seatToMap(Seat seat) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", seat.getId());
-        map.put("seatNumber", seat.getSeatNumber());
-        map.put("status", seat.getStatus() != null ? seat.getStatus().name() : null);
-        map.put("role", seat.getRole());
-        map.put("userId", seat.getUser() != null ? seat.getUser().getId() : null);
-        map.put("projectId", seat.getProject() != null ? seat.getProject().getId() : null);
-        map.put("activatedAt", seat.getActivatedAt());
-        map.put("orgId", seat.getOrganization() != null ? seat.getOrganization().getId() : null);
-        map.put("createdAt", seat.getCreatedAt());
-        map.put("updatedAt", seat.getUpdatedAt());
-        
-        // Include history if present
-        if (seat.getHistory() != null && !seat.getHistory().isEmpty()) {
-            map.put("history", seat.getHistory().stream().map(h -> Map.of(
-                "userId", h.getUserId(),
-                "projectId", h.getProjectId(),
-                "role", h.getRole(),
-                "assignedAt", h.getAssignedAt(),
-                "removedAt", h.getRemovedAt()
-            )).toList());
-        }
-        
-        return map;
-    }
 }

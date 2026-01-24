@@ -2,9 +2,11 @@ package com.mytegroup.api.controller.users;
 
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.dto.users.*;
+import com.mytegroup.api.dto.response.UserResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.mapper.users.UserMapper;
+import com.mytegroup.api.mapper.response.UserResponseMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.users.UsersService;
 import jakarta.validation.Valid;
@@ -36,11 +38,12 @@ public class UserController {
 
     private final UsersService usersService;
     private final UserMapper userMapper;
+    private final UserResponseMapper userResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public List<Map<String, Object>> list(
+    public List<UserResponseDto> list(
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
@@ -51,17 +54,17 @@ public class UserController {
         List<User> users = usersService.list(orgId, includeArchived);
         
         return users.stream()
-            .map(this::userToMap)
+            .map(userResponseMapper::toDto)
             .toList();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> create(@RequestBody @Valid CreateUserDto dto) {
+    public UserResponseDto create(@RequestBody @Valid CreateUserDto dto) {
         // Get organization from DTO
         if (dto.getOrgId() == null) {
-            return Map.of("error", "orgId is required");
+            throw new IllegalArgumentException("orgId is required");
         }
         Organization organization = authHelper.validateOrg(dto.getOrgId());
         
@@ -74,85 +77,60 @@ public class UserController {
         
         User savedUser = usersService.create(user);
         
-        return userToMap(savedUser);
+        return userResponseMapper.toDto(savedUser);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> getById(
+    public UserResponseDto getById(
             @PathVariable Long id,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
         User user = usersService.getById(id, includeArchived);
         
-        return userToMap(user);
+        return userResponseMapper.toDto(user);
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> update(@PathVariable Long id, @RequestBody @Valid UpdateUserDto dto) {
+    public UserResponseDto update(@PathVariable Long id, @RequestBody @Valid UpdateUserDto dto) {
         // Create a User object with updates using mapper
         User userUpdates = new User();
         userMapper.updateEntity(userUpdates, dto);
         
         User updatedUser = usersService.update(id, userUpdates);
         
-        return userToMap(updatedUser);
+        return userResponseMapper.toDto(updatedUser);
     }
 
     @PatchMapping("/{id}/roles")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> updateRoles(@PathVariable Long id, @RequestBody @Valid UpdateUserRolesDto dto) {
+    public UserResponseDto updateRoles(@PathVariable Long id, @RequestBody @Valid UpdateUserRolesDto dto) {
         User updatedUser = usersService.updateRoles(id, dto.getRoles());
         
-        return userToMap(updatedUser);
+        return userResponseMapper.toDto(updatedUser);
     }
 
     @PostMapping("/{id}/archive")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> archive(@PathVariable Long id) {
+    public UserResponseDto archive(@PathVariable Long id) {
         User archivedUser = usersService.archive(id);
         
-        return userToMap(archivedUser);
+        return userResponseMapper.toDto(archivedUser);
     }
 
     @PostMapping("/{id}/unarchive")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> unarchive(@PathVariable Long id) {
+    public UserResponseDto unarchive(@PathVariable Long id) {
         User unarchivedUser = usersService.unarchive(id);
         
-        return userToMap(unarchivedUser);
+        return userResponseMapper.toDto(unarchivedUser);
     }
     
     @GetMapping("/{id}/roles")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
     public Map<String, Object> getRoles(@PathVariable Long id) {
         return usersService.getUserRoles(id);
-    }
-    
-    // Helper methods
-    
-    private Map<String, Object> userToMap(User user) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", user.getId());
-        map.put("email", user.getEmail());
-        map.put("username", user.getUsername());
-        map.put("firstName", user.getFirstName());
-        map.put("lastName", user.getLastName());
-        map.put("role", user.getRole() != null ? user.getRole().getValue() : null);
-        map.put("roles", user.getRoles() != null 
-            ? user.getRoles().stream().map(Role::getValue).toList() 
-            : List.of());
-        map.put("isEmailVerified", user.getIsEmailVerified());
-        map.put("isOrgOwner", user.getIsOrgOwner());
-        map.put("archivedAt", user.getArchivedAt());
-        map.put("lastLogin", user.getLastLogin());
-        map.put("piiStripped", user.getPiiStripped());
-        map.put("legalHold", user.getLegalHold());
-        map.put("orgId", user.getOrganization() != null ? user.getOrganization().getId() : null);
-        map.put("createdAt", user.getCreatedAt());
-        map.put("updatedAt", user.getUpdatedAt());
-        return map;
     }
     
 }

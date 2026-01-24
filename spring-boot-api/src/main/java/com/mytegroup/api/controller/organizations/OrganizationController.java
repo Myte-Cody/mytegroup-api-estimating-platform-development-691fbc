@@ -1,8 +1,10 @@
 package com.mytegroup.api.controller.organizations;
 
 import com.mytegroup.api.dto.organizations.*;
+import com.mytegroup.api.dto.response.OrganizationResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.mapper.organizations.OrganizationMapper;
+import com.mytegroup.api.mapper.response.OrganizationResponseMapper;
 import com.mytegroup.api.service.organizations.OrganizationsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,9 +13,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Organizations controller.
@@ -36,16 +35,17 @@ public class OrganizationController {
 
     private final OrganizationsService organizationsService;
     private final OrganizationMapper organizationMapper;
+    private final OrganizationResponseMapper organizationResponseMapper;
 
     @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> create(@RequestBody @Valid CreateOrganizationDto dto) {
+    public ResponseEntity<OrganizationResponseDto> create(@RequestBody @Valid CreateOrganizationDto dto) {
         // Use mapper to create organization (owner/createdBy can be set later via setOwner)
         Organization org = organizationMapper.toEntity(dto, null, null);
         
         Organization savedOrg = organizationsService.create(org);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(orgToMap(savedOrg));
+        return ResponseEntity.status(HttpStatus.CREATED).body(organizationResponseMapper.toDto(savedOrg));
     }
 
     @GetMapping
@@ -57,18 +57,21 @@ public class OrganizationController {
         
         Page<Organization> orgs = organizationsService.list(null, includeArchived, null, null, null, page, limit);
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", orgs.getContent().stream().map(this::orgToMap).toList());
-        response.put("total", orgs.getTotalElements());
-        response.put("page", page);
-        response.put("limit", limit);
+        java.util.List<OrganizationResponseDto> dtos = orgs.getContent().stream()
+                .map(organizationResponseMapper::toDto)
+                .toList();
         
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(java.util.Map.of(
+                "data", dtos,
+                "total", orgs.getTotalElements(),
+                "page", page,
+                "limit", limit
+        ));
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ORG_OWNER', 'ADMIN', 'ORG_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> getById(
+    public ResponseEntity<OrganizationResponseDto> getById(
             @PathVariable Long id,
             @RequestParam(required = false, defaultValue = "false") boolean includeArchived) {
         
@@ -77,12 +80,12 @@ public class OrganizationController {
             throw new com.mytegroup.api.exception.ResourceNotFoundException("Organization not found");
         }
         
-        return ResponseEntity.ok(orgToMap(org));
+        return ResponseEntity.ok(organizationResponseMapper.toDto(org));
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ORG_OWNER', 'ADMIN', 'ORG_ADMIN')")
-    public ResponseEntity<?> update(
+    public ResponseEntity<OrganizationResponseDto> update(
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationDto dto) {
         
@@ -92,28 +95,28 @@ public class OrganizationController {
         
         Organization updatedOrg = organizationsService.update(id, orgUpdates);
         
-        return ResponseEntity.ok(orgToMap(updatedOrg));
+        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
     }
 
     @PatchMapping("/{id}/archive")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> archive(@PathVariable Long id) {
+    public ResponseEntity<OrganizationResponseDto> archive(@PathVariable Long id) {
         Organization archivedOrg = organizationsService.archive(id);
         
-        return ResponseEntity.ok(orgToMap(archivedOrg));
+        return ResponseEntity.ok(organizationResponseMapper.toDto(archivedOrg));
     }
 
     @PatchMapping("/{id}/unarchive")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> unarchive(@PathVariable Long id) {
+    public ResponseEntity<OrganizationResponseDto> unarchive(@PathVariable Long id) {
         Organization unarchivedOrg = organizationsService.unarchive(id);
         
-        return ResponseEntity.ok(orgToMap(unarchivedOrg));
+        return ResponseEntity.ok(organizationResponseMapper.toDto(unarchivedOrg));
     }
 
     @PatchMapping("/{id}/datastore")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> updateDatastore(
+    public ResponseEntity<OrganizationResponseDto> updateDatastore(
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationDatastoreDto dto) {
         
@@ -137,51 +140,28 @@ public class OrganizationController {
         
         Organization updatedOrg = organizationsService.updateDatastore(id, datastoreUpdates);
         
-        return ResponseEntity.ok(orgToMap(updatedOrg));
+        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
     }
 
     @PostMapping("/{id}/legal-hold")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> setLegalHold(
+    public ResponseEntity<OrganizationResponseDto> setLegalHold(
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationLegalHoldDto dto) {
         
         Organization updatedOrg = organizationsService.setLegalHold(id, dto.legalHold());
         
-        return ResponseEntity.ok(orgToMap(updatedOrg));
+        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
     }
 
     @PostMapping("/{id}/pii-stripped")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
-    public ResponseEntity<?> setPiiStripped(
+    public ResponseEntity<OrganizationResponseDto> setPiiStripped(
             @PathVariable Long id,
             @RequestBody @Valid UpdateOrganizationPiiDto dto) {
         
         Organization updatedOrg = organizationsService.setPiiStripped(id, dto.piiStripped());
         
-        return ResponseEntity.ok(orgToMap(updatedOrg));
+        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
     }
-    
-    // Helper methods
-    
-    private Map<String, Object> orgToMap(Organization org) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", org.getId());
-        map.put("name", org.getName());
-        map.put("primaryDomain", org.getPrimaryDomain());
-        map.put("datastoreType", org.getDatastoreType() != null ? org.getDatastoreType().getValue() : null);
-        // datastoreConfig doesn't exist as a field - using databaseUri and databaseName instead
-        Map<String, Object> datastoreConfig = new HashMap<>();
-        datastoreConfig.put("databaseUri", org.getDatabaseUri());
-        datastoreConfig.put("databaseName", org.getDatabaseName());
-        map.put("datastoreConfig", datastoreConfig);
-        map.put("ownerId", org.getOwnerUser() != null ? org.getOwnerUser().getId() : null);
-        map.put("piiStripped", org.getPiiStripped());
-        map.put("legalHold", org.getLegalHold());
-        map.put("archivedAt", org.getArchivedAt());
-        map.put("createdAt", org.getCreatedAt());
-        map.put("updatedAt", org.getUpdatedAt());
-        return map;
-    }
-    
 }

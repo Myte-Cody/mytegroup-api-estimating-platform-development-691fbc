@@ -1,7 +1,9 @@
 package com.mytegroup.api.controller.orgtaxonomy;
 
 import com.mytegroup.api.dto.orgtaxonomy.PutOrgTaxonomyDto;
+import com.mytegroup.api.dto.response.OrgTaxonomyResponseDto;
 import com.mytegroup.api.entity.organization.OrgTaxonomy;
+import com.mytegroup.api.mapper.response.OrgTaxonomyResponseMapper;
 import com.mytegroup.api.service.orgtaxonomy.OrgTaxonomyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,12 +24,13 @@ import java.util.Map;
 public class OrgTaxonomyController {
 
     private final OrgTaxonomyService orgTaxonomyService;
+    private final OrgTaxonomyResponseMapper orgTaxonomyResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
     public ResponseEntity<?> list(@RequestParam(required = false) String orgId) {
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         // TODO: Implement list method in OrgTaxonomyService if needed
         return ResponseEntity.ok(List.of());
@@ -35,13 +38,13 @@ public class OrgTaxonomyController {
 
     @PutMapping("/{key}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> put(
+    public ResponseEntity<OrgTaxonomyResponseDto> put(
             @PathVariable String key,
             @RequestBody @Valid PutOrgTaxonomyDto dto,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         // Convert DTO values to OrgTaxonomyValue entities
         List<com.mytegroup.api.entity.organization.embeddable.OrgTaxonomyValue> values = 
@@ -66,21 +69,21 @@ public class OrgTaxonomyController {
                 .toList() : List.of();
         OrgTaxonomy taxonomy = orgTaxonomyService.putValues(orgId, key, values);
         
-        return ResponseEntity.ok(taxonomyToMap(taxonomy));
+        return ResponseEntity.ok(orgTaxonomyResponseMapper.toDto(taxonomy));
     }
 
     @GetMapping("/{key}")
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public ResponseEntity<?> get(
+    public ResponseEntity<OrgTaxonomyResponseDto> get(
             @PathVariable String key,
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         OrgTaxonomy taxonomy = orgTaxonomyService.getTaxonomy(orgId, key);
         
-        return ResponseEntity.ok(taxonomyToMap(taxonomy));
+        return ResponseEntity.ok(orgTaxonomyResponseMapper.toDto(taxonomy));
     }
 
     @DeleteMapping("/{key}")
@@ -90,7 +93,7 @@ public class OrgTaxonomyController {
             @RequestParam(required = false) String orgId) {
         
         if (orgId == null) { 
-            return ResponseEntity.badRequest().body(Map.of("error", "orgId is required")); 
+            throw new IllegalArgumentException("orgId is required");
         }
         // TODO: Implement delete method in OrgTaxonomyService
         // For now, just return success
@@ -98,14 +101,4 @@ public class OrgTaxonomyController {
         return ResponseEntity.ok(Map.of("status", "ok"));
     }
     
-    private Map<String, Object> taxonomyToMap(OrgTaxonomy taxonomy) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", taxonomy.getId());
-        map.put("key", taxonomy.getNamespace());
-        map.put("values", taxonomy.getValues());
-        map.put("orgId", taxonomy.getOrganization() != null ? taxonomy.getOrganization().getId() : null);
-        map.put("createdAt", taxonomy.getCreatedAt());
-        map.put("updatedAt", taxonomy.getUpdatedAt());
-        return map;
-    }
 }

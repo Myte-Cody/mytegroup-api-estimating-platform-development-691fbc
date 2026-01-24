@@ -1,8 +1,12 @@
 package com.mytegroup.api.controller.graphedges;
 
 import com.mytegroup.api.dto.graphedges.*;
+import com.mytegroup.api.dto.response.GraphEdgeResponseDto;
 import com.mytegroup.api.entity.organization.GraphEdge;
+import com.mytegroup.api.mapper.graphedges.GraphEdgeMapper;
+import com.mytegroup.api.mapper.response.GraphEdgeResponseMapper;
 import com.mytegroup.api.service.graphedges.GraphEdgesService;
+import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,12 +25,13 @@ import java.util.Map;
 public class GraphEdgeController {
 
     private final GraphEdgesService graphEdgesService;
-    private final com.mytegroup.api.mapper.graphedges.GraphEdgeMapper graphEdgeMapper;
-    private final com.mytegroup.api.service.common.ServiceAuthorizationHelper authHelper;
+    private final GraphEdgeMapper graphEdgeMapper;
+    private final GraphEdgeResponseMapper graphEdgeResponseMapper;
+    private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public List<Map<String, Object>> list(
+    public List<GraphEdgeResponseDto> list(
             @ModelAttribute ListGraphEdgesQueryDto query,
             @RequestParam(required = false) String orgId) {
         
@@ -39,14 +44,14 @@ public class GraphEdgeController {
         );
         
         return edges.stream()
-            .map(this::edgeToResponse)
+            .map(graphEdgeResponseMapper::toDto)
             .toList();
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
-    public Map<String, Object> create(
+    public GraphEdgeResponseDto create(
             @RequestBody @Valid CreateGraphEdgeDto dto,
             @RequestParam(required = false) String orgId) {
         
@@ -58,7 +63,7 @@ public class GraphEdgeController {
         GraphEdge edge = graphEdgeMapper.toEntity(dto, org);
         GraphEdge createdEdge = graphEdgesService.create(edge, orgId);
         
-        return edgeToResponse(createdEdge);
+        return graphEdgeResponseMapper.toDto(createdEdge);
     }
 
     @DeleteMapping("/{id}")
@@ -74,18 +79,4 @@ public class GraphEdgeController {
         graphEdgesService.delete(id, orgId);
     }
     
-    private Map<String, Object> edgeToResponse(GraphEdge edge) {
-        return Map.of(
-            "id", edge.getId(),
-            "fromType", edge.getFromNodeType() != null ? edge.getFromNodeType().name() : "",
-            "fromId", edge.getFromNodeId() != null ? edge.getFromNodeId().toString() : "",
-            "toType", edge.getToNodeType() != null ? edge.getToNodeType().name() : "",
-            "toId", edge.getToNodeId() != null ? edge.getToNodeId().toString() : "",
-            "edgeType", edge.getEdgeTypeKey() != null ? edge.getEdgeTypeKey() : "",
-            "meta", edge.getMetadata() != null ? edge.getMetadata() : Map.of(),
-            "createdAt", edge.getCreatedAt() != null ? edge.getCreatedAt().toString() : ""
-        );
-    }
-    
-        
 }

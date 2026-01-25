@@ -30,10 +30,14 @@ class CompanyMapperUnitTest {
         // Arrange
         CreateCompanyDto dto = new CreateCompanyDto(
             "Test Company",
-            "test.com",
             "EXT123",
+            "test.com",
+            "contact@test.com",
+            "555-0100",
             Arrays.asList("TYPE1", "TYPE2"),
-            Arrays.asList("TAG1", "TAG2")
+            Arrays.asList("TAG1", "TAG2"),
+            4.5,
+            "Notes here"
         );
 
         // Act
@@ -58,10 +62,14 @@ class CompanyMapperUnitTest {
 
         UpdateCompanyDto dto = new UpdateCompanyDto(
             "New Name",
-            "new.com",
             "NEW123",
+            "new.com",
+            "new@company.com",
+            "555-0001",
             Arrays.asList("NEWTYPE"),
-            Arrays.asList("NEWTAG")
+            Arrays.asList("NEWTAG"),
+            3.5,
+            "Updated notes"
         );
 
         // Act
@@ -80,6 +88,10 @@ class CompanyMapperUnitTest {
         // Arrange
         CreateCompanyDto dto = new CreateCompanyDto(
             "Company Name",
+            null,
+            null,
+            null,
+            null,
             null,
             null,
             null,

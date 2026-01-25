@@ -16,24 +16,24 @@ import java.util.Optional;
 public interface ProjectRepository extends JpaRepository<Project, Long>, JpaSpecificationExecutor<Project> {
 
     // List with pagination
-    Page<Project> findByOrgIdAndArchivedAtIsNull(Long orgId, Pageable pageable);
+    Page<Project> findByOrganization_IdAndArchivedAtIsNull(Long organizationId, Pageable pageable);
 
     // Find by name (unique when not archived)
-    Optional<Project> findByOrgIdAndName(Long orgId, String name);
+    Optional<Project> findByOrganization_IdAndName(Long organizationId, String name);
 
     // Find by code (unique when not archived)
-    Optional<Project> findByOrgIdAndProjectCode(Long orgId, String projectCode);
+    Optional<Project> findByOrganization_IdAndProjectCode(Long organizationId, String projectCode);
 
     // Find by office
-    List<Project> findByOrgIdAndOfficeId(Long orgId, Long officeId);
+    List<Project> findByOrganization_IdAndOfficeId(Long organizationId, Long officeId);
 
     // Search by name
-    List<Project> findByOrgIdAndNameContainingIgnoreCase(Long orgId, String search);
+    List<Project> findByOrganization_IdAndNameContainingIgnoreCase(Long organizationId, String search);
 
     // Find all for org (including archived)
-    List<Project> findByOrgId(Long orgId);
+    List<Project> findByOrganization_Id(Long organizationId);
 
     // Check if active exists
-    boolean existsByOrgIdAndArchivedAtIsNull(Long orgId);
+    boolean existsByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 }
 

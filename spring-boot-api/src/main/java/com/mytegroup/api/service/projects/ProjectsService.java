@@ -71,7 +71,7 @@ public class ProjectsService {
         project.setName(name);
         
         // Check for name collision
-        if (projectRepository.findByOrgIdAndName(org.getId(), name)
+        if (projectRepository.findByOrganization_IdAndName(org.getId(), name)
             .filter(p -> p.getArchivedAt() == null)
             .isPresent()) {
             throw new ConflictException("Project name already exists for this organization");
@@ -80,7 +80,7 @@ public class ProjectsService {
         // Check for project code collision
         if (project.getProjectCode() != null && !project.getProjectCode().trim().isEmpty()) {
             String projectCode = project.getProjectCode().trim();
-            if (projectRepository.findByOrgIdAndProjectCode(org.getId(), projectCode)
+            if (projectRepository.findByOrganization_IdAndProjectCode(org.getId(), projectCode)
                 .filter(p -> p.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Project code already exists for this organization");
@@ -197,7 +197,7 @@ public class ProjectsService {
         // Update name if provided
         if (projectUpdates.getName() != null && !projectUpdates.getName().equals(project.getName())) {
             String newName = projectUpdates.getName().trim();
-            if (projectRepository.findByOrgIdAndName(project.getOrganization().getId(), newName)
+            if (projectRepository.findByOrganization_IdAndName(project.getOrganization().getId(), newName)
                 .filter(p -> !p.getId().equals(id) && p.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Project name already exists for this organization");
@@ -212,7 +212,7 @@ public class ProjectsService {
         if (projectUpdates.getProjectCode() != null) {
             String projectCode = projectUpdates.getProjectCode().trim();
             if (!projectCode.isEmpty()) {
-                if (projectRepository.findByOrgIdAndProjectCode(project.getOrganization().getId(), projectCode)
+                if (projectRepository.findByOrganization_IdAndProjectCode(project.getOrganization().getId(), projectCode)
                     .filter(p -> !p.getId().equals(id) && p.getArchivedAt() == null)
                     .isPresent()) {
                     throw new ConflictException("Project code already exists for this organization");
@@ -353,7 +353,7 @@ public class ProjectsService {
         }
         
         // Check for name collision when unarchiving
-        if (projectRepository.findByOrgIdAndName(project.getOrganization().getId(), project.getName())
+        if (projectRepository.findByOrganization_IdAndName(project.getOrganization().getId(), project.getName())
             .filter(p -> !p.getId().equals(id) && p.getArchivedAt() == null)
             .isPresent()) {
             throw new ConflictException("Project name already exists for this organization");

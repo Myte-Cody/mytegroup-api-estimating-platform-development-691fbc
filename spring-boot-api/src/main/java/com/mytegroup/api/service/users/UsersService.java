@@ -172,9 +172,9 @@ public class UsersService {
         Long orgIdLong = Long.parseLong(orgId);
         
         if (includeArchived) {
-            return userRepository.findByOrgId(orgIdLong);
+            return userRepository.findByOrganization_Id(orgIdLong);
         } else {
-            return userRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong, 
+            return userRepository.findByOrganization_IdAndArchivedAtIsNull(orgIdLong, 
                 org.springframework.data.domain.PageRequest.of(0, Integer.MAX_VALUE)).getContent();
         }
     }

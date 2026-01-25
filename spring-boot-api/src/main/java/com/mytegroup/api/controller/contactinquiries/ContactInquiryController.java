@@ -4,7 +4,7 @@ import com.mytegroup.api.dto.contactinquiries.*;
 import com.mytegroup.api.dto.response.ContactInquiryResponseDto;
 import com.mytegroup.api.entity.communication.ContactInquiry;
 import com.mytegroup.api.mapper.contactinquiries.ContactInquiryMapper;
-import com.mytegroup.api.mapper.response.ContactInquiryResponseMapper;
+import com.mytegroup.api.mapper.contactinquiries.ContactInquiryMapper;
 import com.mytegroup.api.service.contactinquiries.ContactInquiriesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +26,6 @@ public class ContactInquiryController {
 
     private final ContactInquiriesService contactInquiriesService;
     private final ContactInquiryMapper contactInquiryMapper;
-    private final ContactInquiryResponseMapper contactInquiryResponseMapper;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -35,7 +34,7 @@ public class ContactInquiryController {
         
         ContactInquiry savedInquiry = contactInquiriesService.create(inquiry);
         
-        return contactInquiryResponseMapper.toDto(savedInquiry);
+        return contactInquiryMapper.toDto(savedInquiry);
     }
 
     @PostMapping("/verify")
@@ -62,7 +61,7 @@ public class ContactInquiryController {
             limit);
         
         return pageResult.getContent().stream()
-            .map(contactInquiryResponseMapper::toDto)
+            .map(contactInquiryMapper::toDto)
             .toList();
     }
 
@@ -78,7 +77,7 @@ public class ContactInquiryController {
         
         ContactInquiry inquiry = contactInquiriesService.update(id, inquiryUpdates);
         
-        return contactInquiryResponseMapper.toDto(inquiry);
+        return contactInquiryMapper.toDto(inquiry);
     }
     
 }

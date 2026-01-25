@@ -4,7 +4,7 @@ import com.mytegroup.api.dto.organizations.*;
 import com.mytegroup.api.dto.response.OrganizationResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.mapper.organizations.OrganizationMapper;
-import com.mytegroup.api.mapper.response.OrganizationResponseMapper;
+import com.mytegroup.api.mapper.organizations.OrganizationMapper;
 import com.mytegroup.api.service.organizations.OrganizationsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,6 @@ public class OrganizationController {
 
     private final OrganizationsService organizationsService;
     private final OrganizationMapper organizationMapper;
-    private final OrganizationResponseMapper organizationResponseMapper;
 
     @PostMapping
     @PreAuthorize("hasRole('SUPER_ADMIN')")
@@ -45,7 +44,7 @@ public class OrganizationController {
         
         Organization savedOrg = organizationsService.create(org);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(organizationResponseMapper.toDto(savedOrg));
+        return ResponseEntity.status(HttpStatus.CREATED).body(organizationMapper.toDto(savedOrg));
     }
 
     @GetMapping
@@ -58,7 +57,7 @@ public class OrganizationController {
         Page<Organization> orgs = organizationsService.list(null, includeArchived, null, null, null, page, limit);
         
         java.util.List<OrganizationResponseDto> dtos = orgs.getContent().stream()
-                .map(organizationResponseMapper::toDto)
+                .map(organizationMapper::toDto)
                 .toList();
         
         return ResponseEntity.ok(java.util.Map.of(
@@ -80,7 +79,7 @@ public class OrganizationController {
             throw new com.mytegroup.api.exception.ResourceNotFoundException("Organization not found");
         }
         
-        return ResponseEntity.ok(organizationResponseMapper.toDto(org));
+        return ResponseEntity.ok(organizationMapper.toDto(org));
     }
 
     @PatchMapping("/{id}")
@@ -95,7 +94,7 @@ public class OrganizationController {
         
         Organization updatedOrg = organizationsService.update(id, orgUpdates);
         
-        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
+        return ResponseEntity.ok(organizationMapper.toDto(updatedOrg));
     }
 
     @PatchMapping("/{id}/archive")
@@ -103,7 +102,7 @@ public class OrganizationController {
     public ResponseEntity<OrganizationResponseDto> archive(@PathVariable Long id) {
         Organization archivedOrg = organizationsService.archive(id);
         
-        return ResponseEntity.ok(organizationResponseMapper.toDto(archivedOrg));
+        return ResponseEntity.ok(organizationMapper.toDto(archivedOrg));
     }
 
     @PatchMapping("/{id}/unarchive")
@@ -111,7 +110,7 @@ public class OrganizationController {
     public ResponseEntity<OrganizationResponseDto> unarchive(@PathVariable Long id) {
         Organization unarchivedOrg = organizationsService.unarchive(id);
         
-        return ResponseEntity.ok(organizationResponseMapper.toDto(unarchivedOrg));
+        return ResponseEntity.ok(organizationMapper.toDto(unarchivedOrg));
     }
 
     @PatchMapping("/{id}/datastore")
@@ -140,7 +139,7 @@ public class OrganizationController {
         
         Organization updatedOrg = organizationsService.updateDatastore(id, datastoreUpdates);
         
-        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
+        return ResponseEntity.ok(organizationMapper.toDto(updatedOrg));
     }
 
     @PostMapping("/{id}/legal-hold")
@@ -151,7 +150,7 @@ public class OrganizationController {
         
         Organization updatedOrg = organizationsService.setLegalHold(id, dto.legalHold());
         
-        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
+        return ResponseEntity.ok(organizationMapper.toDto(updatedOrg));
     }
 
     @PostMapping("/{id}/pii-stripped")
@@ -162,6 +161,6 @@ public class OrganizationController {
         
         Organization updatedOrg = organizationsService.setPiiStripped(id, dto.piiStripped());
         
-        return ResponseEntity.ok(organizationResponseMapper.toDto(updatedOrg));
+        return ResponseEntity.ok(organizationMapper.toDto(updatedOrg));
     }
 }

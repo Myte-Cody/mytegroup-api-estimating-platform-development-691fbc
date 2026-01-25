@@ -14,25 +14,25 @@ import java.util.Optional;
 public interface CompanyLocationRepository extends JpaRepository<CompanyLocation, Long>, JpaSpecificationExecutor<CompanyLocation> {
 
     // Find by org, company, and not archived
-    List<CompanyLocation> findByOrgIdAndCompanyIdAndArchivedAtIsNull(Long orgId, Long companyId);
+    List<CompanyLocation> findByOrganization_IdAndCompanyIdAndArchivedAtIsNull(Long organizationId, Long companyId);
 
     // Find by name (unique when not archived)
-    Optional<CompanyLocation> findByOrgIdAndCompanyIdAndNormalizedName(Long orgId, Long companyId, String normalizedName);
+    Optional<CompanyLocation> findByOrganization_IdAndCompanyIdAndNormalizedName(Long organizationId, Long companyId, String normalizedName);
 
     // Find by external ID
-    Optional<CompanyLocation> findByOrgIdAndCompanyIdAndExternalId(Long orgId, Long companyId, String externalId);
+    Optional<CompanyLocation> findByOrganization_IdAndCompanyIdAndExternalId(Long organizationId, Long companyId, String externalId);
 
     // Find all locations for company
     List<CompanyLocation> findByCompanyId(Long companyId);
 
     // Find by tag
-    @Query("SELECT DISTINCT cl FROM CompanyLocation cl JOIN cl.tagKeys t WHERE cl.orgId = :orgId AND t = :tagKey AND cl.archivedAt IS NULL")
-    List<CompanyLocation> findByOrgIdAndTagKeysContaining(@Param("orgId") Long orgId, @Param("tagKey") String tagKey);
+    @Query("SELECT DISTINCT cl FROM CompanyLocation cl JOIN cl.tagKeys t WHERE cl.organization.id = :orgId AND t = :tagKey AND cl.archivedAt IS NULL")
+    List<CompanyLocation> findByOrganization_IdAndTagKeysContaining(@Param("orgId") Long orgId, @Param("tagKey") String tagKey);
 
     // Find all for org (including archived)
-    List<CompanyLocation> findByOrgId(Long orgId);
+    List<CompanyLocation> findByOrganization_Id(Long organizationId);
 
     // Check if active exists
-    boolean existsByOrgIdAndArchivedAtIsNull(Long orgId);
+    boolean existsByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 }
 

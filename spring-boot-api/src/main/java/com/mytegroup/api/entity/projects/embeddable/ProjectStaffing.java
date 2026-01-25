@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.List;
 
@@ -20,6 +22,7 @@ public class ProjectStaffing {
     private Long projectManagerPersonId;
 
     @Column(name = "foreman_person_ids", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String foremanPersonIds; // JSON array of Long IDs
 
     @Column(name = "superintendent_person_id")

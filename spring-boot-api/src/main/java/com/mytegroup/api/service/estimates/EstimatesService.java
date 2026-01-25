@@ -2,18 +2,22 @@ package com.mytegroup.api.service.estimates;
 
 import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.entity.projects.Estimate;
 import com.mytegroup.api.entity.projects.Project;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ConflictException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
+import com.mytegroup.api.repository.core.UserRepository;
 import com.mytegroup.api.repository.projects.EstimateRepository;
 import com.mytegroup.api.repository.projects.ProjectRepository;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +37,7 @@ public class EstimatesService {
     
     private final EstimateRepository estimateRepository;
     private final ProjectRepository projectRepository;
+    private final UserRepository userRepository;
     private final AuditLogService auditLogService;
     private final ServiceAuthorizationHelper authHelper;
     
@@ -67,13 +72,22 @@ public class EstimatesService {
         }
         
         Long orgIdLong = Long.parseLong(orgId);
-        if (estimateRepository.findByOrgIdAndProjectIdAndName(orgIdLong, project.getId(), estimate.getName())
+        if (estimateRepository.findByOrganization_IdAndProjectIdAndName(orgIdLong, project.getId(), estimate.getName())
             .filter(e -> e.getArchivedAt() == null)
             .isPresent()) {
             throw new ConflictException("Estimate name already exists for this project");
         }
         
-        // TODO: Set createdByUser from actor
+        // Set createdByUser from security context
+        if (estimate.getCreatedByUser() == null) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getName())) {
+                String username = authentication.getName();
+                userRepository.findByUsername(username)
+                    .filter(u -> u.getOrganization() != null && u.getOrganization().getId().toString().equals(orgId))
+                    .ifPresent(estimate::setCreatedByUser);
+            }
+        }
         
         Estimate savedEstimate = estimateRepository.save(estimate);
         
@@ -115,7 +129,7 @@ public class EstimatesService {
                 .filter(e -> e.getOrganization() != null && e.getOrganization().getId().equals(orgIdLong))
                 .toList();
         } else {
-            return estimateRepository.findByOrgIdAndProjectIdAndArchivedAtIsNull(orgIdLong, projectId);
+            return estimateRepository.findByOrganization_IdAndProjectIdAndArchivedAtIsNull(orgIdLong, projectId);
         }
     }
     
@@ -176,7 +190,7 @@ public class EstimatesService {
         if (estimateUpdates.getName() != null && !estimateUpdates.getName().equals(estimate.getName())) {
             Long orgIdLong = estimate.getOrganization().getId();
             Long existingProjectId = estimate.getProject().getId();
-            if (estimateRepository.findByOrgIdAndProjectIdAndName(orgIdLong, existingProjectId, estimateUpdates.getName())
+            if (estimateRepository.findByOrganization_IdAndProjectIdAndName(orgIdLong, existingProjectId, estimateUpdates.getName())
                 .filter(e -> !e.getId().equals(id) && e.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Estimate name already exists for this project");

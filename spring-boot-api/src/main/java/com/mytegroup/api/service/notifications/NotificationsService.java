@@ -81,12 +81,12 @@ public class NotificationsService {
         Pageable pageable = PageRequest.of(page, limit);
         
         if (read != null) {
-            return notificationRepository.findByOrgIdAndUserIdAndReadOrderByCreatedAtDesc(
+            return notificationRepository.findByOrganization_IdAndUserIdAndReadOrderByCreatedAtDesc(
                 orgIdLong, userId, read, pageable);
         }
         // TODO: Get user from security context when sessions are implemented
         // For now, return empty page
-        return notificationRepository.findByOrgIdAndUserIdOrderByCreatedAtDesc(orgIdLong, userId, pageable);
+        return notificationRepository.findByOrganization_IdAndUserIdOrderByCreatedAtDesc(orgIdLong, userId, pageable);
     }
     
     /**

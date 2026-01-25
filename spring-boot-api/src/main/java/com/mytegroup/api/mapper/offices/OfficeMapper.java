@@ -2,6 +2,7 @@ package com.mytegroup.api.mapper.offices;
 
 import com.mytegroup.api.dto.offices.CreateOfficeDto;
 import com.mytegroup.api.dto.offices.UpdateOfficeDto;
+import com.mytegroup.api.dto.response.OfficeResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.organization.Office;
 import org.springframework.stereotype.Component;
@@ -50,6 +51,25 @@ public class OfficeMapper {
         if (dto.sortOrder() != null) {
             office.setSortOrder(dto.sortOrder());
         }
+    }
+
+    /**
+     * Maps Office entity to OfficeResponseDto.
+     */
+    public OfficeResponseDto toDto(Office entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        return OfficeResponseDto.builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .address(entity.getAddress())
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
+                .archivedAt(entity.getArchivedAt())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

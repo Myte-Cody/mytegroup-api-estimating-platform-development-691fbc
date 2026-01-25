@@ -36,7 +36,7 @@ public class EmailTemplatesService {
     @Transactional(readOnly = true)
     public EmailTemplate getTemplate(String orgId, String name, String locale) {
         Long orgIdLong = Long.parseLong(orgId);
-        return emailTemplateRepository.findByOrgIdAndNameAndLocale(orgIdLong, name, locale)
+        return emailTemplateRepository.findByOrganization_IdAndNameAndLocale(orgIdLong, name, locale)
             .orElseThrow(() -> new ResourceNotFoundException("Email template not found"));
     }
     
@@ -47,9 +47,9 @@ public class EmailTemplatesService {
     public List<EmailTemplate> list(String orgId, String name) {
         Long orgIdLong = Long.parseLong(orgId);
         if (name != null && !name.trim().isEmpty()) {
-            return emailTemplateRepository.findByOrgIdAndName(orgIdLong, name);
+            return emailTemplateRepository.findByOrganization_IdAndName(orgIdLong, name);
         }
-        return emailTemplateRepository.findByOrgId(orgIdLong);
+        return emailTemplateRepository.findByOrganization_Id(orgIdLong);
     }
     
     /**

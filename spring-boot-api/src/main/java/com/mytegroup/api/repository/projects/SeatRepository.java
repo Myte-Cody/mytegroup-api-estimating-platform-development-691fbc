@@ -14,24 +14,24 @@ import java.util.Optional;
 public interface SeatRepository extends JpaRepository<Seat, Long> {
 
     // Find by seat number (unique)
-    Optional<Seat> findByOrgIdAndSeatNumber(Long orgId, Integer seatNumber);
+    Optional<Seat> findByOrganization_IdAndSeatNumber(Long organizationId, Integer seatNumber);
 
     // Find by status
-    List<Seat> findByOrgIdAndStatus(Long orgId, SeatStatus status);
+    List<Seat> findByOrganization_IdAndStatus(Long organizationId, SeatStatus status);
 
     // Find by role and status
-    List<Seat> findByOrgIdAndRoleAndStatus(Long orgId, String role, SeatStatus status);
+    List<Seat> findByOrganization_IdAndRoleAndStatus(Long organizationId, String role, SeatStatus status);
 
     // Find by project
-    List<Seat> findByOrgIdAndProjectId(Long orgId, Long projectId);
+    List<Seat> findByOrganization_IdAndProjectId(Long organizationId, Long projectId);
 
     // Find by user (unique when not null)
-    Optional<Seat> findByOrgIdAndUserId(Long orgId, Long userId);
+    Optional<Seat> findByOrganization_IdAndUserId(Long organizationId, Long userId);
 
     // List ordered by seat number
-    List<Seat> findByOrgIdAndStatusOrderBySeatNumber(Long orgId, SeatStatus status);
+    List<Seat> findByOrganization_IdAndStatusOrderBySeatNumber(Long organizationId, SeatStatus status);
 
     // Find all for org
-    List<Seat> findByOrgId(Long orgId);
+    List<Seat> findByOrganization_Id(Long organizationId);
 }
 

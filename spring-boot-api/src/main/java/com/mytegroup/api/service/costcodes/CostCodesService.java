@@ -63,7 +63,7 @@ public class CostCodesService {
         
         // Check code uniqueness
         String code = costCode.getCode().trim();
-        if (costCodeRepository.findByOrgIdAndCode(orgIdLong, code).isPresent()) {
+        if (costCodeRepository.findByOrganization_IdAndCode(orgIdLong, code).isPresent()) {
             throw new ConflictException("Cost code already exists for this organization");
         }
         costCode.setCode(code);
@@ -170,7 +170,7 @@ public class CostCodesService {
         // Update code with uniqueness check
         if (costCodeUpdates.getCode() != null && !costCodeUpdates.getCode().equals(costCode.getCode())) {
             String newCode = costCodeUpdates.getCode().trim();
-            if (costCodeRepository.findByOrgIdAndCode(orgIdLong, newCode)
+            if (costCodeRepository.findByOrganization_IdAndCode(orgIdLong, newCode)
                 .filter(c -> !c.getId().equals(id))
                 .isPresent()) {
                 throw new ConflictException("Cost code already exists for this organization");

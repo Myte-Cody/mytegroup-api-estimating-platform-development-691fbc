@@ -57,7 +57,7 @@ public class PersonsService {
         // Check for primary email uniqueness
         if (person.getPrimaryEmail() != null && !person.getPrimaryEmail().trim().isEmpty()) {
             String normalizedEmail = validationHelper.normalizeEmail(person.getPrimaryEmail());
-            if (personRepository.findByOrgIdAndPrimaryEmail(org.getId(), normalizedEmail)
+            if (personRepository.findByOrganization_IdAndPrimaryEmail(org.getId(), normalizedEmail)
                 .filter(p -> p.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Person primaryEmail already exists for this organization");
@@ -69,7 +69,7 @@ public class PersonsService {
         if (person.getPrimaryPhoneE164() != null && !person.getPrimaryPhoneE164().trim().isEmpty()) {
             String normalizedPhone = validationHelper.normalizePhoneE164(person.getPrimaryPhoneE164());
             if (normalizedPhone != null) {
-                if (personRepository.findByOrgIdAndPrimaryPhoneE164(org.getId(), normalizedPhone)
+                if (personRepository.findByOrganization_IdAndPrimaryPhoneE164(org.getId(), normalizedPhone)
                     .filter(p -> p.getArchivedAt() == null)
                     .isPresent()) {
                     throw new ConflictException("Person primaryPhone already exists for this organization");
@@ -80,7 +80,7 @@ public class PersonsService {
         
         // Check for ironworker number uniqueness
         if (person.getIronworkerNumber() != null && !person.getIronworkerNumber().trim().isEmpty()) {
-            if (personRepository.findByOrgIdAndIronworkerNumber(org.getId(), person.getIronworkerNumber())
+            if (personRepository.findByOrganization_IdAndIronworkerNumber(org.getId(), person.getIronworkerNumber())
                 .filter(p -> p.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Ironworker number already exists for this organization");
@@ -118,9 +118,9 @@ public class PersonsService {
         Long orgIdLong = Long.parseLong(orgId);
         
         if (includeArchived) {
-            return personRepository.findByOrgId(orgIdLong);
+            return personRepository.findByOrganization_Id(orgIdLong);
         } else {
-            return personRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong, 
+            return personRepository.findByOrganization_IdAndArchivedAtIsNull(orgIdLong, 
                 PageRequest.of(0, Integer.MAX_VALUE)).getContent();
         }
     }
@@ -192,7 +192,7 @@ public class PersonsService {
         if (personUpdates.getPrimaryEmail() != null) {
             String normalizedEmail = validationHelper.normalizeEmail(personUpdates.getPrimaryEmail());
             if (normalizedEmail != null && !normalizedEmail.equals(person.getPrimaryEmail())) {
-                if (personRepository.findByOrgIdAndPrimaryEmail(person.getOrganization().getId(), normalizedEmail)
+                if (personRepository.findByOrganization_IdAndPrimaryEmail(person.getOrganization().getId(), normalizedEmail)
                     .filter(p -> !p.getId().equals(id) && p.getArchivedAt() == null)
                     .isPresent()) {
                     throw new ConflictException("Person primaryEmail already exists for this organization");
@@ -205,7 +205,7 @@ public class PersonsService {
         if (personUpdates.getPrimaryPhoneE164() != null) {
             String normalizedPhone = validationHelper.normalizePhoneE164(personUpdates.getPrimaryPhoneE164());
             if (normalizedPhone != null && !normalizedPhone.equals(person.getPrimaryPhoneE164())) {
-                if (personRepository.findByOrgIdAndPrimaryPhoneE164(person.getOrganization().getId(), normalizedPhone)
+                if (personRepository.findByOrganization_IdAndPrimaryPhoneE164(person.getOrganization().getId(), normalizedPhone)
                     .filter(p -> !p.getId().equals(id) && p.getArchivedAt() == null)
                     .isPresent()) {
                     throw new ConflictException("Person primaryPhone already exists for this organization");
@@ -353,7 +353,7 @@ public class PersonsService {
         authHelper.validateOrg(orgId);
         Long orgIdLong = Long.parseLong(orgId);
         
-        return personRepository.findByOrgIdAndPrimaryEmail(orgIdLong, normalizedEmail)
+        return personRepository.findByOrganization_IdAndPrimaryEmail(orgIdLong, normalizedEmail)
             .filter(p -> p.getArchivedAt() == null)
             .orElse(null);
     }

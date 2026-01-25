@@ -19,11 +19,9 @@ public record CreatePersonDto(
     String firstName,
     String lastName,
     LocalDate dateOfBirth,
-    @Email(message = "Email must be valid")
     List<@Email String> emails,
     @Email(message = "Email must be valid")
     String primaryEmail,
-    @Pattern(regexp = ValidationConstants.PHONE_REGEX, message = "Phone must be valid")
     List<@Pattern(regexp = ValidationConstants.PHONE_REGEX) String> phones,
     @Pattern(regexp = ValidationConstants.PHONE_REGEX, message = "Primary phone must be valid")
     String primaryPhone,

@@ -2,6 +2,7 @@ package com.mytegroup.api.mapper.companylocations;
 
 import com.mytegroup.api.dto.companylocations.CreateCompanyLocationDto;
 import com.mytegroup.api.dto.companylocations.UpdateCompanyLocationDto;
+import com.mytegroup.api.dto.response.CompanyLocationResponseDto;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.companies.CompanyLocation;
 import com.mytegroup.api.entity.core.Organization;
@@ -72,6 +73,28 @@ public class CompanyLocationMapper {
         if (dto.notes() != null) {
             location.setNotes(dto.notes());
         }
+    }
+
+    /**
+     * Maps CompanyLocation entity to CompanyLocationResponseDto.
+     */
+    public CompanyLocationResponseDto toDto(CompanyLocation entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        return CompanyLocationResponseDto.builder()
+                .id(entity.getId())
+                .companyId(entity.getCompany() != null ? entity.getCompany().getId() : null)
+                .address(entity.getAddressLine1())
+                .city(entity.getCity())
+                .region(entity.getRegion())
+                .postal(entity.getPostal())
+                .country(entity.getCountry())
+                .archivedAt(entity.getArchivedAt())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

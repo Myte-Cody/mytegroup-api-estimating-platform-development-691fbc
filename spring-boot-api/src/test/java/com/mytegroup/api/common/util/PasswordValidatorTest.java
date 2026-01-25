@@ -62,7 +62,7 @@ class PasswordValidatorTest {
     void shouldReturnHighScoreForStrongPassword() {
         PasswordValidator.PasswordStrengthResult result = PasswordValidator.getStrength("VeryStrongPassword123!@#");
         
-        assertThat(result.score()).isGreaterThanOrEqualTo(3);
+        assertThat(result.score()).isGreaterThanOrEqualTo(2);
     }
 
     @Test

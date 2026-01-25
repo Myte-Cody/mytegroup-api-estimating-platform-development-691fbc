@@ -3,6 +3,7 @@ package com.mytegroup.api.mapper.persons;
 import com.mytegroup.api.dto.persons.CreatePersonDto;
 import com.mytegroup.api.dto.persons.PersonCertificationDto;
 import com.mytegroup.api.dto.persons.UpdatePersonDto;
+import com.mytegroup.api.dto.response.PersonResponseDto;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.companies.CompanyLocation;
 import com.mytegroup.api.entity.core.Organization;
@@ -199,6 +200,41 @@ public class PersonMapper {
         cert.setDocumentUrl(dto.documentUrl());
         cert.setNotes(dto.notes());
         return cert;
+    }
+
+    /**
+     * Maps Person entity to PersonResponseDto.
+     */
+    public PersonResponseDto toDto(Person entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        // Construct fullName from firstName and lastName
+        String fullName = null;
+        if (entity.getFirstName() != null && entity.getLastName() != null) {
+            fullName = entity.getFirstName() + " " + entity.getLastName();
+        } else if (entity.getFirstName() != null) {
+            fullName = entity.getFirstName();
+        } else if (entity.getLastName() != null) {
+            fullName = entity.getLastName();
+        }
+        
+        return PersonResponseDto.builder()
+                .id(entity.getId())
+                .firstName(entity.getFirstName())
+                .lastName(entity.getLastName())
+                .fullName(fullName)
+                .primaryPhoneE164(entity.getPrimaryPhoneE164())
+                .title(entity.getTitle())
+                .notes(entity.getNotes())
+                .piiStripped(entity.getPiiStripped())
+                .legalHold(entity.getLegalHold())
+                .archivedAt(entity.getArchivedAt())
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

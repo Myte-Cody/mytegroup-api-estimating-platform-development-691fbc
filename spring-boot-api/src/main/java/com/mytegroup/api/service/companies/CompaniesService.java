@@ -52,7 +52,7 @@ public class CompaniesService {
         
         // Normalize name and check for collision
         String normalizedName = validationHelper.normalizeName(company.getName());
-        if (companyRepository.findByOrgIdAndNormalizedName(org.getId(), normalizedName)
+        if (companyRepository.findByOrganization_IdAndNormalizedName(org.getId(), normalizedName)
             .filter(c -> c.getArchivedAt() == null)
             .isPresent()) {
             throw new ConflictException("Company already exists for this organization");
@@ -61,7 +61,7 @@ public class CompaniesService {
         
         // Check external ID uniqueness
         if (company.getExternalId() != null && !company.getExternalId().trim().isEmpty()) {
-            if (companyRepository.findByOrgIdAndExternalId(org.getId(), company.getExternalId())
+            if (companyRepository.findByOrganization_IdAndExternalId(org.getId(), company.getExternalId())
                 .filter(c -> c.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Company externalId already exists for this organization");
@@ -199,7 +199,7 @@ public class CompaniesService {
         // Update name with normalization and collision check
         if (companyUpdates.getName() != null && !companyUpdates.getName().equals(company.getName())) {
             String normalizedName = validationHelper.normalizeName(companyUpdates.getName());
-            if (companyRepository.findByOrgIdAndNormalizedName(company.getOrganization().getId(), normalizedName)
+            if (companyRepository.findByOrganization_IdAndNormalizedName(company.getOrganization().getId(), normalizedName)
                 .filter(c -> !c.getId().equals(id) && c.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Company already exists for this organization");
@@ -212,7 +212,7 @@ public class CompaniesService {
         if (companyUpdates.getExternalId() != null) {
             String externalId = companyUpdates.getExternalId().trim().isEmpty() ? null : companyUpdates.getExternalId();
             if (externalId != null && !externalId.equals(company.getExternalId())) {
-                if (companyRepository.findByOrgIdAndExternalId(company.getOrganization().getId(), externalId)
+                if (companyRepository.findByOrganization_IdAndExternalId(company.getOrganization().getId(), externalId)
                     .filter(c -> !c.getId().equals(id) && c.getArchivedAt() == null)
                     .isPresent()) {
                     throw new ConflictException("Company externalId already exists for this organization");
@@ -331,7 +331,7 @@ public class CompaniesService {
         String normalizedName = company.getNormalizedName() != null 
             ? company.getNormalizedName() 
             : validationHelper.normalizeName(company.getName());
-        if (companyRepository.findByOrgIdAndNormalizedName(company.getOrganization().getId(), normalizedName)
+        if (companyRepository.findByOrganization_IdAndNormalizedName(company.getOrganization().getId(), normalizedName)
             .filter(c -> !c.getId().equals(id) && c.getArchivedAt() == null)
             .isPresent()) {
             throw new ConflictException("Company already exists for this organization");
@@ -339,7 +339,7 @@ public class CompaniesService {
         
         // Check external ID collision
         if (company.getExternalId() != null) {
-            if (companyRepository.findByOrgIdAndExternalId(company.getOrganization().getId(), company.getExternalId())
+            if (companyRepository.findByOrganization_IdAndExternalId(company.getOrganization().getId(), company.getExternalId())
                 .filter(c -> !c.getId().equals(id) && c.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Company externalId already exists for this organization");

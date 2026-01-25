@@ -13,18 +13,18 @@ import java.util.List;
 public interface GraphEdgeRepository extends JpaRepository<GraphEdge, Long> {
 
     // Find by from node
-    List<GraphEdge> findByOrgIdAndFromNodeTypeAndFromNodeId(Long orgId, GraphNodeType nodeType, Long nodeId);
+    List<GraphEdge> findByOrganization_IdAndFromNodeTypeAndFromNodeId(Long organizationId, GraphNodeType nodeType, Long nodeId);
 
     // Find by to node
-    List<GraphEdge> findByOrgIdAndToNodeTypeAndToNodeId(Long orgId, GraphNodeType nodeType, Long nodeId);
+    List<GraphEdge> findByOrganization_IdAndToNodeTypeAndToNodeId(Long organizationId, GraphNodeType nodeType, Long nodeId);
 
     // Find by edge type key
-    List<GraphEdge> findByOrgIdAndEdgeTypeKey(Long orgId, String edgeTypeKey);
+    List<GraphEdge> findByOrganization_IdAndEdgeTypeKey(Long organizationId, String edgeTypeKey);
 
     // List active edges
-    List<GraphEdge> findByOrgIdAndArchivedAtIsNull(Long orgId);
+    List<GraphEdge> findByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 
     // Find all for org (including archived)
-    List<GraphEdge> findByOrgId(Long orgId);
+    List<GraphEdge> findByOrganization_Id(Long organizationId);
 }
 

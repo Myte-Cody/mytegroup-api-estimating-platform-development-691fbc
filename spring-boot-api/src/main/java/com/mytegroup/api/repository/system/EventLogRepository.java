@@ -15,19 +15,19 @@ import java.util.List;
 public interface EventLogRepository extends JpaRepository<EventLog, Long> {
 
     // List events
-    Page<EventLog> findByOrgIdOrderByCreatedAtDesc(Long orgId, Pageable pageable);
+    Page<EventLog> findByOrganization_idOrderByCreatedAtDesc(Long organizationId, Pageable pageable);
 
     // Find by entity
-    Page<EventLog> findByOrgIdAndEntityIdOrderByCreatedAtDesc(Long orgId, String entityId, Pageable pageable);
+    Page<EventLog> findByOrganization_IdAndEntityIdOrderByCreatedAtDesc(Long organizationId, String entityId, Pageable pageable);
 
     // Find by action
-    Page<EventLog> findByOrgIdAndActionOrderByCreatedAtDesc(Long orgId, String action, Pageable pageable);
+    Page<EventLog> findByOrganization_IdAndActionOrderByCreatedAtDesc(Long organizationId, String action, Pageable pageable);
 
     // Find by event type
-    Page<EventLog> findByOrgIdAndEventTypeOrderByCreatedAtDesc(Long orgId, String eventType, Pageable pageable);
+    Page<EventLog> findByOrganization_IdAndEventTypeOrderByCreatedAtDesc(Long organizationId, String eventType, Pageable pageable);
 
     // Find by entity type and entity id
-    Page<EventLog> findByOrgIdAndEntityTypeAndEntityIdOrderByCreatedAtDesc(
+    Page<EventLog> findByOrganization_IdAndEntityTypeAndEntityIdOrderByCreatedAtDesc(
         Long orgId, 
         String entityType, 
         String entityId, 

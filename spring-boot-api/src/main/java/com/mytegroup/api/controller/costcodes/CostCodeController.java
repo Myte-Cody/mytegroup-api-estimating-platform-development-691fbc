@@ -6,7 +6,7 @@ import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.cost.CostCode;
 import com.mytegroup.api.mapper.costcodes.CostCodeMapper;
-import com.mytegroup.api.mapper.response.CostCodeResponseMapper;
+import com.mytegroup.api.mapper.costcodes.CostCodeMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.costcodes.CostCodesService;
 import jakarta.validation.Valid;
@@ -30,7 +30,6 @@ public class CostCodeController {
 
     private final CostCodesService costCodesService;
     private final CostCodeMapper costCodeMapper;
-    private final CostCodeResponseMapper costCodeResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
@@ -53,7 +52,7 @@ public class CostCodeController {
         Page<CostCode> costCodes = costCodesService.list(orgId, q, activeOnly, page, limit);
         
         return ResponseEntity.ok(PaginatedResponseDto.<CostCodeResponseDto>builder()
-                .data(costCodes.getContent().stream().map(costCodeResponseMapper::toDto).toList())
+                .data(costCodes.getContent().stream().map(costCodeMapper::toDto).toList())
                 .total(costCodes.getTotalElements())
                 .page(page)
                 .limit(limit)
@@ -76,7 +75,7 @@ public class CostCodeController {
         
         CostCode savedCostCode = costCodesService.create(costCode, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(costCodeResponseMapper.toDto(savedCostCode));
+        return ResponseEntity.status(HttpStatus.CREATED).body(costCodeMapper.toDto(savedCostCode));
     }
 
     @GetMapping("/{id}")
@@ -86,7 +85,7 @@ public class CostCodeController {
         
         CostCode costCode = costCodesService.getById(id, orgId);
         
-        return ResponseEntity.ok(costCodeResponseMapper.toDto(costCode));
+        return ResponseEntity.ok(costCodeMapper.toDto(costCode));
     }
 
     @PatchMapping("/{id}")
@@ -106,7 +105,7 @@ public class CostCodeController {
         
         CostCode updatedCostCode = costCodesService.update(id, costCodeUpdates, orgId);
         
-        return ResponseEntity.ok(costCodeResponseMapper.toDto(updatedCostCode));
+        return ResponseEntity.ok(costCodeMapper.toDto(updatedCostCode));
     }
 
     @PostMapping("/{id}/toggle")
@@ -122,7 +121,7 @@ public class CostCodeController {
         
         CostCode toggledCostCode = costCodesService.toggleActive(id, dto.active(), orgId);
         
-        return ResponseEntity.ok(costCodeResponseMapper.toDto(toggledCostCode));
+        return ResponseEntity.ok(costCodeMapper.toDto(toggledCostCode));
     }
 
     @PostMapping("/bulk")

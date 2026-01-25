@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.0'
     id 'io.spring.dependency-management' version '1.1.6'
+    id 'jacoco'
 }
 
 group = 'com.mytegroup'
@@ -50,10 +51,11 @@ dependencies {
 
     // Testcontainers
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
     testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'org.testcontainers:testcontainers'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:testcontainers:1.19.8'
+    testImplementation 'org.testcontainers:postgresql:1.19.8'
+    testImplementation 'org.testcontainers:junit-jupiter:1.19.8'
 
     // Development Tools
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
@@ -67,3 +69,48 @@ tasks.named('bootJar') {
     archiveFileName = "${project.name}.jar"
 }
 
+// JaCoCo Configuration for Code Coverage
+jacoco {
+    toolVersion = "0.8.10"
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/config/**',
+                '**/entity/**',
+                '**/dto/**',
+                '**/exception/**',
+                '**/common/enums/**',
+                '**/Application.class'
+            ])
+        }))
+    }
+}
+
+test {
+    finalizedBy jacocoTestReport
+    jacoco {
+        includes = ['com.mytegroup.api.*']
+    }
+}
+
+// Task to verify code coverage thresholds
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = 'PACKAGE'
+            excludes = ['com.mytegroup.api.config.*', 'com.mytegroup.api.entity.*', 'com.mytegroup.api.dto.*']
+            limit {
+                minimum = 0.60
+            }
+        }
+    }
+}

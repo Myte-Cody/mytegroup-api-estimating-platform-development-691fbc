@@ -13,7 +13,7 @@ public class InviteResponseMapper {
         
         return InviteResponseDto.builder()
                 .id(entity.getId())
-                .personId(entity.getPerson() != null ? entity.getPerson().getId() : null)
+                .personId(entity.getPerson() != null ? entity.getPerson().getId().toString() : null)
                 .role(entity.getRole() != null ? entity.getRole().getValue() : null)
                 .tokenExpires(entity.getTokenExpires())
                 .acceptedAt(entity.getAcceptedAt())

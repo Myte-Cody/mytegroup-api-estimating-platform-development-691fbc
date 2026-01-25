@@ -4,7 +4,7 @@ import com.mytegroup.api.dto.estimates.*;
 import com.mytegroup.api.dto.response.EstimateResponseDto;
 import com.mytegroup.api.entity.projects.Estimate;
 import com.mytegroup.api.mapper.estimates.EstimateMapper;
-import com.mytegroup.api.mapper.response.EstimateResponseMapper;
+import com.mytegroup.api.mapper.estimates.EstimateMapper;
 import com.mytegroup.api.service.estimates.EstimatesService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +37,6 @@ public class EstimateController {
 
     private final EstimatesService estimatesService;
     private final EstimateMapper estimateMapper;
-    private final EstimateResponseMapper estimateResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'PM', 'VIEWER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
@@ -52,7 +51,7 @@ public class EstimateController {
         List<Estimate> estimates = estimatesService.listByProject(projectId, orgId, includeArchived);
         
         List<EstimateResponseDto> response = estimates.stream()
-            .map(estimateResponseMapper::toDto)
+            .map(estimateMapper::toDto)
             .toList();
         
         return ResponseEntity.ok(response);
@@ -72,7 +71,7 @@ public class EstimateController {
         
         Estimate savedEstimate = estimatesService.create(estimate, projectId, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(estimateResponseMapper.toDto(savedEstimate));
+        return ResponseEntity.status(HttpStatus.CREATED).body(estimateMapper.toDto(savedEstimate));
     }
 
     @GetMapping("/{id}")
@@ -88,7 +87,7 @@ public class EstimateController {
         }
         Estimate estimate = estimatesService.getById(id, projectId, orgId, includeArchived);
         
-        return ResponseEntity.ok(estimateResponseMapper.toDto(estimate));
+        return ResponseEntity.ok(estimateMapper.toDto(estimate));
     }
 
     @PatchMapping("/{id}")
@@ -107,7 +106,7 @@ public class EstimateController {
         
         Estimate updatedEstimate = estimatesService.update(id, projectId, estimateUpdates, orgId);
         
-        return ResponseEntity.ok(estimateResponseMapper.toDto(updatedEstimate));
+        return ResponseEntity.ok(estimateMapper.toDto(updatedEstimate));
     }
 
     @PostMapping("/{id}/archive")
@@ -122,7 +121,7 @@ public class EstimateController {
         }
         Estimate archivedEstimate = estimatesService.archive(id, orgId);
         
-        return ResponseEntity.ok(estimateResponseMapper.toDto(archivedEstimate));
+        return ResponseEntity.ok(estimateMapper.toDto(archivedEstimate));
     }
 
     @PostMapping("/{id}/unarchive")

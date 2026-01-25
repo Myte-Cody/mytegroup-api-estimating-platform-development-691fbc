@@ -1,13 +1,10 @@
 package com.mytegroup.api.service.companies;
 
-import com.mytegroup.api.common.enums.Role;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ConflictException;
-import com.mytegroup.api.exception.ForbiddenException;
-import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.companies.CompanyRepository;
-import com.mytegroup.api.service.common.ActorContext;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.common.ServiceValidationHelper;
@@ -18,22 +15,17 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-/**
- * Unit tests for CompaniesService.
- * Tests business logic in isolation with mocked dependencies.
- */
 @ExtendWith(MockitoExtension.class)
 class CompaniesServiceTest {
 
@@ -52,156 +44,127 @@ class CompaniesServiceTest {
     @InjectMocks
     private CompaniesService companiesService;
 
-    private Organization testOrg;
+    private Organization testOrganization;
     private Company testCompany;
-    private ActorContext adminActor;
 
     @BeforeEach
     void setUp() {
-        testOrg = new Organization();
-        testOrg.setId(1L);
-        testOrg.setName("Test Org");
+        testOrganization = new Organization();
+        testOrganization.setId(1L);
+        testOrganization.setName("Test Org");
 
         testCompany = new Company();
         testCompany.setId(1L);
         testCompany.setName("Test Company");
-        testCompany.setNormalizedName("testcompany");
-        testCompany.setOrganization(testOrg);
-
-        adminActor = new ActorContext("1", "1", Role.ADMIN);
+        testCompany.setNormalizedName("test company");
+        testCompany.setOrganization(testOrganization);
     }
 
     @Test
-    void shouldCreateCompany() {
-        // Given
-        Company company = new Company();
-        company.setName("New Company");
-        company.setNormalizedName("newcompany");
+    void testCreate_WithValidCompany_CreatesCompany() {
+        Company newCompany = new Company();
+        newCompany.setName("New Company");
+        newCompany.setExternalId("EXT123");
 
-        when(authHelper.validateOrg("1")).thenReturn(testOrg);
-        when(validationHelper.normalizeName("New Company")).thenReturn("newcompany");
-        when(companyRepository.findByOrgIdAndNormalizedName(1L, "newcompany"))
-                .thenReturn(Optional.empty());
-        when(companyRepository.save(any(Company.class))).thenReturn(testCompany);
-
-        // When
-        Company created = companiesService.create(company, adminActor, "1");
-
-        // Then
-        assertThat(created).isNotNull();
-        verify(authHelper).ensureRole(adminActor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        verify(authHelper).ensureOrgScope("1", adminActor);
-        verify(companyRepository).save(any(Company.class));
-        verify(auditLogService).log(anyString(), anyString(), anyString(), anyString(), anyString(), any());
-    }
-
-    @Test
-    void shouldThrowConflictExceptionForDuplicateCompany() {
-        // Given
-        Company company = new Company();
-        company.setName("Test Company");
-        company.setNormalizedName("testcompany");
-
-        when(authHelper.validateOrg("1")).thenReturn(testOrg);
-        when(validationHelper.normalizeName("Test Company")).thenReturn("testcompany");
-        when(companyRepository.findByOrgIdAndNormalizedName(1L, "testcompany"))
-                .thenReturn(Optional.of(testCompany));
-
-        // When/Then
-        assertThatThrownBy(() -> companiesService.create(company, adminActor, "1"))
-                .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("Company already exists");
-
-        verify(companyRepository, never()).save(any());
-    }
-
-    @Test
-    void shouldThrowForbiddenExceptionForUnauthorizedUser() {
-        // Given
-        ActorContext viewerActor = new ActorContext("1", "1", Role.VIEWER);
-        Company company = new Company();
-        company.setName("Test Company");
-
-        doThrow(new ForbiddenException("Insufficient role"))
-                .when(authHelper).ensureRole(viewerActor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-
-        // When/Then
-        assertThatThrownBy(() -> companiesService.create(company, viewerActor, "1"))
-                .isInstanceOf(ForbiddenException.class);
-
-        verify(companyRepository, never()).save(any());
-    }
-
-    @Test
-    void shouldGetCompanyById() {
-        // Given
-        when(companyRepository.findById(1L)).thenReturn(Optional.of(testCompany));
-
-        // When
-        Company found = companiesService.getById(1L, adminActor, "1", false);
-
-        // Then
-        assertThat(found).isNotNull();
-        assertThat(found.getId()).isEqualTo(1L);
-        verify(authHelper).ensureRole(adminActor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        verify(authHelper).ensureOrgScope("1", adminActor);
-    }
-
-    @Test
-    void shouldThrowResourceNotFoundExceptionWhenCompanyNotFound() {
-        // Given
-        when(companyRepository.findById(999L)).thenReturn(Optional.empty());
-
-        // When/Then
-        assertThatThrownBy(() -> companiesService.getById(999L, adminActor, "1", false))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Company not found");
-    }
-
-    @Test
-    void shouldListCompanies() {
-        // Given
-        Page<Company> page = new PageImpl<>(List.of(testCompany), PageRequest.of(0, 25), 1);
-        when(companyRepository.findAll(any(Specification.class), any(PageRequest.class)))
-                .thenReturn(page);
-
-        // When
-        Page<Company> result = companiesService.list(adminActor, "1", null, false, null, null, 0, 25);
-
-        // Then
-        assertThat(result).isNotNull();
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getTotalElements()).isEqualTo(1);
-        verify(authHelper).ensureRole(adminActor, Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN, Role.SUPER_ADMIN, Role.PLATFORM_ADMIN);
-        verify(authHelper).ensureOrgScope("1", adminActor);
-    }
-
-    @Test
-    void shouldNormalizeKeysWhenCreatingCompany() {
-        // Given
-        Company company = new Company();
-        company.setName("Test Company");
-        company.setCompanyTypeKeys(List.of("TYPE1", "type2"));
-        company.setTagKeys(List.of("TAG1", "tag2"));
-
-        when(authHelper.validateOrg("1")).thenReturn(testOrg);
-        when(validationHelper.normalizeName("Test Company")).thenReturn("testcompany");
-        when(validationHelper.normalizeKeys(List.of("TYPE1", "type2"))).thenReturn(List.of("type1", "type2"));
-        when(validationHelper.normalizeKeys(List.of("TAG1", "tag2"))).thenReturn(List.of("tag1", "tag2"));
-        when(companyRepository.findByOrgIdAndNormalizedName(1L, "testcompany"))
-                .thenReturn(Optional.empty());
+        when(authHelper.validateOrg("1")).thenReturn(testOrganization);
+        when(validationHelper.normalizeName("New Company")).thenReturn("new company");
+        when(companyRepository.findByOrganization_IdAndNormalizedName(1L, "new company"))
+            .thenReturn(Optional.empty());
+        when(companyRepository.findByOrganization_IdAndExternalId(1L, "EXT123"))
+            .thenReturn(Optional.empty());
         when(companyRepository.save(any(Company.class))).thenAnswer(invocation -> {
-            Company saved = invocation.getArgument(0);
-            saved.setId(1L);
-            return saved;
+            Company company = invocation.getArgument(0);
+            company.setId(1L);
+            return company;
         });
 
-        // When
-        Company created = companiesService.create(company, adminActor, "1");
+        Company result = companiesService.create(newCompany, "1");
 
-        // Then
-        verify(validationHelper).normalizeKeys(List.of("TYPE1", "type2"));
-        verify(validationHelper).normalizeKeys(List.of("TAG1", "tag2"));
+        assertNotNull(result);
+        assertEquals(testOrganization, result.getOrganization());
+        verify(companyRepository, times(1)).save(any(Company.class));
+    }
+
+    @Test
+    void testCreate_WithNullOrgId_ThrowsBadRequestException() {
+        Company newCompany = new Company();
+
+        assertThrows(BadRequestException.class, () -> {
+            companiesService.create(newCompany, null);
+        });
+    }
+
+    @Test
+    void testCreate_WithDuplicateName_ThrowsConflictException() {
+        Company newCompany = new Company();
+        newCompany.setName("Existing Company");
+
+        when(authHelper.validateOrg("1")).thenReturn(testOrganization);
+        when(validationHelper.normalizeName("Existing Company")).thenReturn("existing company");
+        when(companyRepository.findByOrganization_IdAndNormalizedName(1L, "existing company"))
+            .thenReturn(Optional.of(testCompany));
+
+        assertThrows(ConflictException.class, () -> {
+            companiesService.create(newCompany, "1");
+        });
+    }
+
+    @Test
+    void testCreate_WithDuplicateExternalId_ThrowsConflictException() {
+        Company newCompany = new Company();
+        newCompany.setName("New Company");
+        newCompany.setExternalId("EXISTING123");
+
+        when(authHelper.validateOrg("1")).thenReturn(testOrganization);
+        when(validationHelper.normalizeName("New Company")).thenReturn("new company");
+        when(companyRepository.findByOrganization_IdAndNormalizedName(1L, "new company"))
+            .thenReturn(Optional.empty());
+        when(companyRepository.findByOrganization_IdAndExternalId(1L, "EXISTING123"))
+            .thenReturn(Optional.of(testCompany));
+
+        assertThrows(ConflictException.class, () -> {
+            companiesService.create(newCompany, "1");
+        });
+    }
+
+    @Test
+    void testList_WithValidParams_ReturnsPage() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(authHelper.validateOrg("1")).thenReturn(testOrganization);
+        when(companyRepository.findAll(any(Specification.class), eq(pageable)))
+            .thenReturn(Page.empty());
+
+        Page<Company> result = companiesService.list("1", null, false, null, null, 0, 10);
+
+        assertNotNull(result);
+        verify(companyRepository, times(1)).findAll(any(Specification.class), eq(pageable));
+    }
+
+    @Test
+    void testList_WithNullOrgId_ThrowsBadRequestException() {
+        assertThrows(BadRequestException.class, () -> {
+            companiesService.list(null, null, false, null, null, 0, 10);
+        });
+    }
+
+    @Test
+    void testGetById_WithValidId_ReturnsCompany() {
+        Long companyId = 1L;
+        when(companyRepository.findById(companyId)).thenReturn(Optional.of(testCompany));
+
+        Company result = companiesService.getById(companyId, "1", false);
+
+        assertNotNull(result);
+        assertEquals(companyId, result.getId());
+    }
+
+    @Test
+    void testGetById_WithNonExistentId_ThrowsResourceNotFoundException() {
+        Long companyId = 999L;
+        when(companyRepository.findById(companyId)).thenReturn(Optional.empty());
+
+        assertThrows(com.mytegroup.api.exception.ResourceNotFoundException.class, () -> {
+            companiesService.getById(companyId, "1", false);
+        });
     }
 }
-

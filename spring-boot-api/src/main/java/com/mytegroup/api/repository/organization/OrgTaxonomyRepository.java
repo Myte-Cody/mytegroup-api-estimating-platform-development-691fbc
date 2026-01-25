@@ -11,9 +11,9 @@ import java.util.Optional;
 public interface OrgTaxonomyRepository extends JpaRepository<OrgTaxonomy, Long> {
 
     // Find by namespace
-    Optional<OrgTaxonomy> findByOrgIdAndNamespace(Long orgId, String namespace);
+    Optional<OrgTaxonomy> findByOrganization_IdAndNamespace(Long organizationId, String namespace);
 
     // Find all taxonomies for org
-    List<OrgTaxonomy> findByOrgId(Long orgId);
+    List<OrgTaxonomy> findByOrganization_Id(Long organizationId);
 }
 

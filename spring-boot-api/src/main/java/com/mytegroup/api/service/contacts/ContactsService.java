@@ -50,7 +50,7 @@ public class ContactsService {
         // Check email uniqueness
         if (contact.getEmail() != null && !contact.getEmail().trim().isEmpty()) {
             String normalizedEmail = validationHelper.normalizeEmail(contact.getEmail());
-            if (!contactRepository.findByOrgIdAndEmail(orgIdLong, normalizedEmail).isEmpty()) {
+            if (!contactRepository.findByOrganization_IdAndEmail(orgIdLong, normalizedEmail).isEmpty()) {
                 throw new ConflictException("Contact email already exists for this organization");
             }
             contact.setEmail(normalizedEmail);
@@ -58,7 +58,7 @@ public class ContactsService {
         
         // Check ironworker number uniqueness
         if (contact.getIronworkerNumber() != null && !contact.getIronworkerNumber().trim().isEmpty()) {
-            if (!contactRepository.findByOrgIdAndIronworkerNumber(orgIdLong, contact.getIronworkerNumber()).isEmpty()) {
+            if (!contactRepository.findByOrganization_IdAndIronworkerNumber(orgIdLong, contact.getIronworkerNumber()).isEmpty()) {
                 throw new ConflictException("Ironworker number already exists for this organization");
             }
         }
@@ -102,13 +102,13 @@ public class ContactsService {
         // TODO: Implement search, personType, and companyId filtering using Specification
         if (includeArchived != null && includeArchived) {
             // For archived, we need to get all and paginate manually or add a repository method
-            List<Contact> all = contactRepository.findByOrgId(orgIdLong);
+            List<Contact> all = contactRepository.findByOrganization_Id(orgIdLong);
             int start = (int) pageable.getOffset();
             int end = Math.min(start + pageable.getPageSize(), all.size());
             List<Contact> pageContent = all.subList(start, end);
             return new org.springframework.data.domain.PageImpl<>(pageContent, pageable, all.size());
         } else {
-            return contactRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong, pageable);
+            return contactRepository.findByOrganization_IdAndArchivedAtIsNull(orgIdLong, pageable);
         }
     }
     
@@ -161,7 +161,7 @@ public class ContactsService {
         // Update email with uniqueness check
         if (contactUpdates.getEmail() != null && !contactUpdates.getEmail().equals(contact.getEmail())) {
             String normalizedEmail = validationHelper.normalizeEmail(contactUpdates.getEmail());
-            List<Contact> existing = contactRepository.findByOrgIdAndEmail(orgIdLong, normalizedEmail);
+            List<Contact> existing = contactRepository.findByOrganization_IdAndEmail(orgIdLong, normalizedEmail);
             if (!existing.isEmpty() && existing.stream().anyMatch(c -> !c.getId().equals(id))) {
                 throw new ConflictException("Contact email already exists for this organization");
             }
@@ -171,7 +171,7 @@ public class ContactsService {
         // Update ironworker number with uniqueness check
         if (contactUpdates.getIronworkerNumber() != null && 
             !contactUpdates.getIronworkerNumber().equals(contact.getIronworkerNumber())) {
-            List<Contact> existing = contactRepository.findByOrgIdAndIronworkerNumber(orgIdLong, contactUpdates.getIronworkerNumber());
+            List<Contact> existing = contactRepository.findByOrganization_IdAndIronworkerNumber(orgIdLong, contactUpdates.getIronworkerNumber());
             if (!existing.isEmpty() && existing.stream().anyMatch(c -> !c.getId().equals(id))) {
                 throw new ConflictException("Ironworker number already exists for this organization");
             }

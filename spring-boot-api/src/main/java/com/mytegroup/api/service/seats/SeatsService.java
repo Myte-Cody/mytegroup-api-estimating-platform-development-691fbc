@@ -59,7 +59,7 @@ public class SeatsService {
         Organization org = authHelper.validateOrg(orgId);
         Long orgIdLong = org.getId();
         
-        List<Seat> existing = seatRepository.findByOrgId(orgIdLong);
+        List<Seat> existing = seatRepository.findByOrganization_Id(orgIdLong);
         Set<Integer> existingNumbers = existing.stream()
             .map(Seat::getSeatNumber)
             .collect(Collectors.toSet());
@@ -115,13 +115,13 @@ public class SeatsService {
         String effectiveRole = role != null ? role : "user";
         
         // Check if user already has a seat
-        Optional<Seat> existingSeat = seatRepository.findByOrgIdAndUserId(orgIdLong, userId);
+        Optional<Seat> existingSeat = seatRepository.findByOrganization_IdAndUserId(orgIdLong, userId);
         if (existingSeat.isPresent()) {
             throw new ConflictException("User already has an allocated seat");
         }
         
         // Find a vacant seat
-        List<Seat> vacantSeats = seatRepository.findByOrgIdAndStatusOrderBySeatNumber(orgIdLong, SeatStatus.VACANT);
+        List<Seat> vacantSeats = seatRepository.findByOrganization_IdAndStatusOrderBySeatNumber(orgIdLong, SeatStatus.VACANT);
         if (vacantSeats.isEmpty()) {
             throw new ForbiddenException("No available seats for this organization");
         }
@@ -193,7 +193,7 @@ public class SeatsService {
         Organization org = authHelper.validateOrg(orgId);
         Long orgIdLong = org.getId();
         
-        Optional<Seat> seatOpt = seatRepository.findByOrgIdAndUserId(orgIdLong, userId);
+        Optional<Seat> seatOpt = seatRepository.findByOrganization_IdAndUserId(orgIdLong, userId);
         if (seatOpt.isEmpty()) {
             throw new ResourceNotFoundException("No seat found for user");
         }
@@ -367,7 +367,7 @@ public class SeatsService {
         Organization org = authHelper.validateOrg(orgId);
         Long orgIdLong = org.getId();
         
-        List<Seat> allSeats = seatRepository.findByOrgId(orgIdLong);
+        List<Seat> allSeats = seatRepository.findByOrganization_Id(orgIdLong);
         int total = allSeats.size();
         int active = (int) allSeats.stream()
             .filter(s -> s.getStatus() == SeatStatus.ACTIVE)
@@ -386,9 +386,9 @@ public class SeatsService {
         Long orgIdLong = org.getId();
         
         if (status != null) {
-            return seatRepository.findByOrgIdAndStatusOrderBySeatNumber(orgIdLong, status);
+            return seatRepository.findByOrganization_IdAndStatusOrderBySeatNumber(orgIdLong, status);
         }
-        return seatRepository.findByOrgId(orgIdLong);
+        return seatRepository.findByOrganization_Id(orgIdLong);
     }
     
     /**
@@ -399,7 +399,7 @@ public class SeatsService {
         Organization org = authHelper.validateOrg(orgId);
         Long orgIdLong = org.getId();
         
-        return seatRepository.findByOrgIdAndUserId(orgIdLong, userId)
+        return seatRepository.findByOrganization_IdAndUserId(orgIdLong, userId)
             .filter(seat -> seat.getStatus() == SeatStatus.ACTIVE);
     }
     

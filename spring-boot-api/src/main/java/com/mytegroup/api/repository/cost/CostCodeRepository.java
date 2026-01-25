@@ -12,21 +12,21 @@ import java.util.Optional;
 public interface CostCodeRepository extends JpaRepository<CostCode, Long>, JpaSpecificationExecutor<CostCode> {
 
     // Find by code (unique)
-    Optional<CostCode> findByOrgIdAndCode(Long orgId, String code);
+    Optional<CostCode> findByOrganization_IdAndCode(Long organizationId, String code);
 
     // Find by category
-    List<CostCode> findByOrgIdAndCategory(Long orgId, String category);
+    List<CostCode> findByOrganization_IdAndCategory(Long organizationId, String category);
 
     // Find by active status
-    List<CostCode> findByOrgIdAndActive(Long orgId, Boolean active);
+    List<CostCode> findByOrganization_IdAndActive(Long organizationId, Boolean active);
 
     // Find by usage
-    List<CostCode> findByOrgIdAndIsUsed(Long orgId, Boolean isUsed);
+    List<CostCode> findByOrganization_IdAndIsUsed(Long organizationId, Boolean isUsed);
 
     // Find by import job
     List<CostCode> findByImportJobId(Long importJobId);
 
     // Find all for org
-    List<CostCode> findByOrgId(Long orgId);
+    List<CostCode> findByOrganization_Id(Long organizationId);
 }
 

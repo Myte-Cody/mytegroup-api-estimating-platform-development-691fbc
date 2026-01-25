@@ -15,27 +15,27 @@ import java.util.List;
 public interface ContactRepository extends JpaRepository<Contact, Long> {
 
     // List with pagination
-    Page<Contact> findByOrgIdAndArchivedAtIsNull(Long orgId, Pageable pageable);
+    Page<Contact> findByOrganization_IdAndArchivedAtIsNull(Long organizationId, Pageable pageable);
 
     // Filter by person type
-    List<Contact> findByOrgIdAndPersonTypeAndArchivedAtIsNull(Long orgId, ContactPersonType personType);
+    List<Contact> findByOrganization_IdAndPersonTypeAndArchivedAtIsNull(Long organizationId, ContactPersonType personType);
 
     // Find by email
-    List<Contact> findByOrgIdAndEmail(Long orgId, String email);
+    List<Contact> findByOrganization_IdAndEmail(Long organizationId, String email);
 
     // Find by ironworker number
-    List<Contact> findByOrgIdAndIronworkerNumber(Long orgId, String number);
+    List<Contact> findByOrganization_IdAndIronworkerNumber(Long organizationId, String number);
 
     // Find by office
-    List<Contact> findByOrgIdAndOfficeId(Long orgId, Long officeId);
+    List<Contact> findByOrganization_IdAndOfficeId(Long organizationId, Long officeId);
 
     // Find direct reports
-    List<Contact> findByOrgIdAndReportsToContactId(Long orgId, Long managerId);
+    List<Contact> findByOrganization_IdAndReportsToId(Long organizationId, Long managerId);
 
     // Find all for org (including archived)
-    List<Contact> findByOrgId(Long orgId);
+    List<Contact> findByOrganization_Id(Long organizationId);
 
     // Check if active exists
-    boolean existsByOrgIdAndArchivedAtIsNull(Long orgId);
+    boolean existsByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 }
 

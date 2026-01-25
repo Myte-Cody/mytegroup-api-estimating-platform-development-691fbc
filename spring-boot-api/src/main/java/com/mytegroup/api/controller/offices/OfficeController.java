@@ -6,7 +6,7 @@ import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.organization.Office;
 import com.mytegroup.api.mapper.offices.OfficeMapper;
-import com.mytegroup.api.mapper.response.OfficeResponseMapper;
+import com.mytegroup.api.mapper.offices.OfficeMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.offices.OfficesService;
 import jakarta.validation.Valid;
@@ -29,7 +29,6 @@ public class OfficeController {
 
     private final OfficesService officesService;
     private final OfficeMapper officeMapper;
-    private final OfficeResponseMapper officeResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
@@ -52,7 +51,7 @@ public class OfficeController {
         List<Office> offices = officesService.list(orgId, includeArchived != null && includeArchived);
         
         return ResponseEntity.ok(PaginatedResponseDto.<OfficeResponseDto>builder()
-                .data(offices.stream().map(officeResponseMapper::toDto).toList())
+                .data(offices.stream().map(officeMapper::toDto).toList())
                 .total(offices.size())
                 .page(page)
                 .limit(limit)
@@ -80,7 +79,7 @@ public class OfficeController {
         
         Office savedOffice = officesService.create(office, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(officeResponseMapper.toDto(savedOffice));
+        return ResponseEntity.status(HttpStatus.CREATED).body(officeMapper.toDto(savedOffice));
     }
 
     @GetMapping("/{id}")
@@ -92,7 +91,7 @@ public class OfficeController {
         
         Office office = officesService.getById(id, orgId, includeArchived);
         
-        return ResponseEntity.ok(officeResponseMapper.toDto(office));
+        return ResponseEntity.ok(officeMapper.toDto(office));
     }
 
     @PatchMapping("/{id}")
@@ -112,7 +111,7 @@ public class OfficeController {
         
         Office updatedOffice = officesService.update(id, officeUpdates, orgId);
         
-        return ResponseEntity.ok(officeResponseMapper.toDto(updatedOffice));
+        return ResponseEntity.ok(officeMapper.toDto(updatedOffice));
     }
 
     @PostMapping("/{id}/archive")
@@ -123,7 +122,7 @@ public class OfficeController {
         
         Office archivedOffice = officesService.archive(id, orgId);
         
-        return ResponseEntity.ok(officeResponseMapper.toDto(archivedOffice));
+        return ResponseEntity.ok(officeMapper.toDto(archivedOffice));
     }
 
     @PostMapping("/{id}/unarchive")
@@ -134,7 +133,7 @@ public class OfficeController {
         
         Office unarchivedOffice = officesService.unarchive(id, orgId);
         
-        return ResponseEntity.ok(officeResponseMapper.toDto(unarchivedOffice));
+        return ResponseEntity.ok(officeMapper.toDto(unarchivedOffice));
     }
     
 }

@@ -87,10 +87,10 @@ public class GraphEdgesService {
         Long orgIdLong = Long.parseLong(orgId);
         
         if (edgeTypeKey != null && !edgeTypeKey.trim().isEmpty()) {
-            return graphEdgeRepository.findByOrgIdAndEdgeTypeKey(orgIdLong, edgeTypeKey);
+            return graphEdgeRepository.findByOrganization_IdAndEdgeTypeKey(orgIdLong, edgeTypeKey);
         }
         
-        return graphEdgeRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong);
+        return graphEdgeRepository.findByOrganization_IdAndArchivedAtIsNull(orgIdLong);
     }
     
     /**

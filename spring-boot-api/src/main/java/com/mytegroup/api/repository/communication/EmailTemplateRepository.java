@@ -11,12 +11,12 @@ import java.util.Optional;
 public interface EmailTemplateRepository extends JpaRepository<EmailTemplate, Long> {
 
     // Find by name and locale (unique)
-    Optional<EmailTemplate> findByOrgIdAndNameAndLocale(Long orgId, String name, String locale);
+    Optional<EmailTemplate> findByOrganization_IdAndNameAndLocale(Long organizationId, String name, String locale);
 
     // Find all locales for template
-    List<EmailTemplate> findByOrgIdAndName(Long orgId, String name);
+    List<EmailTemplate> findByOrganization_IdAndName(Long organizationId, String name);
 
     // Find all for org
-    List<EmailTemplate> findByOrgId(Long orgId);
+    List<EmailTemplate> findByOrganization_Id(Long organizationId);
 }
 

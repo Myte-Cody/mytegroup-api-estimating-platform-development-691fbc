@@ -11,10 +11,10 @@ import java.util.List;
 public interface TenantMigrationRepository extends JpaRepository<TenantMigration, Long> {
 
     // Find migrations for org
-    List<TenantMigration> findByOrgId(Long orgId);
+    List<TenantMigration> findByOrganization_Id(Long organizationId);
 
     // Find by status
-    List<TenantMigration> findByOrgIdAndStatus(Long orgId, MigrationStatus status);
+    List<TenantMigration> findByOrganization_IdAndStatus(Long organizationId, MigrationStatus status);
 
     // Find all by status (admin)
     List<TenantMigration> findByStatus(MigrationStatus status);

@@ -2,6 +2,7 @@ package com.mytegroup.api.mapper.companies;
 
 import com.mytegroup.api.dto.companies.CreateCompanyDto;
 import com.mytegroup.api.dto.companies.UpdateCompanyDto;
+import com.mytegroup.api.dto.response.CompanyResponseDto;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.core.Organization;
 import org.springframework.stereotype.Component;
@@ -59,6 +60,35 @@ public class CompanyMapper {
         if (dto.notes() != null) {
             company.setNotes(dto.notes());
         }
+    }
+
+    /**
+     * Maps Company entity to CompanyResponseDto.
+     */
+    public CompanyResponseDto toDto(Company entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        return CompanyResponseDto.builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .normalizedName(entity.getNormalizedName())
+                .externalId(entity.getExternalId())
+                .website(entity.getWebsite())
+                .mainEmail(entity.getMainEmail())
+                .mainPhone(entity.getMainPhone())
+                .companyTypeKeys(entity.getCompanyTypeKeys())
+                .tagKeys(entity.getTagKeys())
+                    .rating(entity.getRating() != null ? entity.getRating().toString() : null)
+                .notes(entity.getNotes())
+                .piiStripped(entity.getPiiStripped())
+                .legalHold(entity.getLegalHold())
+                .archivedAt(entity.getArchivedAt())
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

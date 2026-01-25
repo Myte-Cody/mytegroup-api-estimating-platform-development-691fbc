@@ -11,9 +11,9 @@ import java.util.List;
 public interface CostCodeImportJobRepository extends JpaRepository<CostCodeImportJob, Long> {
 
     // Find all jobs for org
-    List<CostCodeImportJob> findByOrgId(Long orgId);
+    List<CostCodeImportJob> findByOrganization_Id(Long organizationId);
 
     // Find by status
-    List<CostCodeImportJob> findByOrgIdAndStatus(Long orgId, CostCodeImportStatus status);
+    List<CostCodeImportJob> findByOrganization_IdAndStatus(Long organizationId, CostCodeImportStatus status);
 }
 

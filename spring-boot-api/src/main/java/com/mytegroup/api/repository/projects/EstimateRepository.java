@@ -13,10 +13,10 @@ import java.util.Optional;
 public interface EstimateRepository extends JpaRepository<Estimate, Long> {
 
     // Find by org, project, and not archived
-    List<Estimate> findByOrgIdAndProjectIdAndArchivedAtIsNull(Long orgId, Long projectId);
+    List<Estimate> findByOrganization_IdAndProjectIdAndArchivedAtIsNull(Long organizationId, Long projectId);
 
     // Find by name (unique when not archived)
-    Optional<Estimate> findByOrgIdAndProjectIdAndName(Long orgId, Long projectId, String name);
+    Optional<Estimate> findByOrganization_IdAndProjectIdAndName(Long organizationId, Long projectId, String name);
 
     // Find all estimates for project
     List<Estimate> findByProjectId(Long projectId);
@@ -25,9 +25,9 @@ public interface EstimateRepository extends JpaRepository<Estimate, Long> {
     List<Estimate> findByCreatedByUserId(Long userId);
 
     // Find all for org (including archived)
-    List<Estimate> findByOrgId(Long orgId);
+    List<Estimate> findByOrganization_Id(Long organizationId);
 
     // Check if active exists
-    boolean existsByOrgIdAndArchivedAtIsNull(Long orgId);
+    boolean existsByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 }
 

@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.validation.FieldError;
@@ -183,6 +184,21 @@ public class GlobalExceptionHandler {
                 .build();
 
         log.warn("Insufficient authentication: {}", ex.getMessage());
+        return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(AuthenticationCredentialsNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleAuthenticationCredentialsNotFoundException(
+            AuthenticationCredentialsNotFoundException ex, WebRequest request) {
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.UNAUTHORIZED.value())
+                .error(HttpStatus.UNAUTHORIZED.getReasonPhrase())
+                .message("Authentication required")
+                .path(getPath(request))
+                .build();
+
+        log.warn("Authentication credentials not found: {}", ex.getMessage());
         return new ResponseEntity<>(errorResponse, HttpStatus.UNAUTHORIZED);
     }
 

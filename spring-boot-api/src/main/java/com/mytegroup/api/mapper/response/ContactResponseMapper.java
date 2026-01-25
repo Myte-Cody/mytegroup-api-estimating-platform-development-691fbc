@@ -25,7 +25,7 @@ public class ContactResponseMapper {
                 .piiStripped(entity.getPiiStripped())
                 .legalHold(entity.getLegalHold())
                 .archivedAt(entity.getArchivedAt())
-                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId() : null)
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
                 .build();

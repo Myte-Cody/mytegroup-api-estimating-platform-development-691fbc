@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Embeddable
 @Getter
@@ -80,21 +82,25 @@ public class ProjectQuantities {
     }
 
     // Note: These will be stored as JSONB in PostgreSQL
-    // For JPA, we'll use @Type(JsonBinaryType.class) or store as JSONB column
-    // For now, we'll use separate columns or JSONB
+    // Using @JdbcTypeCode(SqlTypes.JSON) to properly handle JSONB type conversion
     @Column(name = "structural", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String structural; // JSON representation
 
     @Column(name = "misc_metals", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String miscMetals; // JSON representation
 
     @Column(name = "metal_deck", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String metalDeck; // JSON representation
 
     @Column(name = "clt_panels", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String cltPanels; // JSON representation
 
     @Column(name = "glulam", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String glulam; // JSON representation
 }
 

@@ -2,6 +2,7 @@ package com.mytegroup.api.mapper.projects;
 
 import com.mytegroup.api.dto.projects.CreateProjectDto;
 import com.mytegroup.api.dto.projects.UpdateProjectDto;
+import com.mytegroup.api.dto.response.ProjectResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.organization.Office;
 import com.mytegroup.api.entity.projects.Project;
@@ -124,6 +125,25 @@ public class ProjectMapper {
         }
         
         // TODO: Update quantities, staffing, costCodeBudgets if needed
+    }
+
+    /**
+     * Maps Project entity to ProjectResponseDto.
+     */
+    public ProjectResponseDto toDto(Project entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        return ProjectResponseDto.builder()
+                .id(entity.getId())
+                .name(entity.getName())
+                .description(entity.getDescription())
+                .status(entity.getStatus())
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

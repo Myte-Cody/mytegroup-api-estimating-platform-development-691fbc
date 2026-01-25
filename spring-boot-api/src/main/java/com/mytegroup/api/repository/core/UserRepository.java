@@ -19,24 +19,27 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     // Find by email (unique)
     Optional<User> findByEmail(String email);
+    
+    // Find by username
+    Optional<User> findByUsername(String username);
 
     // List active users
-    Page<User> findByOrgIdAndArchivedAtIsNull(Long orgId, Pageable pageable);
+    Page<User> findByOrganization_IdAndArchivedAtIsNull(Long organizationId, Pageable pageable);
 
     // Find by org and email
-    Optional<User> findByOrgIdAndEmail(Long orgId, String email);
+    Optional<User> findByOrganization_IdAndEmail(Long organizationId, String email);
 
     // Check email exists
     boolean existsByEmail(String email);
 
     // Find by role
-    List<User> findByOrgIdAndRolesContaining(Long orgId, Role role);
+    List<User> findByOrganization_IdAndRolesContaining(Long organizationId, Role role);
 
     // Find all users for org (including archived)
-    List<User> findByOrgId(Long orgId);
+    List<User> findByOrganization_Id(Long organizationId);
 
     // Check if active exists
-    boolean existsByOrgIdAndArchivedAtIsNull(Long orgId);
+    boolean existsByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 
     // Find by organization ID
     @Query("SELECT u FROM User u WHERE u.organization.id = :orgId")

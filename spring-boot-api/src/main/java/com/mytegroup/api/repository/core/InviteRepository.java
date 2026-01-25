@@ -15,10 +15,10 @@ import java.util.Optional;
 public interface InviteRepository extends JpaRepository<Invite, Long> {
 
     // Find by org, email, and status
-    Optional<Invite> findByOrgIdAndEmailAndStatus(Long orgId, String email, InviteStatus status);
+    Optional<Invite> findByOrganization_IdAndEmailAndStatus(Long organizationId, String email, InviteStatus status);
 
     // Find by org, person, and status
-    List<Invite> findByOrgIdAndPersonIdAndStatus(Long orgId, Long personId, InviteStatus status);
+    List<Invite> findByOrganization_IdAndPersonIdAndStatus(Long organizationId, Long personId, InviteStatus status);
 
     // Find by token hash
     Optional<Invite> findByTokenHash(String tokenHash);
@@ -27,13 +27,13 @@ public interface InviteRepository extends JpaRepository<Invite, Long> {
     List<Invite> findByTokenExpiresBefore(LocalDateTime date);
 
     // Find all invites for org
-    List<Invite> findByOrgId(Long orgId);
+    List<Invite> findByOrganization_Id(Long organizationId);
 
     // Find active invites for org
-    List<Invite> findByOrgIdAndArchivedAtIsNull(Long orgId);
+    List<Invite> findByOrganization_IdAndArchivedAtIsNull(Long organizationId);
     
     // Find by org and status
-    List<Invite> findByOrgIdAndStatus(Long orgId, InviteStatus status);
+    List<Invite> findByOrganization_IdAndStatus(Long organizationId, InviteStatus status);
     
     // Find pending invites that have expired
     @Query("SELECT i FROM Invite i WHERE i.organization.id = :orgId AND i.status = 'PENDING' AND i.tokenExpires <= :now")

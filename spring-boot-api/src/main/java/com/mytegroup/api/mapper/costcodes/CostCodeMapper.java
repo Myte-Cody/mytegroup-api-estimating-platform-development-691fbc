@@ -3,6 +3,7 @@ package com.mytegroup.api.mapper.costcodes;
 import com.mytegroup.api.dto.costcodes.CreateCostCodeDto;
 import com.mytegroup.api.dto.costcodes.CostCodeInputDto;
 import com.mytegroup.api.dto.costcodes.UpdateCostCodeDto;
+import com.mytegroup.api.dto.response.CostCodeResponseDto;
 import com.mytegroup.api.entity.cost.CostCode;
 import com.mytegroup.api.entity.core.Organization;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,26 @@ public class CostCodeMapper {
         if (dto.description() != null) {
             costCode.setDescription(dto.description());
         }
+    }
+
+    /**
+     * Maps CostCode entity to CostCodeResponseDto.
+     */
+    public CostCodeResponseDto toDto(CostCode entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        return CostCodeResponseDto.builder()
+                .id(entity.getId())
+                .code(entity.getCode())
+                .name(entity.getCategory())
+                .description(entity.getDescription())
+                .active(entity.getActive())
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

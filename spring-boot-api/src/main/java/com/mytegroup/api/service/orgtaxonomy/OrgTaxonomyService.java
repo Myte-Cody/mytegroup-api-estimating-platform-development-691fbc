@@ -44,7 +44,7 @@ public class OrgTaxonomyService {
         }
         
         Long orgIdLong = Long.parseLong(orgId);
-        return orgTaxonomyRepository.findByOrgIdAndNamespace(orgIdLong, normalizedNamespace)
+        return orgTaxonomyRepository.findByOrganization_IdAndNamespace(orgIdLong, normalizedNamespace)
             .orElseThrow(() -> new ResourceNotFoundException("Taxonomy not found"));
     }
     
@@ -64,7 +64,7 @@ public class OrgTaxonomyService {
         }
         
         Long orgIdLong = Long.parseLong(orgId);
-        OrgTaxonomy taxonomy = orgTaxonomyRepository.findByOrgIdAndNamespace(orgIdLong, normalizedNamespace)
+        OrgTaxonomy taxonomy = orgTaxonomyRepository.findByOrganization_IdAndNamespace(orgIdLong, normalizedNamespace)
             .orElseGet(() -> {
                 OrgTaxonomy newTaxonomy = new OrgTaxonomy();
                 newTaxonomy.setOrganization(org);

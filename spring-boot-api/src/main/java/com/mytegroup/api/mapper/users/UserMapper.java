@@ -2,6 +2,7 @@ package com.mytegroup.api.mapper.users;
 
 import com.mytegroup.api.dto.users.CreateUserDto;
 import com.mytegroup.api.dto.users.UpdateUserDto;
+import com.mytegroup.api.dto.response.UserResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.core.User;
 import org.springframework.stereotype.Component;
@@ -73,6 +74,27 @@ public class UserMapper {
         if (dto.getLegalHold() != null) {
             user.setLegalHold(dto.getLegalHold());
         }
+    }
+
+    /**
+     * Maps User entity to UserResponseDto.
+     */
+    public UserResponseDto toDto(User entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        return UserResponseDto.builder()
+                .id(entity.getId() != null ? entity.getId().toString() : null)
+                .username(entity.getUsername())
+                .firstName(entity.getFirstName())
+                .lastName(entity.getLastName())
+                .email(entity.getEmail())
+                .role(entity.getRole() != null ? entity.getRole().getValue() : null)
+                .emailVerified(entity.getIsEmailVerified())
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

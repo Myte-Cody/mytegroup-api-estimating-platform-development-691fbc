@@ -38,3 +38,9 @@ management:
     health:
       show-details: never
 
+app:
+  waitlist:
+    invite-gate-enabled: false
+    domain-gate-enabled: false
+    require-invite-token: false
+

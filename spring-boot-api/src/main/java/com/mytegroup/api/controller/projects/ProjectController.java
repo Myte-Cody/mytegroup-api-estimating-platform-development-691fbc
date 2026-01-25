@@ -5,7 +5,7 @@ import com.mytegroup.api.dto.response.ProjectResponseDto;
 import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.projects.Project;
 import com.mytegroup.api.mapper.projects.ProjectMapper;
-import com.mytegroup.api.mapper.response.ProjectResponseMapper;
+import com.mytegroup.api.mapper.projects.ProjectMapper;
 import com.mytegroup.api.service.projects.ProjectsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,6 @@ public class ProjectController {
 
     private final ProjectsService projectsService;
     private final ProjectMapper projectMapper;
-    private final ProjectResponseMapper projectResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'ORG_OWNER', 'PM', 'VIEWER', 'ORG_ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
@@ -61,7 +60,7 @@ public class ProjectController {
         Page<Project> projects = projectsService.list(orgId, search, status, includeArchived, page, limit);
         
         return ResponseEntity.ok(PaginatedResponseDto.<ProjectResponseDto>builder()
-                .data(projects.getContent().stream().map(projectResponseMapper::toDto).toList())
+                .data(projects.getContent().stream().map(projectMapper::toDto).toList())
                 .total(projects.getTotalElements())
                 .page(page)
                 .limit(limit)
@@ -81,7 +80,7 @@ public class ProjectController {
         
         Project savedProject = projectsService.create(project, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(projectResponseMapper.toDto(savedProject));
+        return ResponseEntity.status(HttpStatus.CREATED).body(projectMapper.toDto(savedProject));
     }
 
     @GetMapping("/{id}")
@@ -96,7 +95,7 @@ public class ProjectController {
         }
         Project project = projectsService.getById(id, orgId, includeArchived);
         
-        return ResponseEntity.ok(projectResponseMapper.toDto(project));
+        return ResponseEntity.ok(projectMapper.toDto(project));
     }
 
     @PatchMapping("/{id}")
@@ -114,7 +113,7 @@ public class ProjectController {
         
         Project updatedProject = projectsService.update(id, projectUpdates, orgId);
         
-        return ResponseEntity.ok(projectResponseMapper.toDto(updatedProject));
+        return ResponseEntity.ok(projectMapper.toDto(updatedProject));
     }
 
     @PostMapping("/{id}/archive")
@@ -128,7 +127,7 @@ public class ProjectController {
         }
         Project archivedProject = projectsService.archive(id, orgId);
         
-        return ResponseEntity.ok(projectResponseMapper.toDto(archivedProject));
+        return ResponseEntity.ok(projectMapper.toDto(archivedProject));
     }
 
     @PostMapping("/{id}/unarchive")
@@ -142,7 +141,7 @@ public class ProjectController {
         }
         Project unarchivedProject = projectsService.unarchive(id, orgId);
         
-        return ResponseEntity.ok(projectResponseMapper.toDto(unarchivedProject));
+        return ResponseEntity.ok(projectMapper.toDto(unarchivedProject));
     }
     
 }

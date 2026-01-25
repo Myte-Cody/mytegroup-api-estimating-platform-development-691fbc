@@ -16,29 +16,29 @@ import java.util.Optional;
 public interface CompanyRepository extends JpaRepository<Company, Long>, JpaSpecificationExecutor<Company> {
 
     // List with pagination
-    Page<Company> findByOrgIdAndArchivedAtIsNull(Long orgId, Pageable pageable);
+    Page<Company> findByOrganization_IdAndArchivedAtIsNull(Long organizationId, Pageable pageable);
 
     // Find by name (unique when not archived)
-    Optional<Company> findByOrgIdAndNormalizedName(Long orgId, String normalizedName);
+    Optional<Company> findByOrganization_IdAndNormalizedName(Long organizationId, String normalizedName);
 
     // Find by external ID (unique when not archived)
-    Optional<Company> findByOrgIdAndExternalId(Long orgId, String externalId);
+    Optional<Company> findByOrganization_IdAndExternalId(Long organizationId, String externalId);
 
     // Search by name
-    List<Company> findByOrgIdAndNameContainingIgnoreCase(Long orgId, String search);
+    List<Company> findByOrganization_IdAndNameContainingIgnoreCase(Long organizationId, String search);
 
     // Find by type
-    @Query("SELECT DISTINCT c FROM Company c JOIN c.companyTypeKeys t WHERE c.orgId = :orgId AND t = :typeKey AND c.archivedAt IS NULL")
-    List<Company> findByOrgIdAndCompanyTypeKeysContaining(@Param("orgId") Long orgId, @Param("typeKey") String typeKey);
+    @Query("SELECT DISTINCT c FROM Company c JOIN c.companyTypeKeys t WHERE c.organization.id = :orgId AND t = :typeKey AND c.archivedAt IS NULL")
+    List<Company> findByOrganization_IdAndCompanyTypeKeysContaining(@Param("orgId") Long orgId, @Param("typeKey") String typeKey);
 
     // Find by tag
-    @Query("SELECT DISTINCT c FROM Company c JOIN c.tagKeys t WHERE c.orgId = :orgId AND t = :tagKey AND c.archivedAt IS NULL")
-    List<Company> findByOrgIdAndTagKeysContaining(@Param("orgId") Long orgId, @Param("tagKey") String tagKey);
+    @Query("SELECT DISTINCT c FROM Company c JOIN c.tagKeys t WHERE c.organization.id = :orgId AND t = :tagKey AND c.archivedAt IS NULL")
+    List<Company> findByOrganization_IdAndTagKeysContaining(@Param("orgId") Long orgId, @Param("tagKey") String tagKey);
 
     // Find all for org (including archived)
-    List<Company> findByOrgId(Long orgId);
+    List<Company> findByOrganization_Id(Long organizationId);
 
     // Check if active exists
-    boolean existsByOrgIdAndArchivedAtIsNull(Long orgId);
+    boolean existsByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 }
 

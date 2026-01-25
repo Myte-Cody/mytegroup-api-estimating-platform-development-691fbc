@@ -6,7 +6,7 @@ import com.mytegroup.api.dto.response.UserResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.mapper.users.UserMapper;
-import com.mytegroup.api.mapper.response.UserResponseMapper;
+import com.mytegroup.api.mapper.users.UserMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.users.UsersService;
 import jakarta.validation.Valid;
@@ -38,7 +38,6 @@ public class UserController {
 
     private final UsersService usersService;
     private final UserMapper userMapper;
-    private final UserResponseMapper userResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
@@ -54,7 +53,7 @@ public class UserController {
         List<User> users = usersService.list(orgId, includeArchived);
         
         return users.stream()
-            .map(userResponseMapper::toDto)
+            .map(userMapper::toDto)
             .toList();
     }
 
@@ -77,7 +76,7 @@ public class UserController {
         
         User savedUser = usersService.create(user);
         
-        return userResponseMapper.toDto(savedUser);
+        return userMapper.toDto(savedUser);
     }
 
     @GetMapping("/{id}")
@@ -88,7 +87,7 @@ public class UserController {
         
         User user = usersService.getById(id, includeArchived);
         
-        return userResponseMapper.toDto(user);
+        return userMapper.toDto(user);
     }
 
     @PatchMapping("/{id}")
@@ -100,7 +99,7 @@ public class UserController {
         
         User updatedUser = usersService.update(id, userUpdates);
         
-        return userResponseMapper.toDto(updatedUser);
+        return userMapper.toDto(updatedUser);
     }
 
     @PatchMapping("/{id}/roles")
@@ -108,7 +107,7 @@ public class UserController {
     public UserResponseDto updateRoles(@PathVariable Long id, @RequestBody @Valid UpdateUserRolesDto dto) {
         User updatedUser = usersService.updateRoles(id, dto.getRoles());
         
-        return userResponseMapper.toDto(updatedUser);
+        return userMapper.toDto(updatedUser);
     }
 
     @PostMapping("/{id}/archive")
@@ -116,7 +115,7 @@ public class UserController {
     public UserResponseDto archive(@PathVariable Long id) {
         User archivedUser = usersService.archive(id);
         
-        return userResponseMapper.toDto(archivedUser);
+        return userMapper.toDto(archivedUser);
     }
 
     @PostMapping("/{id}/unarchive")
@@ -124,7 +123,7 @@ public class UserController {
     public UserResponseDto unarchive(@PathVariable Long id) {
         User unarchivedUser = usersService.unarchive(id);
         
-        return userResponseMapper.toDto(unarchivedUser);
+        return userMapper.toDto(unarchivedUser);
     }
     
     @GetMapping("/{id}/roles")

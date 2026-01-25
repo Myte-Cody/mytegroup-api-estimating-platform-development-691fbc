@@ -7,7 +7,7 @@ import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.companies.CompanyLocation;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.mapper.companylocations.CompanyLocationMapper;
-import com.mytegroup.api.mapper.response.CompanyLocationResponseMapper;
+import com.mytegroup.api.mapper.companylocations.CompanyLocationMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.companylocations.CompanyLocationsService;
 import jakarta.validation.Valid;
@@ -29,7 +29,6 @@ public class CompanyLocationController {
 
     private final CompanyLocationsService companyLocationsService;
     private final CompanyLocationMapper companyLocationMapper;
-    private final CompanyLocationResponseMapper companyLocationResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
 
     @GetMapping
@@ -53,7 +52,7 @@ public class CompanyLocationController {
         Page<CompanyLocation> locations = companyLocationsService.list(orgId, companyId, null, null, includeArchived, page, limit);
         
         return ResponseEntity.ok(PaginatedResponseDto.<CompanyLocationResponseDto>builder()
-                .data(locations.getContent().stream().map(companyLocationResponseMapper::toDto).toList())
+                .data(locations.getContent().stream().map(companyLocationMapper::toDto).toList())
                 .total(locations.getTotalElements())
                 .page(page)
                 .limit(limit)
@@ -79,7 +78,7 @@ public class CompanyLocationController {
         
         CompanyLocation savedLocation = companyLocationsService.create(location, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(companyLocationResponseMapper.toDto(savedLocation));
+        return ResponseEntity.status(HttpStatus.CREATED).body(companyLocationMapper.toDto(savedLocation));
     }
 
     @GetMapping("/{id}")
@@ -91,7 +90,7 @@ public class CompanyLocationController {
         
         CompanyLocation location = companyLocationsService.getById(id, orgId, includeArchived);
         
-        return ResponseEntity.ok(companyLocationResponseMapper.toDto(location));
+        return ResponseEntity.ok(companyLocationMapper.toDto(location));
     }
 
     @PatchMapping("/{id}")
@@ -111,7 +110,7 @@ public class CompanyLocationController {
         
         CompanyLocation updatedLocation = companyLocationsService.update(id, locationUpdates, orgId);
         
-        return ResponseEntity.ok(companyLocationResponseMapper.toDto(updatedLocation));
+        return ResponseEntity.ok(companyLocationMapper.toDto(updatedLocation));
     }
 
     @PostMapping("/{id}/archive")
@@ -126,7 +125,7 @@ public class CompanyLocationController {
         
         CompanyLocation archivedLocation = companyLocationsService.archive(id, orgId);
         
-        return ResponseEntity.ok(companyLocationResponseMapper.toDto(archivedLocation));
+        return ResponseEntity.ok(companyLocationMapper.toDto(archivedLocation));
     }
 
     @PostMapping("/{id}/unarchive")
@@ -141,7 +140,7 @@ public class CompanyLocationController {
         
         CompanyLocation unarchivedLocation = companyLocationsService.unarchive(id, orgId);
         
-        return ResponseEntity.ok(companyLocationResponseMapper.toDto(unarchivedLocation));
+        return ResponseEntity.ok(companyLocationMapper.toDto(unarchivedLocation));
     }
     
 }

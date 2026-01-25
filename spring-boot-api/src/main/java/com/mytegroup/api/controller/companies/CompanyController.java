@@ -6,7 +6,6 @@ import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.mapper.companies.CompanyMapper;
-import com.mytegroup.api.mapper.response.CompanyResponseMapper;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import com.mytegroup.api.service.companies.CompaniesService;
 import jakarta.validation.Valid;
@@ -37,9 +36,9 @@ public class CompanyController {
 
     private final CompaniesService companiesService;
     private final CompanyMapper companyMapper;
-    private final CompanyResponseMapper companyResponseMapper;
     private final ServiceAuthorizationHelper authHelper;
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
+    @GetMapping
     public PaginatedResponseDto<CompanyResponseDto> list(
             @RequestParam(required = false) String orgId,
             @RequestParam(required = false) String search,
@@ -61,7 +60,7 @@ public class CompanyController {
         Page<Company> companies = companiesService.list(orgId, search, includeArchived, type, tag, page, limit);
         
         return PaginatedResponseDto.<CompanyResponseDto>builder()
-                .data(companies.getContent().stream().map(companyResponseMapper::toDto).toList())
+                .data(companies.getContent().stream().map(companyMapper::toDto).toList())
                 .total(companies.getTotalElements())
                 .page(page)
                 .limit(limit)
@@ -85,7 +84,7 @@ public class CompanyController {
         
         Company savedCompany = companiesService.create(company, orgId);
         
-        return companyResponseMapper.toDto(savedCompany);
+        return companyMapper.toDto(savedCompany);
     }
 
     @GetMapping("/{id}")
@@ -97,7 +96,7 @@ public class CompanyController {
         
         Company company = companiesService.getById(id, orgId, includeArchived);
         
-        return companyResponseMapper.toDto(company);
+        return companyMapper.toDto(company);
     }
 
     @PatchMapping("/{id}")
@@ -117,7 +116,7 @@ public class CompanyController {
         
         Company updatedCompany = companiesService.update(id, companyUpdates, orgId);
         
-        return companyResponseMapper.toDto(updatedCompany);
+        return companyMapper.toDto(updatedCompany);
     }
 
     @PostMapping("/{id}/archive")
@@ -132,7 +131,7 @@ public class CompanyController {
         
         Company archivedCompany = companiesService.archive(id, orgId);
         
-        return companyResponseMapper.toDto(archivedCompany);
+        return companyMapper.toDto(archivedCompany);
     }
 
     @PostMapping("/{id}/unarchive")
@@ -147,7 +146,7 @@ public class CompanyController {
         
         Company unarchivedCompany = companiesService.unarchive(id, orgId);
         
-        return companyResponseMapper.toDto(unarchivedCompany);
+        return companyMapper.toDto(unarchivedCompany);
     }
     
 }

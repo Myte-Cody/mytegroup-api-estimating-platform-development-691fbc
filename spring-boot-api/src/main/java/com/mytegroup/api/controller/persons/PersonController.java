@@ -5,7 +5,7 @@ import com.mytegroup.api.dto.response.PersonResponseDto;
 import com.mytegroup.api.dto.response.PaginatedResponseDto;
 import com.mytegroup.api.entity.people.Person;
 import com.mytegroup.api.mapper.persons.PersonMapper;
-import com.mytegroup.api.mapper.response.PersonResponseMapper;
+import com.mytegroup.api.mapper.persons.PersonMapper;
 import com.mytegroup.api.service.persons.PersonsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,6 @@ public class PersonController {
 
     private final PersonsService personsService;
     private final PersonMapper personMapper;
-    private final PersonResponseMapper personResponseMapper;
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ORG_OWNER', 'ORG_ADMIN', 'ADMIN', 'SUPER_ADMIN', 'PLATFORM_ADMIN')")
@@ -61,7 +60,7 @@ public class PersonController {
         List<Person> persons = personsService.list(orgId, includeArchived != null && includeArchived);
         
         return ResponseEntity.ok(PaginatedResponseDto.<PersonResponseDto>builder()
-                .data(persons.stream().map(personResponseMapper::toDto).toList())
+                .data(persons.stream().map(personMapper::toDto).toList())
                 .total(persons.size())
                 .page(page)
                 .limit(limit)
@@ -81,7 +80,7 @@ public class PersonController {
         
         Person savedPerson = personsService.create(person, orgId);
         
-        return ResponseEntity.status(HttpStatus.CREATED).body(personResponseMapper.toDto(savedPerson));
+        return ResponseEntity.status(HttpStatus.CREATED).body(personMapper.toDto(savedPerson));
     }
 
     @GetMapping("/{id}")
@@ -96,7 +95,7 @@ public class PersonController {
         }
         Person person = personsService.getById(id, orgId, includeArchived);
         
-        return ResponseEntity.ok(personResponseMapper.toDto(person));
+        return ResponseEntity.ok(personMapper.toDto(person));
     }
 
     @PatchMapping("/{id}")
@@ -114,7 +113,7 @@ public class PersonController {
         
         Person updatedPerson = personsService.update(id, personUpdates, orgId);
         
-        return ResponseEntity.ok(personResponseMapper.toDto(updatedPerson));
+        return ResponseEntity.ok(personMapper.toDto(updatedPerson));
     }
 
     @PostMapping("/{id}/archive")
@@ -128,7 +127,7 @@ public class PersonController {
         }
         Person archivedPerson = personsService.archive(id, orgId);
         
-        return ResponseEntity.ok(personResponseMapper.toDto(archivedPerson));
+        return ResponseEntity.ok(personMapper.toDto(archivedPerson));
     }
 
     @PostMapping("/{id}/unarchive")
@@ -142,7 +141,7 @@ public class PersonController {
         }
         Person unarchivedPerson = personsService.unarchive(id, orgId);
         
-        return ResponseEntity.ok(personResponseMapper.toDto(unarchivedPerson));
+        return ResponseEntity.ok(personMapper.toDto(unarchivedPerson));
     }
     
 }

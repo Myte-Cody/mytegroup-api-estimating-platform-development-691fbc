@@ -1,7 +1,7 @@
 package com.mytegroup.api.mapper.response;
 
 import com.mytegroup.api.dto.response.NotificationResponseDto;
-import com.mytegroup.api.entity.notifications.Notification;
+import com.mytegroup.api.entity.communication.Notification;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -13,12 +13,10 @@ public class NotificationResponseMapper {
         
         return NotificationResponseDto.builder()
                 .id(entity.getId())
-                .userId(entity.getUserId())
+                .userId(entity.getUser() != null ? entity.getUser().getId().toString() : null)
                 .type(entity.getType())
-                .title(entity.getTitle())
-                .message(entity.getMessage())
-                .isRead(entity.getIsRead())
-                .metadata(entity.getMetadata())
+                .metadata(entity.getPayload())
+                .isRead(entity.getRead())
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

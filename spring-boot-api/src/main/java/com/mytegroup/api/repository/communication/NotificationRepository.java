@@ -12,12 +12,12 @@ import org.springframework.stereotype.Repository;
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
     // Find by org, user, read status, ordered by created date desc
-    Page<Notification> findByOrgIdAndUserIdAndReadOrderByCreatedAtDesc(Long orgId, Long userId, Boolean read, Pageable pageable);
+    Page<Notification> findByOrganization_IdAndUserIdAndReadOrderByCreatedAtDesc(Long organizationId, Long userId, Boolean read, Pageable pageable);
 
     // All for user ordered by created date desc
-    Page<Notification> findByOrgIdAndUserIdOrderByCreatedAtDesc(Long orgId, Long userId, Pageable pageable);
+    Page<Notification> findByOrganization_IdAndUserIdOrderByCreatedAtDesc(Long organizationId, Long userId, Pageable pageable);
 
     // Count unread
-    long countByOrgIdAndUserIdAndReadFalse(Long orgId, Long userId);
+    long countByOrganization_IdAndUserIdAndReadFalse(Long organizationId, Long userId);
 }
 

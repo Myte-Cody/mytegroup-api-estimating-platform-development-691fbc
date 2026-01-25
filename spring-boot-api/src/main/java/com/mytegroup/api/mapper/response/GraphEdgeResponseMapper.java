@@ -21,7 +21,7 @@ public class GraphEdgeResponseMapper {
                 .metadata(entity.getMetadata())
                 .effectiveFrom(entity.getEffectiveFrom())
                 .effectiveTo(entity.getEffectiveTo())
-                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId() : null)
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

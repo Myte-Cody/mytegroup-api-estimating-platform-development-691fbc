@@ -355,9 +355,9 @@ public class InvitesService {
         expireStaleInvites(orgIdLong);
         
         if (status != null) {
-            return inviteRepository.findByOrgIdAndStatus(orgIdLong, status);
+            return inviteRepository.findByOrganization_IdAndStatus(orgIdLong, status);
         }
-        return inviteRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong);
+        return inviteRepository.findByOrganization_IdAndArchivedAtIsNull(orgIdLong);
     }
     
     /**

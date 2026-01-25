@@ -18,6 +18,6 @@ public interface LegalAcceptanceRepository extends JpaRepository<LegalAcceptance
     List<LegalAcceptance> findByUserIdAndDocType(Long userId, LegalDocType docType);
 
     // Find by org
-    List<LegalAcceptance> findByOrgIdAndDocTypeAndVersion(Long orgId, LegalDocType docType, String version);
+    List<LegalAcceptance> findByOrganization_IdAndDocTypeAndVersion(Long organizationId, LegalDocType docType, String version);
 }
 

@@ -3,6 +3,7 @@ package com.mytegroup.api.mapper.estimates;
 import com.mytegroup.api.dto.estimates.CreateEstimateDto;
 import com.mytegroup.api.dto.estimates.EstimateLineItemDto;
 import com.mytegroup.api.dto.estimates.UpdateEstimateDto;
+import com.mytegroup.api.dto.response.EstimateResponseDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.entity.enums.projects.EstimateStatus;
@@ -12,6 +13,7 @@ import com.mytegroup.api.entity.projects.embeddable.EstimateLineItem;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -79,6 +81,27 @@ public class EstimateMapper {
         item.setUnitCost(dto.unitCost());
         item.setTotal(dto.total());
         return item;
+    }
+
+    /**
+     * Maps Estimate entity to EstimateResponseDto.
+     */
+    public EstimateResponseDto toDto(Estimate entity) {
+        if (entity == null) {
+            return null;
+        }
+        
+        return EstimateResponseDto.builder()
+                .id(entity.getId())
+                .projectId(entity.getProject() != null ? entity.getProject().getId() : null)
+                .estimateName(entity.getName())
+                .description(entity.getDescription())
+                .status(entity.getStatus() != null ? entity.getStatus().getValue() : null)
+                .lineItems(Collections.emptyList()) // TODO: Map line items if available
+                .orgId(entity.getOrganization() != null ? entity.getOrganization().getId().toString() : null)
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 }
 

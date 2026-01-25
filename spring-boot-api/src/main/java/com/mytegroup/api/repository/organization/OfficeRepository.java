@@ -13,25 +13,25 @@ import java.util.Optional;
 public interface OfficeRepository extends JpaRepository<Office, Long> {
 
     // List active offices
-    List<Office> findByOrgIdAndArchivedAtIsNull(Long orgId);
+    List<Office> findByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 
     // Find by normalized name
-    Optional<Office> findByOrgIdAndNormalizedName(Long orgId, String normalizedName);
+    Optional<Office> findByOrganization_IdAndNormalizedName(Long organizationId, String normalizedName);
 
     // Find children
-    List<Office> findByOrgIdAndParentOrgLocationId(Long orgId, Long parentId);
+    List<Office> findByOrganization_IdAndParentId(Long organizationId, Long parentId);
 
     // Find root offices
-    List<Office> findByOrgIdAndParentOrgLocationIdIsNull(Long orgId);
+    List<Office> findByOrganization_IdAndParentIsNull(Long organizationId);
 
     // Find by tag
-    @Query("SELECT DISTINCT o FROM Office o JOIN o.tagKeys t WHERE o.orgId = :orgId AND t = :tagKey AND o.archivedAt IS NULL")
-    List<Office> findByOrgIdAndTagKeysContaining(@Param("orgId") Long orgId, @Param("tagKey") String tagKey);
+    @Query("SELECT DISTINCT o FROM Office o JOIN o.tagKeys t WHERE o.organization.id = :orgId AND t = :tagKey AND o.archivedAt IS NULL")
+    List<Office> findByOrganization_IdAndTagKeysContaining(@Param("orgId") Long orgId, @Param("tagKey") String tagKey);
 
     // Find all for org (including archived)
-    List<Office> findByOrgId(Long orgId);
+    List<Office> findByOrganization_Id(Long organizationId);
 
     // Check if active exists
-    boolean existsByOrgIdAndArchivedAtIsNull(Long orgId);
+    boolean existsByOrganization_IdAndArchivedAtIsNull(Long organizationId);
 }
 

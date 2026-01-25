@@ -59,7 +59,7 @@ public class OfficesService {
         if (org == null) {
             throw new BadRequestException("Organization is required");
         }
-        if (officeRepository.findByOrgIdAndNormalizedName(org.getId(), normalizedName)
+        if (officeRepository.findByOrganization_IdAndNormalizedName(org.getId(), normalizedName)
             .filter(o -> o.getArchivedAt() == null)
             .isPresent()) {
             throw new ConflictException("Office name already exists for this organization");
@@ -112,9 +112,9 @@ public class OfficesService {
         Long orgIdLong = Long.parseLong(orgId);
         
         if (includeArchived) {
-            return officeRepository.findByOrgId(orgIdLong);
+            return officeRepository.findByOrganization_Id(orgIdLong);
         } else {
-            return officeRepository.findByOrgIdAndArchivedAtIsNull(orgIdLong);
+            return officeRepository.findByOrganization_IdAndArchivedAtIsNull(orgIdLong);
         }
     }
     
@@ -158,7 +158,7 @@ public class OfficesService {
         // Update name with normalization and collision check
         if (officeUpdates.getName() != null && !officeUpdates.getName().equals(office.getName())) {
             String normalizedName = validationHelper.normalizeName(officeUpdates.getName());
-            if (officeRepository.findByOrgIdAndNormalizedName(office.getOrganization().getId(), normalizedName)
+            if (officeRepository.findByOrganization_IdAndNormalizedName(office.getOrganization().getId(), normalizedName)
                 .filter(o -> !o.getId().equals(id) && o.getArchivedAt() == null)
                 .isPresent()) {
                 throw new ConflictException("Office name already exists for this organization");
@@ -281,7 +281,7 @@ public class OfficesService {
         String normalizedName = office.getNormalizedName() != null 
             ? office.getNormalizedName() 
             : validationHelper.normalizeName(office.getName());
-        if (officeRepository.findByOrgIdAndNormalizedName(office.getOrganization().getId(), normalizedName)
+        if (officeRepository.findByOrganization_IdAndNormalizedName(office.getOrganization().getId(), normalizedName)
             .filter(o -> !o.getId().equals(id) && o.getArchivedAt() == null)
             .isPresent()) {
             throw new ConflictException("Office name already exists for this organization");

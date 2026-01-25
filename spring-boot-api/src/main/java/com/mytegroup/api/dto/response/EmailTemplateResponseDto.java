@@ -21,3 +21,4 @@ public class EmailTemplateResponseDto {
     private LocalDateTime updatedAt;
 }
 
+

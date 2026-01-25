@@ -32,3 +32,4 @@ public class CompanyResponseDto {
     private LocalDateTime updatedAt;
 }
 
+

@@ -58,7 +58,6 @@ class OfficesServiceTest {
         testOffice.setOrganization(testOrganization);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithValidOffice_CreatesOffice() {
         Office newOffice = new Office();
@@ -73,6 +72,7 @@ class OfficesServiceTest {
             office.setId(1L);
             return office;
         });
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         Office result = officesService.create(newOffice, "1");
 
@@ -81,7 +81,6 @@ class OfficesServiceTest {
         verify(officeRepository, times(1)).save(any(Office.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithEmptyName_ThrowsBadRequestException() {
         Office newOffice = new Office();
@@ -92,7 +91,6 @@ class OfficesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithDuplicateName_ThrowsConflictException() {
         Office newOffice = new Office();
@@ -108,7 +106,6 @@ class OfficesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithNonExistentParent_ThrowsResourceNotFoundException() {
         Office newOffice = new Office();
@@ -128,24 +125,21 @@ class OfficesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithValidParams_ReturnsList() {
-        when(authHelper.validateOrg("1")).thenReturn(testOrganization);
         when(officeRepository.findByOrganization_Id(1L))
             .thenReturn(List.of(testOffice));
 
         List<Office> result = officesService.list("1", true);
 
         assertNotNull(result);
+        assertFalse(result.isEmpty());
         verify(officeRepository, times(1)).findByOrganization_Id(1L);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithValidId_ReturnsOffice() {
         Long officeId = 1L;
-        when(authHelper.validateOrg("1")).thenReturn(testOrganization);
         when(officeRepository.findById(officeId)).thenReturn(Optional.of(testOffice));
 
         Office result = officesService.getById(officeId, "1", false);
@@ -154,11 +148,9 @@ class OfficesServiceTest {
         assertEquals(officeId, result.getId());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithNonExistentId_ThrowsResourceNotFoundException() {
         Long officeId = 999L;
-        when(authHelper.validateOrg("1")).thenReturn(testOrganization);
         when(officeRepository.findById(officeId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () -> {

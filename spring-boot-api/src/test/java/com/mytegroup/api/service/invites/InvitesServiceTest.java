@@ -95,7 +95,6 @@ class InvitesServiceTest {
         testUser.setEmail("user@example.com");
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithValidData_CreatesInvite() {
         Long personId = 1L;
@@ -104,10 +103,14 @@ class InvitesServiceTest {
         String orgId = "1";
 
         when(authHelper.validateOrg(orgId)).thenReturn(testOrganization);
+        when(inviteRepository.findExpiredPendingInvites(eq(1L), any(java.time.LocalDateTime.class)))
+            .thenReturn(List.of());
         when(personsService.getById(personId, orgId, false)).thenReturn(testPerson);
         when(inviteRepository.findPendingActiveInvite(eq(1L), eq("person@example.com"), any(java.time.LocalDateTime.class)))
             .thenReturn(Optional.empty());
-        when(userRepository.findByEmail("person@example.com")).thenReturn(Optional.empty());
+        when(inviteRepository.countRecentInvites(eq(1L), eq("person@example.com"), any(java.time.LocalDateTime.class)))
+            .thenReturn(0L);
+        when(usersService.findAnyByEmail("person@example.com")).thenReturn(null);
         when(inviteRepository.save(any(Invite.class))).thenAnswer(invocation -> {
             Invite invite = invocation.getArgument(0);
             invite.setId(1L);
@@ -115,15 +118,15 @@ class InvitesServiceTest {
         });
         doNothing().when(emailService).sendInviteEmail(anyString(), anyString(), anyString(), anyString(), anyString());
         doNothing().when(seatsService).ensureOrgSeats(anyString(), anyInt());
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         Invite result = invitesService.create(personId, role, expiresInHours, orgId);
 
         assertNotNull(result);
         verify(inviteRepository, times(1)).save(any(Invite.class));
-        verify(emailService, times(1)).sendInviteEmail(anyString(), anyString(), anyString(), anyString(), anyString());
+        verify(emailService, atLeastOnce()).sendInviteEmail(eq("person@example.com"), anyString(), eq(orgId), eq(testOrganization.getName()), isNull());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithSuperAdminRole_ThrowsForbiddenException() {
         Long personId = 1L;
@@ -135,7 +138,6 @@ class InvitesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithNullOrgId_ThrowsBadRequestException() {
         Long personId = 1L;
@@ -146,7 +148,6 @@ class InvitesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithPersonAlreadyLinkedToUser_ThrowsConflictException() {
         Long personId = 1L;
@@ -162,7 +163,6 @@ class InvitesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithPersonWithoutEmail_ThrowsBadRequestException() {
         Long personId = 1L;
@@ -178,7 +178,6 @@ class InvitesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithPendingInvite_ThrowsConflictException() {
         Long personId = 1L;
@@ -199,7 +198,6 @@ class InvitesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithExistingUser_ThrowsConflictException() {
         Long personId = 1L;
@@ -215,7 +213,6 @@ class InvitesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testResend_WithValidInvite_ResendsInvite() {
         Long inviteId = 1L;
@@ -229,18 +226,20 @@ class InvitesServiceTest {
         invite.setTokenExpires(LocalDateTime.now().plusHours(24));
 
         when(authHelper.validateOrg(orgId)).thenReturn(testOrganization);
+        when(inviteRepository.findExpiredPendingInvites(eq(1L), any(java.time.LocalDateTime.class)))
+            .thenReturn(List.of());
         when(inviteRepository.findById(inviteId)).thenReturn(Optional.of(invite));
         when(inviteRepository.save(any(Invite.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(emailService).sendInviteEmail(anyString(), anyString(), anyString(), anyString(), anyString());
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         Invite result = invitesService.resend(inviteId, orgId);
 
         assertNotNull(result);
         verify(inviteRepository, times(1)).save(any(Invite.class));
-        verify(emailService, times(1)).sendInviteEmail(anyString(), anyString(), anyString(), anyString(), anyString());
+        verify(emailService, atLeastOnce()).sendInviteEmail(eq("person@example.com"), anyString(), eq(orgId), eq(testOrganization.getName()), isNull());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testResend_WithNonExistentInvite_ThrowsResourceNotFoundException() {
         Long inviteId = 999L;
@@ -254,7 +253,6 @@ class InvitesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCancel_WithValidInvite_CancelsInvite() {
         Long inviteId = 1L;
@@ -277,7 +275,6 @@ class InvitesServiceTest {
         verify(inviteRepository, times(1)).save(any(Invite.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCancel_WithNonExistentInvite_ThrowsResourceNotFoundException() {
         Long inviteId = 999L;

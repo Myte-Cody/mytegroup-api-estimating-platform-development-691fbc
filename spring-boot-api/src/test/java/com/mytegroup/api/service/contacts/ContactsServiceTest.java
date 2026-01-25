@@ -60,7 +60,6 @@ class ContactsServiceTest {
         testContact.setOrganization(testOrganization);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithValidContact_CreatesContact() {
         Contact newContact = new Contact();
@@ -70,12 +69,12 @@ class ContactsServiceTest {
         when(authHelper.validateOrg("1")).thenReturn(testOrganization);
         when(validationHelper.normalizeEmail("newcontact@example.com")).thenReturn("newcontact@example.com");
         when(contactRepository.findByOrganization_IdAndEmail(1L, "newcontact@example.com")).thenReturn(List.of());
-        when(contactRepository.findByOrganization_IdAndIronworkerNumber(1L, null)).thenReturn(List.of());
         when(contactRepository.save(any(Contact.class))).thenAnswer(invocation -> {
             Contact contact = invocation.getArgument(0);
             contact.setId(1L);
             return contact;
         });
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         Contact result = contactsService.create(newContact, "1");
 
@@ -84,7 +83,6 @@ class ContactsServiceTest {
         verify(contactRepository, times(1)).save(any(Contact.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithNullOrgId_ThrowsBadRequestException() {
         Contact newContact = new Contact();
@@ -94,7 +92,6 @@ class ContactsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithDuplicateEmail_ThrowsConflictException() {
         Contact newContact = new Contact();
@@ -109,14 +106,12 @@ class ContactsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithDuplicateIronworkerNumber_ThrowsConflictException() {
         Contact newContact = new Contact();
         newContact.setIronworkerNumber("IW123");
 
         when(authHelper.validateOrg("1")).thenReturn(testOrganization);
-        when(contactRepository.findByOrganization_IdAndEmail(1L, null)).thenReturn(List.of());
         when(contactRepository.findByOrganization_IdAndIronworkerNumber(1L, "IW123")).thenReturn(List.of(testContact));
 
         assertThrows(ConflictException.class, () -> {
@@ -124,7 +119,6 @@ class ContactsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithValidParams_ReturnsPage() {
         Pageable pageable = PageRequest.of(0, 10);
@@ -137,7 +131,6 @@ class ContactsServiceTest {
         verify(contactRepository, times(1)).findByOrganization_IdAndArchivedAtIsNull(1L, pageable);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -145,7 +138,6 @@ class ContactsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithValidId_ReturnsContact() {
         Long contactId = 1L;
@@ -157,7 +149,6 @@ class ContactsServiceTest {
         assertEquals(contactId, result.getId());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithNonExistentId_ThrowsResourceNotFoundException() {
         Long contactId = 999L;

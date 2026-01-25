@@ -22,3 +22,4 @@ public class WaitlistEntryResponseDto {
     private LocalDateTime updatedAt;
 }
 
+

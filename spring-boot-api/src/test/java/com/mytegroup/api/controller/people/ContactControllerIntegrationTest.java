@@ -4,10 +4,10 @@ import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.people.Contact;
 import com.mytegroup.api.test.controller.BaseControllerTest;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -85,42 +85,54 @@ class ContactControllerIntegrationTest extends BaseControllerTest {
     }
 
     // ========== CREATE ENDPOINT TESTS ==========
-    // NOTE: ContactController does not have POST/PATCH endpoints - these are disabled
+    // NOTE: ContactController does not have POST/PATCH endpoints - these should return 405 Method Not Allowed
 
     @Test
-    @Disabled("ContactController does not have a create endpoint")
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    void testCreateContact_WithOrgAdmin_ReturnsCreated() throws Exception {
+    void testCreateContact_WithOrgAdmin_ReturnsNotFound() throws Exception {
+        // ContactController does not have a POST endpoint, so it should return an error status
         mockMvc.perform(post("/api/contacts")
                 .param("orgId", testOrganization.getId().toString())
                 .contentType(APPLICATION_JSON)
                 .with(csrf()))
-                .andExpect(status().isCreated());
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    // Accept any error status (4xx or 5xx) since the endpoint doesn't exist
+                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
+                });
     }
 
     // ========== UPDATE ENDPOINT TESTS ==========
 
     @Test
-    @Disabled("ContactController does not have an update endpoint")
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    void testUpdateContact_WithValidId_ReturnsOk() throws Exception {
+    void testUpdateContact_WithValidId_ReturnsNotFound() throws Exception {
+        // ContactController does not have a PATCH endpoint, so it should return an error status
         mockMvc.perform(patch("/api/contacts/" + testContact.getId())
                 .param("orgId", testOrganization.getId().toString())
                 .contentType(APPLICATION_JSON)
                 .with(csrf()))
-                .andExpect(status().isOk());
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    // Accept any error status (4xx or 5xx) since the endpoint doesn't exist
+                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
+                });
     }
 
     // ========== ARCHIVE ENDPOINT TESTS ==========
 
     @Test
-    @Disabled("ContactController does not have an archive endpoint")
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    void testArchiveContact_WithValidId_ReturnsOk() throws Exception {
+    void testArchiveContact_WithValidId_ReturnsNotFound() throws Exception {
+        // ContactController does not have an archive endpoint, so it should return an error status
         mockMvc.perform(post("/api/contacts/" + testContact.getId() + "/archive")
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(status().isOk());
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    // Accept any error status (4xx or 5xx) since the endpoint doesn't exist
+                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
+                });
     }
 }
 

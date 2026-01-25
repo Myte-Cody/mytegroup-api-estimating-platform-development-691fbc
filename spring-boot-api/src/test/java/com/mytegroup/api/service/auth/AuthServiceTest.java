@@ -78,7 +78,6 @@ class AuthServiceTest {
         testUser.setLegalHold(false);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testLogin_WithValidCredentials_ReturnsUser() {
         String email = "test@example.com";
@@ -96,7 +95,6 @@ class AuthServiceTest {
         verify(auditLogService, times(1)).log(anyString(), anyString(), anyString(), anyString(), anyString(), any());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testLogin_WithInvalidEmail_ThrowsUnauthorizedException() {
         String email = "nonexistent@example.com";
@@ -109,7 +107,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testLogin_WithInvalidPassword_ThrowsUnauthorizedException() {
         String email = "test@example.com";
@@ -123,7 +120,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testLogin_WithArchivedUser_ThrowsForbiddenException() {
         String email = "test@example.com";
@@ -138,7 +134,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testLogin_WithUserOnLegalHold_ThrowsForbiddenException() {
         String email = "test@example.com";
@@ -153,7 +148,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testLogin_WithUnverifiedEmail_ThrowsForbiddenException() {
         String email = "test@example.com";
@@ -168,7 +162,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testRegister_WithValidData_CreatesUser() {
         String email = "newuser@example.com";
@@ -201,7 +194,6 @@ class AuthServiceTest {
         verify(organizationsService, times(1)).create(any(Organization.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testRegister_WithoutLegalAcceptance_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -209,27 +201,20 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testRegister_WithWeakPassword_ThrowsBadRequestException() {
-        when(waitlistService.shouldEnforceInviteGate()).thenReturn(false);
-
         assertThrows(BadRequestException.class, () -> {
             authService.register("test@example.com", "weak", "user", "First", "Last", "Org", null, true, null);
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testRegister_WithInvalidEmail_ThrowsBadRequestException() {
-        when(waitlistService.shouldEnforceInviteGate()).thenReturn(false);
-
         assertThrows(BadRequestException.class, () -> {
             authService.register("invalid-email", "ValidPassword123!@", "user", "First", "Last", "Org", null, true, null);
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testRegister_WithInviteGateEnabledAndNotInvited_ThrowsForbiddenException() {
         String email = "test@example.com";
@@ -244,7 +229,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testForgotPassword_WithValidEmail_SendsResetEmail() {
         String email = "test@example.com";
@@ -260,7 +244,6 @@ class AuthServiceTest {
         verify(emailService, times(1)).sendPasswordResetEmail(anyString(), anyString(), anyString(), anyString());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testForgotPassword_WithNonExistentEmail_ReturnsOk() {
         String email = "nonexistent@example.com";
@@ -271,7 +254,6 @@ class AuthServiceTest {
         assertEquals("ok", result.get("status"));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testForgotPassword_WithArchivedUser_ThrowsForbiddenException() {
         String email = "test@example.com";
@@ -283,7 +265,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testResetPassword_WithValidToken_ResetsPassword() {
         String token = "valid-token";
@@ -299,7 +280,6 @@ class AuthServiceTest {
         verify(usersService, times(1)).clearResetTokenAndSetPassword(anyLong(), eq(newPassword));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testResetPassword_WithInvalidToken_ThrowsBadRequestException() {
         String token = "invalid-token";
@@ -312,7 +292,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testResetPassword_WithWeakPassword_ThrowsBadRequestException() {
         String token = "valid-token";
@@ -323,7 +302,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testResetPassword_WithNullToken_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -331,7 +309,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testVerifyEmail_WithValidToken_VerifiesEmail() {
         String token = "valid-token";
@@ -346,7 +323,6 @@ class AuthServiceTest {
         verify(usersService, times(1)).clearVerificationToken(anyLong());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testVerifyEmail_WithInvalidToken_ThrowsBadRequestException() {
         String token = "invalid-token";
@@ -358,7 +334,6 @@ class AuthServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testVerifyEmail_WithNullToken_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {

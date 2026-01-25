@@ -1,5 +1,6 @@
 package com.mytegroup.api.service.companies;
 
+import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.service.common.AuditLogService;
 import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
@@ -39,12 +40,15 @@ class CompaniesImportServiceTest {
     @InjectMocks
     private CompaniesImportService companiesImportService;
 
+    private Organization testOrganization;
+
     @BeforeEach
     void setUp() {
-        // Setup if needed
+        testOrganization = new Organization();
+        testOrganization.setId(1L);
+        testOrganization.setName("Test Organization");
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testPreviewRows_WithValidRows_ReturnsPreview() {
         String orgId = "1";
@@ -53,7 +57,7 @@ class CompaniesImportServiceTest {
         row1.put("name", "Company 1");
         rows.add(row1);
 
-        when(authHelper.validateOrg(orgId)).thenReturn(null);
+        when(authHelper.validateOrg(orgId)).thenReturn(testOrganization);
 
         List<Map<String, Object>> result = companiesImportService.previewRows(orgId, rows);
 
@@ -64,7 +68,6 @@ class CompaniesImportServiceTest {
         verify(authHelper, times(1)).validateOrg(orgId);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testPreviewRows_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -72,7 +75,6 @@ class CompaniesImportServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testConfirmImport_WithValidRows_ReturnsResult() {
         String orgId = "1";
@@ -83,19 +85,19 @@ class CompaniesImportServiceTest {
         row1.put("locationAction", "none");
         confirmedRows.add(row1);
 
-        when(authHelper.validateOrg(orgId)).thenReturn(null);
+        when(authHelper.validateOrg(orgId)).thenReturn(testOrganization);
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), any(), any());
 
         Map<String, Object> result = companiesImportService.confirmImport(orgId, confirmedRows);
 
         assertNotNull(result);
         assertTrue(result.containsKey("processed"));
-        assertTrue(result.containsKey("created"));
-        assertTrue(result.containsKey("updated"));
+        assertTrue(result.containsKey("companiesCreated"));
+        assertTrue(result.containsKey("companiesUpdated"));
         assertTrue(result.containsKey("errors"));
         verify(authHelper, times(1)).validateOrg(orgId);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testConfirmImport_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -103,4 +105,5 @@ class CompaniesImportServiceTest {
         });
     }
 }
+
 

@@ -61,7 +61,6 @@ class PersonsServiceTest {
         testPerson.setOrganization(testOrganization);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithValidPerson_CreatesPerson() {
         Person newPerson = new Person();
@@ -73,15 +72,12 @@ class PersonsServiceTest {
         when(validationHelper.normalizeEmail("newperson@example.com")).thenReturn("newperson@example.com");
         when(personRepository.findByOrganization_IdAndPrimaryEmail(1L, "newperson@example.com"))
             .thenReturn(Optional.empty());
-        when(personRepository.findByOrganization_IdAndPrimaryPhoneE164(1L, null))
-            .thenReturn(Optional.empty());
-        when(personRepository.findByOrganization_IdAndIronworkerNumber(1L, null))
-            .thenReturn(Optional.empty());
         when(personRepository.save(any(Person.class))).thenAnswer(invocation -> {
             Person person = invocation.getArgument(0);
             person.setId(1L);
             return person;
         });
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         Person result = personsService.create(newPerson, "1");
 
@@ -90,7 +86,6 @@ class PersonsServiceTest {
         verify(personRepository, times(1)).save(any(Person.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithNullOrgId_ThrowsBadRequestException() {
         Person newPerson = new Person();
@@ -100,7 +95,6 @@ class PersonsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithEmptyDisplayName_ThrowsBadRequestException() {
         Person newPerson = new Person();
@@ -113,7 +107,6 @@ class PersonsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithDuplicateEmail_ThrowsConflictException() {
         Person newPerson = new Person();
@@ -130,7 +123,6 @@ class PersonsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithValidParams_ReturnsList() {
         when(authHelper.validateOrg("1")).thenReturn(testOrganization);
@@ -143,7 +135,6 @@ class PersonsServiceTest {
         verify(personRepository, times(1)).findByOrganization_IdAndArchivedAtIsNull(eq(1L), any(PageRequest.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -151,7 +142,6 @@ class PersonsServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithValidId_ReturnsPerson() {
         Long personId = 1L;
@@ -164,7 +154,6 @@ class PersonsServiceTest {
         assertEquals(personId, result.getId());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithNonExistentId_ThrowsResourceNotFoundException() {
         Long personId = 999L;
@@ -176,4 +165,5 @@ class PersonsServiceTest {
         });
     }
 }
+
 

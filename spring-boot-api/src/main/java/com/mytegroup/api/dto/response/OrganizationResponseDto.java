@@ -26,3 +26,4 @@ public class OrganizationResponseDto {
     private LocalDateTime updatedAt;
 }
 
+

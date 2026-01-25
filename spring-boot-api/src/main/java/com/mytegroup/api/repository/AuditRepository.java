@@ -21,3 +21,4 @@ public interface AuditRepository extends JpaRepository<Audit, Long> {
     List<Audit> findByClientIp(String clientIp);
 }
 
+

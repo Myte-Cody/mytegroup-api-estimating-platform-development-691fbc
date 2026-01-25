@@ -21,3 +21,4 @@ public class LegalDocResponseDto {
     private LocalDateTime updatedAt;
 }
 
+

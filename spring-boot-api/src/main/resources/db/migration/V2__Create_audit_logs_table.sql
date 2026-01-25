@@ -41,3 +41,4 @@ COMMENT ON COLUMN audit_logs.request_size IS 'Request body size in bytes';
 COMMENT ON COLUMN audit_logs.response_size IS 'Response body size in bytes';
 COMMENT ON COLUMN audit_logs.error_message IS 'Error message if request failed';
 
+

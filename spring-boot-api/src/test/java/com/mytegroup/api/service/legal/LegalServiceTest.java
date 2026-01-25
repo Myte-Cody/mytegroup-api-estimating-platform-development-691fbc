@@ -56,7 +56,6 @@ class LegalServiceTest {
         testDoc.setEffectiveAt(LocalDateTime.now());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetLatest_WithValidType_ReturnsLatestDoc() {
         when(legalDocRepository.findByTypeOrderByEffectiveAtDescCreatedAtDesc(LegalDocType.PRIVACY_POLICY))
@@ -68,7 +67,6 @@ class LegalServiceTest {
         assertEquals(LegalDocType.PRIVACY_POLICY, result.getType());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetLatest_WithNonExistentType_ThrowsResourceNotFoundException() {
         when(legalDocRepository.findByTypeOrderByEffectiveAtDescCreatedAtDesc(LegalDocType.PRIVACY_POLICY))
@@ -79,7 +77,6 @@ class LegalServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreateDoc_WithValidDoc_CreatesDoc() {
         LegalDoc newDoc = new LegalDoc();
@@ -101,7 +98,6 @@ class LegalServiceTest {
         verify(legalDocRepository, times(1)).save(any(LegalDoc.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreateDoc_WithDuplicateVersion_ThrowsConflictException() {
         LegalDoc newDoc = new LegalDoc();
@@ -116,7 +112,6 @@ class LegalServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithValidType_ReturnsList() {
         String type = "PRIVACY_POLICY";
@@ -129,19 +124,12 @@ class LegalServiceTest {
         assertFalse(result.isEmpty());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testAccept_WithValidParams_CreatesAcceptance() {
         String type = "PRIVACY_POLICY";
         String version = "1.0";
 
-        when(legalDocRepository.findByTypeAndVersion(LegalDocType.PRIVACY_POLICY, version))
-            .thenReturn(Optional.of(testDoc));
-        when(legalAcceptanceRepository.findByUserIdAndDocTypeAndVersion(anyLong(), eq(LegalDocType.PRIVACY_POLICY), eq(version)))
-            .thenReturn(Optional.empty());
-        when(legalAcceptanceRepository.save(any(LegalAcceptance.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Note: This test may need adjustment based on actual implementation
+        // Note: The service throws BadRequestException early because user context is null
         // The service has a TODO for setting user from actor
         assertThrows(BadRequestException.class, () -> {
             legalService.accept(type, version);

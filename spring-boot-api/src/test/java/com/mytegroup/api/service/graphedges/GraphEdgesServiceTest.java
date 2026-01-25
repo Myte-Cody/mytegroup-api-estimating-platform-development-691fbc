@@ -59,7 +59,6 @@ class GraphEdgesServiceTest {
         testEdge.setOrganization(testOrganization);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithValidEdge_CreatesEdge() {
         GraphEdge newEdge = new GraphEdge();
@@ -74,6 +73,7 @@ class GraphEdgesServiceTest {
             edge.setId(1L);
             return edge;
         });
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         GraphEdge result = graphEdgesService.create(newEdge, "1");
 
@@ -82,7 +82,6 @@ class GraphEdgesServiceTest {
         verify(graphEdgeRepository, times(1)).save(any(GraphEdge.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithNullOrgId_ThrowsBadRequestException() {
         GraphEdge newEdge = new GraphEdge();
@@ -92,7 +91,6 @@ class GraphEdgesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithEmptyEdgeTypeKey_ThrowsBadRequestException() {
         GraphEdge newEdge = new GraphEdge();
@@ -106,7 +104,6 @@ class GraphEdgesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithValidParams_ReturnsList() {
         when(authHelper.validateOrg("1")).thenReturn(testOrganization);
@@ -119,7 +116,6 @@ class GraphEdgesServiceTest {
         assertFalse(result.isEmpty());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithEdgeTypeKey_ReturnsFilteredList() {
         String edgeTypeKey = "reports_to";
@@ -133,7 +129,6 @@ class GraphEdgesServiceTest {
         verify(graphEdgeRepository, times(1)).findByOrganization_IdAndEdgeTypeKey(1L, edgeTypeKey);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -141,7 +136,6 @@ class GraphEdgesServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testDelete_WithValidId_DeletesEdge() {
         Long edgeId = 1L;
@@ -149,14 +143,15 @@ class GraphEdgesServiceTest {
 
         when(authHelper.validateOrg(orgId)).thenReturn(testOrganization);
         when(graphEdgeRepository.findById(edgeId)).thenReturn(Optional.of(testEdge));
-        doNothing().when(graphEdgeRepository).delete(any(GraphEdge.class));
+        when(graphEdgeRepository.save(any(GraphEdge.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         graphEdgesService.delete(edgeId, orgId);
 
-        verify(graphEdgeRepository, times(1)).delete(any(GraphEdge.class));
+        verify(graphEdgeRepository, times(1)).save(any(GraphEdge.class));
+        verify(auditLogService, times(1)).log(anyString(), eq(orgId), any(), anyString(), anyString(), any());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testDelete_WithNonExistentId_ThrowsResourceNotFoundException() {
         Long edgeId = 999L;
@@ -170,4 +165,5 @@ class GraphEdgesServiceTest {
         });
     }
 }
+
 

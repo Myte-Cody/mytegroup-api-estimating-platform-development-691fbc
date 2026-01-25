@@ -61,37 +61,40 @@ public class RoleExpansionHelper {
     
     static {
         ROLE_HIERARCHY.put(Role.SUPER_ADMIN, new ArrayList<>(ROLE_PRIORITY));
-        ROLE_HIERARCHY.put(Role.PLATFORM_ADMIN, ROLE_PRIORITY.stream()
+        ROLE_HIERARCHY.put(Role.PLATFORM_ADMIN, new ArrayList<>(ROLE_PRIORITY.stream()
             .filter(r -> r != Role.SUPER_ADMIN)
-            .toList());
-        ROLE_HIERARCHY.put(Role.ORG_OWNER, new ArrayList<>(List.of(
+            .toList()));
+        List<Role> orgOwnerRoles = new ArrayList<>(List.of(
             Role.ORG_OWNER, Role.ORG_ADMIN, Role.ADMIN
-        )).stream().distinct().toList());
-        ROLE_HIERARCHY.get(Role.ORG_OWNER).addAll(BASE_ROLES);
-        ROLE_HIERARCHY.put(Role.ORG_ADMIN, new ArrayList<>(List.of(
+        ));
+        orgOwnerRoles.addAll(BASE_ROLES);
+        ROLE_HIERARCHY.put(Role.ORG_OWNER, orgOwnerRoles);
+        List<Role> orgAdminRoles = new ArrayList<>(List.of(
             Role.ORG_ADMIN, Role.ADMIN
-        )).stream().distinct().toList());
-        ROLE_HIERARCHY.get(Role.ORG_ADMIN).addAll(BASE_ROLES);
-        ROLE_HIERARCHY.put(Role.ADMIN, new ArrayList<>(List.of(Role.ADMIN)));
-        ROLE_HIERARCHY.get(Role.ADMIN).addAll(BASE_ROLES);
-        ROLE_HIERARCHY.put(Role.MANAGER, List.of(Role.MANAGER, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.VIEWER, List.of(Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.COMPLIANCE_OFFICER, List.of(Role.COMPLIANCE_OFFICER, Role.COMPLIANCE, Role.USER));
-        ROLE_HIERARCHY.put(Role.SECURITY_OFFICER, List.of(Role.SECURITY_OFFICER, Role.SECURITY, Role.USER));
-        ROLE_HIERARCHY.put(Role.PM, List.of(Role.PM, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.ESTIMATOR, List.of(Role.ESTIMATOR, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.ENGINEER, List.of(Role.ENGINEER, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.DETAILER, List.of(Role.DETAILER, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.TRANSPORTER, List.of(Role.TRANSPORTER, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.FOREMAN, List.of(Role.FOREMAN, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.SUPERINTENDENT, List.of(Role.SUPERINTENDENT, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.QAQC, List.of(Role.QAQC, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.HS, List.of(Role.HS, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.PURCHASING, List.of(Role.PURCHASING, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.COMPLIANCE, List.of(Role.COMPLIANCE, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.SECURITY, List.of(Role.SECURITY, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.FINANCE, List.of(Role.FINANCE, Role.VIEWER, Role.USER));
-        ROLE_HIERARCHY.put(Role.USER, List.of(Role.USER));
+        ));
+        orgAdminRoles.addAll(BASE_ROLES);
+        ROLE_HIERARCHY.put(Role.ORG_ADMIN, orgAdminRoles);
+        List<Role> adminRoles = new ArrayList<>(List.of(Role.ADMIN));
+        adminRoles.addAll(BASE_ROLES);
+        ROLE_HIERARCHY.put(Role.ADMIN, adminRoles);
+        ROLE_HIERARCHY.put(Role.MANAGER, new ArrayList<>(List.of(Role.MANAGER, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.VIEWER, new ArrayList<>(List.of(Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.COMPLIANCE_OFFICER, new ArrayList<>(List.of(Role.COMPLIANCE_OFFICER, Role.COMPLIANCE, Role.USER)));
+        ROLE_HIERARCHY.put(Role.SECURITY_OFFICER, new ArrayList<>(List.of(Role.SECURITY_OFFICER, Role.SECURITY, Role.USER)));
+        ROLE_HIERARCHY.put(Role.PM, new ArrayList<>(List.of(Role.PM, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.ESTIMATOR, new ArrayList<>(List.of(Role.ESTIMATOR, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.ENGINEER, new ArrayList<>(List.of(Role.ENGINEER, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.DETAILER, new ArrayList<>(List.of(Role.DETAILER, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.TRANSPORTER, new ArrayList<>(List.of(Role.TRANSPORTER, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.FOREMAN, new ArrayList<>(List.of(Role.FOREMAN, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.SUPERINTENDENT, new ArrayList<>(List.of(Role.SUPERINTENDENT, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.QAQC, new ArrayList<>(List.of(Role.QAQC, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.HS, new ArrayList<>(List.of(Role.HS, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.PURCHASING, new ArrayList<>(List.of(Role.PURCHASING, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.COMPLIANCE, new ArrayList<>(List.of(Role.COMPLIANCE, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.SECURITY, new ArrayList<>(List.of(Role.SECURITY, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.FINANCE, new ArrayList<>(List.of(Role.FINANCE, Role.VIEWER, Role.USER)));
+        ROLE_HIERARCHY.put(Role.USER, new ArrayList<>(List.of(Role.USER)));
     }
     
     /**

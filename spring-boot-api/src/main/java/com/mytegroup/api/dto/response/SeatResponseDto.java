@@ -21,3 +21,4 @@ public class SeatResponseDto {
     private LocalDateTime updatedAt;
 }
 
+

@@ -26,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -74,10 +75,9 @@ class UsersServiceTest {
         testUser.setUsername("testuser");
         testUser.setOrganization(testOrganization);
         testUser.setRole(Role.USER);
-        testUser.setRoles(List.of(Role.USER));
+        testUser.setRoles(new ArrayList<>(List.of(Role.USER)));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithValidUser_CreatesUser() {
         User newUser = new User();
@@ -85,14 +85,22 @@ class UsersServiceTest {
         newUser.setUsername("newuser");
         newUser.setOrganization(testOrganization);
         newUser.setPasswordHash("ValidPassword123!@");
+        // Don't set roles - let the service create them
 
         when(userRepository.existsByEmail("newuser@example.com")).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("encoded-password");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.setId(1L);
+            // Ensure roles is a mutable list (service creates it, but ensure it's mutable)
+            if (user.getRoles() != null) {
+                user.setRoles(new ArrayList<>(user.getRoles()));
+            } else {
+                user.setRoles(new ArrayList<>());
+            }
             return user;
         });
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         User result = usersService.create(newUser, false);
 
@@ -101,7 +109,6 @@ class UsersServiceTest {
         verify(auditLogService, times(1)).log(anyString(), anyString(), isNull(), anyString(), anyString(), isNull());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithExistingEmail_ThrowsConflictException() {
         User newUser = new User();
@@ -115,7 +122,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithNoEmail_ThrowsBadRequestException() {
         User newUser = new User();
@@ -126,7 +132,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithNoOrganization_ThrowsBadRequestException() {
         User newUser = new User();
@@ -137,7 +142,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithWeakPassword_ThrowsBadRequestException() {
         User newUser = new User();
@@ -152,7 +156,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testCreate_WithEnforceSeat_AllocatesSeat() {
         User newUser = new User();
@@ -167,18 +170,24 @@ class UsersServiceTest {
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.setId(1L);
+            // Ensure roles is a mutable list
+            if (user.getRoles() != null) {
+                user.setRoles(new ArrayList<>(user.getRoles()));
+            }
             return user;
         });
         doNothing().when(seatsService).ensureOrgSeats(anyString(), anyInt());
+        when(seatsService.allocateSeat(anyString(), anyLong(), anyString(), any())).thenReturn(null);
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         User result = usersService.create(newUser, true);
 
         assertNotNull(result);
         verify(seatsService, times(1)).ensureOrgSeats(eq("1"), eq(5));
         verify(seatsService, times(1)).allocateSeat(eq("1"), eq(1L), anyString(), isNull());
+        verify(auditLogService, times(1)).log(anyString(), anyString(), any(), anyString(), anyString(), any());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindByEmail_WithValidEmail_ReturnsUser() {
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(testUser));
@@ -189,7 +198,6 @@ class UsersServiceTest {
         assertEquals("test@example.com", result.getEmail());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindByEmail_WithArchivedUser_ReturnsNull() {
         testUser.setArchivedAt(LocalDateTime.now());
@@ -200,7 +208,6 @@ class UsersServiceTest {
         assertNull(result);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindByEmail_WithNonExistentEmail_ReturnsNull() {
         when(userRepository.findByEmail("nonexistent@example.com")).thenReturn(Optional.empty());
@@ -210,7 +217,6 @@ class UsersServiceTest {
         assertNull(result);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindAnyByEmail_WithArchivedUser_ReturnsUser() {
         testUser.setArchivedAt(LocalDateTime.now());
@@ -222,7 +228,6 @@ class UsersServiceTest {
         assertEquals("test@example.com", result.getEmail());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithValidOrgId_ReturnsUsers() {
         when(userRepository.findByOrganization_IdAndArchivedAtIsNull(eq(1L), any(Pageable.class)))
@@ -234,7 +239,6 @@ class UsersServiceTest {
         verify(userRepository, times(1)).findByOrganization_IdAndArchivedAtIsNull(eq(1L), any(Pageable.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithIncludeArchived_ReturnsAllUsers() {
         when(userRepository.findByOrganization_Id(1L)).thenReturn(List.of(testUser));
@@ -245,7 +249,6 @@ class UsersServiceTest {
         verify(userRepository, times(1)).findByOrganization_Id(1L);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testList_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -253,7 +256,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithValidId_ReturnsUser() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
@@ -264,7 +266,6 @@ class UsersServiceTest {
         assertEquals(1L, result.getId());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithArchivedUserAndIncludeArchivedFalse_ThrowsResourceNotFoundException() {
         testUser.setArchivedAt(LocalDateTime.now());
@@ -275,7 +276,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithArchivedUserAndIncludeArchivedTrue_ReturnsUser() {
         testUser.setArchivedAt(LocalDateTime.now());
@@ -287,7 +287,6 @@ class UsersServiceTest {
         assertEquals(1L, result.getId());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetById_WithNonExistentId_ThrowsResourceNotFoundException() {
         when(userRepository.findById(999L)).thenReturn(Optional.empty());
@@ -297,7 +296,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetByIdForSession_WithValidId_ReturnsUser() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
@@ -308,7 +306,6 @@ class UsersServiceTest {
         assertEquals(1L, result.getId());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindByVerificationToken_WithValidToken_ReturnsUser() {
         when(userRepository.findByVerificationTokenHash(anyString(), any(LocalDateTime.class)))
@@ -320,7 +317,6 @@ class UsersServiceTest {
         assertEquals(testUser, result);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindByVerificationToken_WithInvalidToken_ThrowsBadRequestException() {
         when(userRepository.findByVerificationTokenHash(anyString(), any(LocalDateTime.class)))
@@ -331,21 +327,19 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testSetVerificationToken_SetsToken() {
-        doNothing().when(userRepository).setVerificationToken(anyLong(), anyString(), any(LocalDateTime.class));
+        when(userRepository.setVerificationToken(anyLong(), anyString(), any(LocalDateTime.class))).thenReturn(1);
 
         usersService.setVerificationToken(1L, "token-hash", LocalDateTime.now().plusHours(24));
 
         verify(userRepository, times(1)).setVerificationToken(eq(1L), eq("token-hash"), any(LocalDateTime.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testClearVerificationToken_ClearsTokenAndReturnsUser() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        doNothing().when(userRepository).clearVerificationToken(1L);
+        when(userRepository.clearVerificationToken(1L)).thenReturn(1);
 
         User result = usersService.clearVerificationToken(1L);
 
@@ -353,7 +347,6 @@ class UsersServiceTest {
         verify(userRepository, times(1)).clearVerificationToken(1L);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindByResetToken_WithValidToken_ReturnsUser() {
         when(userRepository.findByResetTokenHash(anyString(), any(LocalDateTime.class)))
@@ -365,7 +358,6 @@ class UsersServiceTest {
         assertEquals(testUser, result);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testFindByResetToken_WithInvalidToken_ThrowsBadRequestException() {
         when(userRepository.findByResetTokenHash(anyString(), any(LocalDateTime.class)))
@@ -376,22 +368,20 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testSetResetToken_SetsToken() {
-        doNothing().when(userRepository).setResetToken(anyLong(), anyString(), any(LocalDateTime.class));
+        when(userRepository.setResetToken(anyLong(), anyString(), any(LocalDateTime.class))).thenReturn(1);
 
         usersService.setResetToken(1L, "reset-token-hash", LocalDateTime.now().plusHours(1));
 
         verify(userRepository, times(1)).setResetToken(eq(1L), eq("reset-token-hash"), any(LocalDateTime.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testClearResetTokenAndSetPassword_WithValidPassword_UpdatesPassword() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(passwordEncoder.encode(anyString())).thenReturn("encoded-password");
-        doNothing().when(userRepository).clearResetTokenAndSetPassword(anyLong(), anyString());
+        when(userRepository.clearResetTokenAndSetPassword(anyLong(), anyString())).thenReturn(1);
 
         User result = usersService.clearResetTokenAndSetPassword(1L, "NewValidPassword123!@");
 
@@ -399,7 +389,6 @@ class UsersServiceTest {
         verify(userRepository, times(1)).clearResetTokenAndSetPassword(eq(1L), eq("encoded-password"));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testClearResetTokenAndSetPassword_WithWeakPassword_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -407,11 +396,10 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testMarkLastLogin_UpdatesLastLogin() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        doNothing().when(userRepository).updateLastLogin(anyLong(), any(LocalDateTime.class));
+        when(userRepository.updateLastLogin(anyLong(), any(LocalDateTime.class))).thenReturn(1);
 
         User result = usersService.markLastLogin(1L);
 
@@ -419,7 +407,6 @@ class UsersServiceTest {
         verify(userRepository, times(1)).updateLastLogin(eq(1L), any(LocalDateTime.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testUpdate_WithValidUpdates_UpdatesUser() {
         User updates = new User();
@@ -434,7 +421,6 @@ class UsersServiceTest {
         verify(userRepository, times(1)).save(any(User.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testUpdate_WithArchivedUser_ThrowsForbiddenException() {
         testUser.setArchivedAt(LocalDateTime.now());
@@ -447,7 +433,6 @@ class UsersServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testUpdate_WithNonExistentUser_ThrowsResourceNotFoundException() {
         User updates = new User();
@@ -459,4 +444,5 @@ class UsersServiceTest {
         });
     }
 }
+
 

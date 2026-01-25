@@ -21,3 +21,4 @@ public class ContactInquiryResponseDto {
     private LocalDateTime updatedAt;
 }
 
+

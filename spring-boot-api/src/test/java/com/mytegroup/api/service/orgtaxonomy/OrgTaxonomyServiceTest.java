@@ -57,7 +57,6 @@ class OrgTaxonomyServiceTest {
         testTaxonomy.setOrganization(testOrganization);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetTaxonomy_WithValidParams_ReturnsTaxonomy() {
         String orgId = "1";
@@ -73,7 +72,6 @@ class OrgTaxonomyServiceTest {
         assertEquals("tags", result.getNamespace());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetTaxonomy_WithEmptyNamespace_ThrowsBadRequestException() {
         String orgId = "1";
@@ -86,7 +84,6 @@ class OrgTaxonomyServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetTaxonomy_WithNonExistentTaxonomy_ThrowsResourceNotFoundException() {
         String orgId = "1";
@@ -101,7 +98,6 @@ class OrgTaxonomyServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testPutValues_WithValidParams_CreatesOrUpdatesTaxonomy() {
         String orgId = "1";
@@ -118,7 +114,12 @@ class OrgTaxonomyServiceTest {
         when(validationHelper.normalizeKey(namespace)).thenReturn("tags");
         when(orgTaxonomyRepository.findByOrganization_IdAndNamespace(1L, "tags"))
             .thenReturn(Optional.empty());
-        when(orgTaxonomyRepository.save(any(OrgTaxonomy.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orgTaxonomyRepository.save(any(OrgTaxonomy.class))).thenAnswer(invocation -> {
+            OrgTaxonomy taxonomy = invocation.getArgument(0);
+            taxonomy.setId(1L);
+            return taxonomy;
+        });
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         OrgTaxonomy result = orgTaxonomyService.putValues(orgId, namespace, values);
 
@@ -127,7 +128,6 @@ class OrgTaxonomyServiceTest {
         verify(orgTaxonomyRepository, times(1)).save(any(OrgTaxonomy.class));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testPutValues_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -135,7 +135,6 @@ class OrgTaxonomyServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testPutValues_WithEmptyNamespace_ThrowsBadRequestException() {
         when(authHelper.validateOrg("1")).thenReturn(testOrganization);
@@ -146,7 +145,6 @@ class OrgTaxonomyServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testPutValues_WithExistingTaxonomy_UpdatesValues() {
         String orgId = "1";
@@ -161,6 +159,7 @@ class OrgTaxonomyServiceTest {
         when(orgTaxonomyRepository.findByOrganization_IdAndNamespace(1L, "tags"))
             .thenReturn(Optional.of(testTaxonomy));
         when(orgTaxonomyRepository.save(any(OrgTaxonomy.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doNothing().when(auditLogService).log(anyString(), anyString(), any(), anyString(), anyString(), any());
 
         OrgTaxonomy result = orgTaxonomyService.putValues(orgId, namespace, values);
 

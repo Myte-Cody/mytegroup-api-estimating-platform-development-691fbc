@@ -44,7 +44,6 @@ class RbacServiceTest {
         testUser.setOrganization(testOrganization);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testHierarchy_ReturnsHierarchy() {
         Map<String, Object> result = rbacService.hierarchy();
@@ -53,7 +52,6 @@ class RbacServiceTest {
         assertTrue(result.containsKey("roles"));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testGetUserRoles_WithValidUserId_ReturnsUser() {
         Long userId = 1L;
@@ -65,7 +63,6 @@ class RbacServiceTest {
         assertEquals(userId, result.getId());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testListUserRoles_WithValidOrgId_ReturnsUsers() {
         String orgId = "1";
@@ -77,7 +74,6 @@ class RbacServiceTest {
         assertFalse(result.isEmpty());
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testListUserRoles_WithNullOrgId_ThrowsBadRequestException() {
         assertThrows(BadRequestException.class, () -> {
@@ -85,7 +81,6 @@ class RbacServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testUpdateUserRoles_WithValidRoles_UpdatesRoles() {
         Long userId = 1L;
@@ -99,7 +94,6 @@ class RbacServiceTest {
         verify(usersService, times(1)).updateRoles(userId, newRoles);
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testUpdateUserRoles_WithNullRoles_ThrowsBadRequestException() {
         Long userId = 1L;
@@ -109,7 +103,6 @@ class RbacServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testUpdateUserRoles_WithEmptyRoles_ThrowsBadRequestException() {
         Long userId = 1L;
@@ -119,12 +112,14 @@ class RbacServiceTest {
         });
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testRevokeRole_WithValidRole_RevokesRole() {
         Long userId = 1L;
         Role roleToRevoke = Role.USER;
+        List<Role> initialRoles = List.of(Role.USER, Role.ORG_ADMIN);
         List<Role> remainingRoles = List.of(Role.ORG_ADMIN);
+        
+        testUser.setRoles(initialRoles);
 
         when(usersService.getById(userId, false)).thenReturn(testUser);
         when(usersService.updateRoles(userId, remainingRoles)).thenReturn(testUser);
@@ -132,10 +127,9 @@ class RbacServiceTest {
         User result = rbacService.revokeRole(userId, roleToRevoke);
 
         assertNotNull(result);
-        verify(usersService, times(1)).updateRoles(eq(userId), anyList());
+        verify(usersService, times(1)).updateRoles(eq(userId), eq(remainingRoles));
     }
 
-    @Disabled("Test needs fixing")
     @Test
     void testRevokeRole_WithLastRole_ThrowsBadRequestException() {
         Long userId = 1L;
@@ -149,4 +143,5 @@ class RbacServiceTest {
         });
     }
 }
+
 

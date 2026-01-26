@@ -147,5 +147,272 @@ class LegalControllerIntegrationTest extends BaseControllerTest {
                 .param("orgId", testOrganization.getId().toString()))
                 .andExpect(status().is5xxServerError());
     }
+
+    // ========== ADDITIONAL LIST DOCS TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testListDocs_WithUser_ReturnsDocs() throws Exception {
+        mockMvc.perform(get("/api/legal/docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void testListDocs_WithSuperAdmin_ReturnsDocs() throws Exception {
+        mockMvc.perform(get("/api/legal/docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testListDocs_WithAdmin_ReturnsDocs() throws Exception {
+        mockMvc.perform(get("/api/legal/docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void testListDocs_WithoutAuthentication_Returns401() throws Exception {
+        mockMvc.perform(get("/api/legal/docs"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListDocs_WithMultipleFilters_ReturnsFilteredDocs() throws Exception {
+        mockMvc.perform(get("/api/legal/docs")
+                .param("type", "TERMS")
+                .param("currentOnly", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListDocs_WithCurrentOnlyFalse_ReturnsAllDocs() throws Exception {
+        mockMvc.perform(get("/api/legal/docs")
+                .param("currentOnly", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    // ========== ADDITIONAL GET DOC BY ID TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testGetDoc_WithUser_ReturnsNotImplemented() throws Exception {
+        mockMvc.perform(get("/api/legal/docs/1"))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void testGetDoc_WithSuperAdmin_ReturnsNotImplemented() throws Exception {
+        mockMvc.perform(get("/api/legal/docs/1"))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    void testGetDoc_WithoutAuthentication_Returns401() throws Exception {
+        mockMvc.perform(get("/api/legal/docs/1"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ========== ADDITIONAL CREATE DOC TESTS ==========
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void testCreateDoc_WithTerms_ReturnsCreated() throws Exception {
+        String jsonContent = "{\"type\":\"TERMS\"," +
+                            "\"version\":\"1.0\",\"title\":\"Test Terms\"," +
+                            "\"content\":\"Test content for terms that is long enough to meet validation requirements\"}";
+        
+        mockMvc.perform(post("/api/legal/docs")
+                .contentType(APPLICATION_JSON)
+                .content(jsonContent)
+                .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void testCreateDoc_WithoutRequiredField_ReturnsBadRequest() throws Exception {
+        String jsonContent = "{\"type\":\"PRIVACY_POLICY\"," +
+                            "\"version\":\"1.0\"," +
+                            "\"content\":\"Test content\"}";  // Missing title
+        
+        mockMvc.perform(post("/api/legal/docs")
+                .contentType(APPLICATION_JSON)
+                .content(jsonContent)
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testCreateDoc_WithUser_IsForbidden() throws Exception {
+        String jsonContent = "{\"type\":\"PRIVACY_POLICY\"," +
+                            "\"version\":\"1.0\",\"title\":\"Test Privacy Policy\"," +
+                            "\"content\":\"Test content for privacy policy that is long enough to meet validation requirements\"}";
+        
+        mockMvc.perform(post("/api/legal/docs")
+                .contentType(APPLICATION_JSON)
+                .content(jsonContent)
+                .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testCreateDoc_WithAdmin_IsForbidden() throws Exception {
+        String jsonContent = "{\"type\":\"PRIVACY_POLICY\"," +
+                            "\"version\":\"1.0\",\"title\":\"Test Privacy Policy\"," +
+                            "\"content\":\"Test content for privacy policy that is long enough to meet validation requirements\"}";
+        
+        mockMvc.perform(post("/api/legal/docs")
+                .contentType(APPLICATION_JSON)
+                .content(jsonContent)
+                .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_OWNER)
+    void testCreateDoc_WithOrgOwner_IsForbidden() throws Exception {
+        String jsonContent = "{\"type\":\"PRIVACY_POLICY\"," +
+                            "\"version\":\"1.0\",\"title\":\"Test Privacy Policy\"," +
+                            "\"content\":\"Test content for privacy policy that is long enough to meet validation requirements\"}";
+        
+        mockMvc.perform(post("/api/legal/docs")
+                .contentType(APPLICATION_JSON)
+                .content(jsonContent)
+                .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void testCreateDoc_WithoutAuthentication_Returns401() throws Exception {
+        String jsonContent = "{\"type\":\"PRIVACY_POLICY\"," +
+                            "\"version\":\"1.0\",\"title\":\"Test Privacy Policy\"," +
+                            "\"content\":\"Test content for privacy policy that is long enough to meet validation requirements\"}";
+        
+        mockMvc.perform(post("/api/legal/docs")
+                .contentType(APPLICATION_JSON)
+                .content(jsonContent)
+                .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ========== ADDITIONAL ACCEPT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testAccept_WithUser_ReturnsNotImplemented() throws Exception {
+        AcceptLegalDocDto dto = new AcceptLegalDocDto();
+        dto.setDocId(1L);
+        dto.setOrgId(testOrganization.getId().toString());
+        
+        mockMvc.perform(post("/api/legal/accept")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void testAccept_WithSuperAdmin_ReturnsNotImplemented() throws Exception {
+        AcceptLegalDocDto dto = new AcceptLegalDocDto();
+        dto.setDocId(1L);
+        dto.setOrgId(testOrganization.getId().toString());
+        
+        mockMvc.perform(post("/api/legal/accept")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testAccept_WithoutDocId_ReturnsBadRequest() throws Exception {
+        AcceptLegalDocDto dto = new AcceptLegalDocDto();
+        dto.setOrgId(testOrganization.getId().toString());
+        // docId is missing
+        
+        mockMvc.perform(post("/api/legal/accept")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testAccept_WithoutAuthentication_Returns401() throws Exception {
+        AcceptLegalDocDto dto = new AcceptLegalDocDto();
+        dto.setDocId(1L);
+        dto.setOrgId(testOrganization.getId().toString());
+        
+        mockMvc.perform(post("/api/legal/accept")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    // ========== ADDITIONAL ACCEPTANCE STATUS TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testAcceptanceStatus_WithUser_ReturnsNotImplemented() throws Exception {
+        mockMvc.perform(get("/api/legal/acceptance-status")
+                .param("docType", "PRIVACY_POLICY")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    @WithMockUser(roles = "SUPER_ADMIN")
+    void testAcceptanceStatus_WithSuperAdmin_ReturnsNotImplemented() throws Exception {
+        mockMvc.perform(get("/api/legal/acceptance-status")
+                .param("docType", "PRIVACY_POLICY")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testAcceptanceStatus_WithoutParams_ReturnsNotImplemented() throws Exception {
+        mockMvc.perform(get("/api/legal/acceptance-status"))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testAcceptanceStatus_WithOnlyDocType_ReturnsNotImplemented() throws Exception {
+        mockMvc.perform(get("/api/legal/acceptance-status")
+                .param("docType", "PRIVACY_POLICY"))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testAcceptanceStatus_WithOnlyOrgId_ReturnsNotImplemented() throws Exception {
+        mockMvc.perform(get("/api/legal/acceptance-status")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    void testAcceptanceStatus_WithoutAuthentication_Returns401() throws Exception {
+        mockMvc.perform(get("/api/legal/acceptance-status")
+                .param("docType", "PRIVACY_POLICY")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isUnauthorized());
+    }
 }
 

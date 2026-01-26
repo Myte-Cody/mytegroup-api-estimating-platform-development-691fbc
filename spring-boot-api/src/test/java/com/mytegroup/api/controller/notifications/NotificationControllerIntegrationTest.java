@@ -78,10 +78,21 @@ class NotificationControllerIntegrationTest extends BaseControllerTest {
     @Test
     @WithMockUser
     void testMarkAsRead_WithValidId_ReturnsOk() throws Exception {
-        mockMvc.perform(patch("/api/notifications/1/read")
+        // Create a notification first
+        com.mytegroup.api.entity.communication.Notification notification = new com.mytegroup.api.entity.communication.Notification();
+        notification.setOrganization(testOrganization);
+        notification.setUser(testUser);
+        notification.setType("test_notification");
+        notification.setRead(false);
+        notification = notificationRepository.save(notification);
+        notificationRepository.flush();
+        
+        mockMvc.perform(patch("/api/notifications/" + notification.getId() + "/read")
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(status().isNotFound()); // Will be 404 if notification doesn't exist
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(notification.getId()))
+                .andExpect(jsonPath("$.isRead").value(true));
     }
 
     @Test

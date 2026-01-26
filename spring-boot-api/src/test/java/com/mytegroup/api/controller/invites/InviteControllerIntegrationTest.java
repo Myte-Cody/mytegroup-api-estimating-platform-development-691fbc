@@ -378,5 +378,108 @@ class InviteControllerIntegrationTest extends BaseControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
     }
+
+    // ========== ADDITIONAL COVERAGE TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testCreateInvite_WithNullExpiresInHours_UsesDefault() throws Exception {
+        // Test dto.getExpiresInHours() == null branch - should default to 72
+        long timestamp = System.currentTimeMillis();
+        int random = (int)(Math.random() * 100000);
+        String uniqueEmail = "invite" + timestamp + random + "@example.com";
+        
+        Person newPerson = new Person();
+        newPerson.setOrganization(testOrganization);
+        newPerson.setFirstName("Test");
+        newPerson.setLastName("Person");
+        newPerson.setDisplayName("Test Person");
+        newPerson.setPrimaryEmail(uniqueEmail);
+        newPerson.setPersonType(com.mytegroup.api.entity.enums.people.PersonType.INTERNAL_STAFF);
+        newPerson = personRepository.save(newPerson);
+        personRepository.flush();
+        
+        // Clean up any existing user or invite
+        com.mytegroup.api.entity.core.User existingUser = userRepository.findByEmail(uniqueEmail.toLowerCase().trim()).orElse(null);
+        if (existingUser != null) {
+            userRepository.delete(existingUser);
+            userRepository.flush();
+        }
+        
+        Optional<Invite> existingInvite = inviteRepository.findPendingActiveInvite(
+                testOrganization.getId(), uniqueEmail.toLowerCase().trim(), 
+                java.time.LocalDateTime.now());
+        if (existingInvite.isPresent()) {
+            Invite invite = existingInvite.get();
+            invite.setStatus(InviteStatus.EXPIRED);
+            inviteRepository.save(invite);
+            inviteRepository.flush();
+        }
+        
+        // Create DTO with null expiresInHours - should default to 72
+        CreateInviteDto dto = new CreateInviteDto();
+        dto.setPersonId(newPerson.getId().toString());
+        dto.setRole(Role.USER);
+        dto.setExpiresInHours(null);  // null expiresInHours - should default to 72
+        
+        mockMvc.perform(post("/api/invites")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testCreateInvite_WithCustomExpiresInHours_UsesCustomValue() throws Exception {
+        // Test dto.getExpiresInHours() != null branch
+        long timestamp = System.currentTimeMillis();
+        int random = (int)(Math.random() * 100000);
+        String uniqueEmail = "invite" + timestamp + random + "@example.com";
+        
+        Person newPerson = new Person();
+        newPerson.setOrganization(testOrganization);
+        newPerson.setFirstName("Test");
+        newPerson.setLastName("Person");
+        newPerson.setDisplayName("Test Person");
+        newPerson.setPrimaryEmail(uniqueEmail);
+        newPerson.setPersonType(com.mytegroup.api.entity.enums.people.PersonType.INTERNAL_STAFF);
+        newPerson = personRepository.save(newPerson);
+        personRepository.flush();
+        
+        // Clean up any existing user or invite
+        com.mytegroup.api.entity.core.User existingUser = userRepository.findByEmail(uniqueEmail.toLowerCase().trim()).orElse(null);
+        if (existingUser != null) {
+            userRepository.delete(existingUser);
+            userRepository.flush();
+        }
+        
+        Optional<Invite> existingInvite = inviteRepository.findPendingActiveInvite(
+                testOrganization.getId(), uniqueEmail.toLowerCase().trim(), 
+                java.time.LocalDateTime.now());
+        if (existingInvite.isPresent()) {
+            Invite invite = existingInvite.get();
+            invite.setStatus(InviteStatus.EXPIRED);
+            inviteRepository.save(invite);
+            inviteRepository.flush();
+        }
+        
+        // Create DTO with custom expiresInHours
+        CreateInviteDto dto = new CreateInviteDto(
+                newPerson.getId().toString(),
+                Role.USER,
+                48  // Custom expiresInHours
+        );
+        
+        mockMvc.perform(post("/api/invites")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists());
+    }
 }
 

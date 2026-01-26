@@ -30,6 +30,4 @@ public class EmailController {
         
         return ResponseEntity.ok(Map.of("status", "ok", "to", dto.getTo()));
     }
-    
-        }
-        
+}

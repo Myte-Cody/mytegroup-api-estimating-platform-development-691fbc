@@ -415,9 +415,14 @@ public class UsersService {
         user.setArchivedAt(LocalDateTime.now());
         User savedUser = userRepository.save(user);
         
-        // Release seat
+        // Release seat (if user has one)
         if (user.getOrganization() != null) {
-            seatsService.releaseSeatForUser(user.getOrganization().getId().toString(), savedUser.getId());
+            try {
+                seatsService.releaseSeatForUser(user.getOrganization().getId().toString(), savedUser.getId());
+            } catch (ResourceNotFoundException e) {
+                // User doesn't have a seat, which is fine
+                log.debug("User {} doesn't have a seat to release", savedUser.getId());
+            }
         }
         
         Map<String, Object> metadata = new HashMap<>();

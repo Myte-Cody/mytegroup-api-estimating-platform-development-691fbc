@@ -64,10 +64,7 @@ class GraphEdgeControllerIntegrationTest extends BaseControllerTest {
     @WithMockUser(roles = ROLE_ORG_ADMIN)
     void testListGraphEdges_WithoutOrgId_ThrowsException() throws Exception {
         mockMvc.perform(get("/api/graph-edges"))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
-                });
+                .andExpect(status().isBadRequest());
     }
 
     // ========== CREATE ENDPOINT TESTS ==========
@@ -82,7 +79,7 @@ class GraphEdgeControllerIntegrationTest extends BaseControllerTest {
         dto.setToId("2");
         dto.setEdgeType("parent");
         
-        // Note: This may fail if entities don't exist, but tests the endpoint structure
+        // Note: This may succeed if entities exist (201), or fail if they don't (400)
         mockMvc.perform(post("/api/graph-edges")
                 .param("orgId", testOrganization.getId().toString())
                 .contentType(APPLICATION_JSON)
@@ -90,9 +87,8 @@ class GraphEdgeControllerIntegrationTest extends BaseControllerTest {
                 .with(csrf()))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
-                    // Accept 201 (created) or 4xx/5xx (validation/entity not found errors)
-                    assertTrue(status == 201 || status >= 400, 
-                        "Expected 201 or error status but got " + status);
+                    assertTrue(status == 201 || status == 400, 
+                        "Expected 201 (Created) or 400 (Bad Request), but got: " + status);
                 });
     }
 
@@ -110,10 +106,7 @@ class GraphEdgeControllerIntegrationTest extends BaseControllerTest {
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto))
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
-                });
+                .andExpect(status().isBadRequest());
     }
 
     // ========== DELETE ENDPOINT TESTS ==========
@@ -121,15 +114,14 @@ class GraphEdgeControllerIntegrationTest extends BaseControllerTest {
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
     void testDeleteGraphEdge_WithValidId_ReturnsNoContent() throws Exception {
-        // Note: This will fail if no edge exists, but tests the endpoint
+        // Note: This will return 404 if no edge exists, or 204 if it exists and is deleted
         mockMvc.perform(delete("/api/graph-edges/1")
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
-                    // Accept 204 (success) or 404 (not found) or other error
-                    assertTrue(status == 204 || status >= 400, 
-                        "Expected 204 or error status but got " + status);
+                    assertTrue(status == 204 || status == 404, 
+                        "Expected 204 (No Content) or 404 (Not Found), but got: " + status);
                 });
     }
 
@@ -138,10 +130,7 @@ class GraphEdgeControllerIntegrationTest extends BaseControllerTest {
     void testDeleteGraphEdge_WithoutOrgId_ThrowsException() throws Exception {
         mockMvc.perform(delete("/api/graph-edges/1")
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
-                });
+                .andExpect(status().isBadRequest());
     }
 }
 

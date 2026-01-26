@@ -99,18 +99,14 @@ class CompaniesImportControllerIntegrationTest extends BaseControllerTest {
         CompaniesImportConfirmDto dto = new CompaniesImportConfirmDto();
         dto.setConfirmedRows(new java.util.ArrayList<>(java.util.List.of(row)));
         
-        // Note: This may fail if service has validation issues, but tests endpoint
+        // Service returns a result map with status, created, updated counts
         mockMvc.perform(post("/api/companies/import/v1/confirm")
                 .param("orgId", testOrganization.getId().toString())
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto))
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // Accept 200 (ok) or 4xx/5xx (validation/service errors)
-                    assertTrue(status == 200 || status >= 400, 
-                        "Expected 200 or error status but got " + status);
-                });
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").exists());
     }
 
     @Test

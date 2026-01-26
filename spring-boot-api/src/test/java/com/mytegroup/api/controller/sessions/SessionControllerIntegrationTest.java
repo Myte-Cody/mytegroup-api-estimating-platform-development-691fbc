@@ -117,5 +117,132 @@ class SessionControllerIntegrationTest extends BaseControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("orgId is required"));
     }
+
+    // ========== ADDITIONAL EDGE CASE TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testListSessions_WithUserRole_ReturnsSessions() throws Exception {
+        mockMvc.perform(get("/api/sessions")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testListSessions_WithAdmin_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/sessions")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_SUPER_ADMIN)
+    void testListSessions_WithSuperAdmin_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/sessions")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testRevokeSession_WithUserRole_IsAllowed() throws Exception {
+        RevokeSessionDto dto = new RevokeSessionDto("session-123");
+        
+        mockMvc.perform(post("/api/sessions/revoke")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ok"));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testRevokeAllSessions_WithUserRole_IsAllowed() throws Exception {
+        mockMvc.perform(post("/api/sessions/revoke-all")
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ok"));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testRevokeSession_WithoutSessionId_ReturnsBadRequest() throws Exception {
+        // Create DTO with null sessionId
+        RevokeSessionDto dto = new RevokeSessionDto(null);
+        
+        mockMvc.perform(post("/api/sessions/revoke")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListSessions_ReturnsJsonContentType() throws Exception {
+        mockMvc.perform(get("/api/sessions")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testRevokeSession_ReturnsJsonContentType() throws Exception {
+        RevokeSessionDto dto = new RevokeSessionDto("session-123");
+        
+        mockMvc.perform(post("/api/sessions/revoke")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testRevokeAllSessions_ReturnsJsonContentType() throws Exception {
+        mockMvc.perform(post("/api/sessions/revoke-all")
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListSessions_ResponseIsArray() throws Exception {
+        mockMvc.perform(get("/api/sessions")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_OWNER)
+    void testListSessions_WithOrgOwner_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/sessions")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_PLATFORM_ADMIN)
+    void testListSessions_WithPlatformAdmin_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/sessions")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
 }
 

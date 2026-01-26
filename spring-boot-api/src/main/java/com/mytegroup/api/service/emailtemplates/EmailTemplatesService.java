@@ -36,7 +36,9 @@ public class EmailTemplatesService {
     @Transactional(readOnly = true)
     public EmailTemplate getTemplate(String orgId, String name, String locale) {
         Long orgIdLong = Long.parseLong(orgId);
-        return emailTemplateRepository.findByOrganization_IdAndNameAndLocale(orgIdLong, name, locale)
+        // Default to "en" if locale is null
+        String effectiveLocale = locale != null ? locale : "en";
+        return emailTemplateRepository.findByOrganization_IdAndNameAndLocale(orgIdLong, name, effectiveLocale)
             .orElseThrow(() -> new ResourceNotFoundException("Email template not found"));
     }
     
@@ -104,7 +106,9 @@ public class EmailTemplatesService {
      */
     @Transactional(readOnly = true)
     public Map<String, String> render(String orgId, String name, String locale, Map<String, Object> variables) {
-        EmailTemplate template = getTemplate(orgId, name, locale);
+        // Default to "en" if locale is null
+        String effectiveLocale = locale != null ? locale : "en";
+        EmailTemplate template = getTemplate(orgId, name, effectiveLocale);
         
         // TODO: Implement template rendering with variable substitution
         Map<String, String> rendered = new HashMap<>();

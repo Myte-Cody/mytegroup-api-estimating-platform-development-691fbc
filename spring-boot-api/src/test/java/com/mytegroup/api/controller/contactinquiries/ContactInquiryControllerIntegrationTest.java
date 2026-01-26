@@ -102,12 +102,183 @@ class ContactInquiryControllerIntegrationTest extends BaseControllerTest {
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto))
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // Accept 200 (success) or 404 (not found)
-                    assertTrue(status == 200 || status == 404, 
-                        "Expected 200 or 404 but got " + status);
-                });
+                .andExpect(status().isNotFound());
+    }
+
+    // ========== ADDITIONAL EDGE CASE TESTS ==========
+
+    @Test
+    void testCreateContactInquiry_WithoutName_ReturnsBadRequest() throws Exception {
+        CreateContactInquiryDto dto = new CreateContactInquiryDto();
+        dto.setEmail("test@example.com");
+        dto.setPhone("+15145551234");
+        dto.setMessage("Test inquiry message");
+        
+        mockMvc.perform(post("/api/marketing/contact-inquiries")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testCreateContactInquiry_WithoutEmail_ReturnsBadRequest() throws Exception {
+        CreateContactInquiryDto dto = new CreateContactInquiryDto();
+        dto.setName("Test User");
+        dto.setPhone("+15145551234");
+        dto.setMessage("Test inquiry message");
+        
+        mockMvc.perform(post("/api/marketing/contact-inquiries")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testCreateContactInquiry_WithInvalidEmail_ReturnsBadRequest() throws Exception {
+        CreateContactInquiryDto dto = new CreateContactInquiryDto();
+        dto.setName("Test User");
+        dto.setEmail("invalid-email");
+        dto.setPhone("+15145551234");
+        dto.setMessage("Test inquiry message");
+        
+        mockMvc.perform(post("/api/marketing/contact-inquiries")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListContactInquiries_WithStatusFilter_ReturnsFiltered() throws Exception {
+        mockMvc.perform(get("/api/marketing/contact-inquiries")
+                .param("status", "NEW"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListContactInquiries_WithPagination_ReturnsPaginated() throws Exception {
+        mockMvc.perform(get("/api/marketing/contact-inquiries")
+                .param("page", "0")
+                .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListContactInquiries_WithDefaultPagination_ReturnsList() throws Exception {
+        mockMvc.perform(get("/api/marketing/contact-inquiries"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateContactInquiry_WithInvalidId_ReturnsNotFound() throws Exception {
+        UpdateContactInquiryDto dto = new UpdateContactInquiryDto();
+        dto.setStatus(ContactInquiryStatus.CLOSED);
+        dto.setNote("Resolved note");
+        
+        mockMvc.perform(patch("/api/marketing/contact-inquiries/99999")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateContactInquiry_WithNewStatus_ReturnsOk() throws Exception {
+        UpdateContactInquiryDto dto = new UpdateContactInquiryDto();
+        dto.setStatus(ContactInquiryStatus.NEW);
+        dto.setNote("New note");
+        
+        mockMvc.perform(patch("/api/marketing/contact-inquiries/1")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateContactInquiry_WithInProgressStatus_ReturnsOk() throws Exception {
+        UpdateContactInquiryDto dto = new UpdateContactInquiryDto();
+        dto.setStatus(ContactInquiryStatus.IN_PROGRESS);
+        dto.setNote("In progress note");
+        
+        mockMvc.perform(patch("/api/marketing/contact-inquiries/1")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_SUPER_ADMIN)
+    void testListContactInquiries_WithSuperAdmin_ReturnsList() throws Exception {
+        mockMvc.perform(get("/api/marketing/contact-inquiries"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_PLATFORM_ADMIN)
+    void testListContactInquiries_WithPlatformAdmin_ReturnsList() throws Exception {
+        mockMvc.perform(get("/api/marketing/contact-inquiries"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_OWNER)
+    void testListContactInquiries_WithOrgOwner_ReturnsList() throws Exception {
+        mockMvc.perform(get("/api/marketing/contact-inquiries"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateContactInquiry_WithoutStatus_ReturnsOk() throws Exception {
+        UpdateContactInquiryDto dto = new UpdateContactInquiryDto();
+        dto.setNote("Note only");
+        
+        mockMvc.perform(patch("/api/marketing/contact-inquiries/1")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void testCreateContactInquiry_ResponseContainsId() throws Exception {
+        CreateContactInquiryDto dto = new CreateContactInquiryDto();
+        dto.setName("Test User");
+        dto.setEmail("test@example.com");
+        dto.setPhone("+15145551234");
+        dto.setMessage("Test inquiry message");
+        
+        mockMvc.perform(post("/api/marketing/contact-inquiries")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.email").value("test@example.com"));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListContactInquiries_ReturnsJsonContentType() throws Exception {
+        mockMvc.perform(get("/api/marketing/contact-inquiries"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(APPLICATION_JSON));
     }
 }
 

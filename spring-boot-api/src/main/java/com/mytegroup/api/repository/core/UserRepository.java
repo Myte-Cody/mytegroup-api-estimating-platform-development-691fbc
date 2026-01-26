@@ -70,7 +70,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /**
      * Clear verification token and mark email as verified.
      */
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE User u SET u.verificationTokenHash = null, u.verificationTokenExpires = null, " +
            "u.isEmailVerified = true WHERE u.id = :userId")
     int clearVerificationToken(@Param("userId") Long userId);

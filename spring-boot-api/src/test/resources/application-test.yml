@@ -55,6 +55,10 @@ spring:
   # Disable unnecessary services in test
   mvc:
     log-request-details: false
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
   
   # Redis configuration for tests
   redis:
@@ -89,4 +93,11 @@ management:
 test:
   database:
     initialization-mode: always
+
+# Disable waitlist gates for tests
+app:
+  waitlist:
+    invite-gate-enabled: false  # Disable invite gate to allow registration without waitlist
+    domain-gate-enabled: false  # Disable domain gate to allow any domain
+    require-invite-token: false  # Don't require invite tokens
 

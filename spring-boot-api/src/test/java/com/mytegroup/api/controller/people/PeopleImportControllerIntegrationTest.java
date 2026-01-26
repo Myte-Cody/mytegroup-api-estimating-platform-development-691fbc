@@ -122,12 +122,8 @@ class PeopleImportControllerIntegrationTest extends BaseControllerTest {
                 .contentType(APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto))
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // Accept 200 (ok) or 4xx/5xx (validation/service errors)
-                    assertTrue(status == 200 || status >= 400, 
-                        "Expected 200 or error status but got " + status);
-                });
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").exists());
     }
 
     // ========== V1 ENDPOINT TESTS ==========

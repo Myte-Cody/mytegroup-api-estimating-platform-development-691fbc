@@ -252,17 +252,18 @@ class CompanyControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    @org.junit.jupiter.api.Disabled("CSRF may not be enforced in test configuration - test passes without CSRF token")
-    void testCreateCompany_WithoutCsrfToken_IsForbidden() throws Exception {
-        // Note: CSRF protection may be disabled in test configuration
-        // If CSRF is enabled, this should return 403; if disabled, it may return 201
+    void testCreateCompany_WithoutCsrfToken_IsAllowed() throws Exception {
+        // Note: CSRF protection is disabled in SecurityConfig (line 36: .csrf(AbstractHttpConfigurer::disable))
+        // This is intentional for stateless JWT-based authentication
+        // The test verifies that requests work without CSRF tokens
         CreateCompanyDto dto = createTestCompanyDto("No CSRF Company");
 
         mockMvc.perform(post("/api/companies")
                 .param("orgId", testOrganization.getId().toString())
                 .contentType(APPLICATION_JSON)
                 .content(asJsonString(dto)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists());
     }
 
     // ========== UPDATE ENDPOINT TESTS ==========
@@ -302,13 +303,12 @@ class CompanyControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    @org.junit.jupiter.api.Disabled("Service-level serialization issue with Map<String, Object>")
     void testArchiveCompany_WithValidId_ReturnsOk() throws Exception {
-        // TODO: Fix service-level serialization issue
         mockMvc.perform(post("/api/companies/" + testCompany.getId() + "/archive")
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testCompany.getId()));
     }
 
     @Test

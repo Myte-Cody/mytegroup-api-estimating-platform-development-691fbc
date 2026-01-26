@@ -44,12 +44,8 @@ class BulkControllerIntegrationTest extends BaseControllerTest {
                 .file(file)
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // Accept 200 (success) or 4xx/5xx (error)
-                    assertTrue(status == 200 || status >= 400, 
-                        "Expected 200 or error status but got " + status);
-                });
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entityType").exists());
     }
 
     @Test

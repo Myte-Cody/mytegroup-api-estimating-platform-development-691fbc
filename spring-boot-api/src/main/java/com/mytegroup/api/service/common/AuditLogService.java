@@ -61,7 +61,19 @@ public class AuditLogService {
                 }
             }
             
-            eventLog.setMetadata(metadata != null ? metadata : new HashMap<>());
+            // Convert metadata to JSON-safe format (convert LocalDateTime to String)
+            Map<String, Object> safeMetadata = new HashMap<>();
+            if (metadata != null) {
+                for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+                    Object value = entry.getValue();
+                    if (value instanceof LocalDateTime) {
+                        safeMetadata.put(entry.getKey(), ((LocalDateTime) value).toString());
+                    } else {
+                        safeMetadata.put(entry.getKey(), value);
+                    }
+                }
+            }
+            eventLog.setMetadata(safeMetadata);
             // createdAt is automatically set by BaseEntity @PrePersist
             
             eventLogRepository.save(eventLog);

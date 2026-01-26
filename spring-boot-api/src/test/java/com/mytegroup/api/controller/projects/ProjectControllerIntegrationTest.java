@@ -6,11 +6,14 @@ import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.organization.Office;
 import com.mytegroup.api.entity.projects.Project;
+import com.mytegroup.api.service.projects.ProjectsService;
 import com.mytegroup.api.test.controller.BaseControllerTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -24,6 +27,9 @@ class ProjectControllerIntegrationTest extends BaseControllerTest {
     private Organization testOrganization;
     private Office testOffice;
     private Project testProject;
+
+    @Autowired
+    private ProjectsService projectsService;
 
     @BeforeEach
     @Override
@@ -269,13 +275,12 @@ class ProjectControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    @org.junit.jupiter.api.Disabled("Service-level serialization issue with Map<String, Object>")
     void testArchiveProject_WithValidId_ReturnsOk() throws Exception {
-        // TODO: Fix service-level serialization issue
         mockMvc.perform(post("/api/projects/" + testProject.getId() + "/archive")
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testProject.getId()));
     }
 
     @Test
@@ -296,6 +301,46 @@ class ProjectControllerIntegrationTest extends BaseControllerTest {
                 .param("orgId", testOrganization.getId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    // ========== ADDITIONAL ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListProjects_WithoutOrgId_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/projects"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testGetProjectById_WithoutOrgId_ThrowsException() throws Exception {
+        mockMvc.perform(get("/api/projects/" + testProject.getId()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateProject_WithoutOrgId_ThrowsException() throws Exception {
+        UpdateProjectDto dto = new UpdateProjectDto("Updated", null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        mockMvc.perform(patch("/api/projects/" + testProject.getId())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUnarchiveProject_WithValidId_ReturnsOk() throws Exception {
+        // First archive the project so we can unarchive it
+        projectsService.archive(testProject.getId(), testOrganization.getId().toString());
+        
+        mockMvc.perform(post("/api/projects/" + testProject.getId() + "/unarchive")
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testProject.getId()));
     }
 }
 

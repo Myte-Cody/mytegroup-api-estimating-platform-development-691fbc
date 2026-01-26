@@ -463,5 +463,46 @@ public abstract class BaseIntegrationTest {
         User createdByUser = setupUser(organization, "inviter@test.com");
         return setupInvite(organization, person, person.getPrimaryEmail(), createdByUser);
     }
+
+    /**
+     * Creates a test email template with all required fields.
+     * @param organization Organization to associate template with
+     * @param name Template name
+     * @param locale Template locale (defaults to "en")
+     * @return Created email template
+     */
+    protected com.mytegroup.api.entity.communication.EmailTemplate setupEmailTemplate(
+            Organization organization, String name, String locale) {
+        // Ensure organization is persisted first
+        if (organization.getId() == null) {
+            organization = organizationRepository.save(organization);
+        }
+        
+        com.mytegroup.api.entity.communication.EmailTemplate template = 
+            new com.mytegroup.api.entity.communication.EmailTemplate();
+        template.setOrganization(organization);
+        template.setName(name);
+        template.setLocale(locale != null ? locale : "en");
+        template.setSubject("Test Subject for " + name);
+        template.setHtml("<html><body><h1>Test HTML for " + name + "</h1></body></html>");
+        template.setText("Test text for " + name);
+        template.setRequiredVariables(new java.util.ArrayList<>());
+        template.setOptionalVariables(new java.util.ArrayList<>());
+        template = emailTemplateRepository.save(template);
+        // Flush to ensure it's persisted before queries
+        emailTemplateRepository.flush();
+        return template;
+    }
+
+    /**
+     * Creates a test email template with default locale.
+     * @param organization Organization to associate template with
+     * @param name Template name
+     * @return Created email template
+     */
+    protected com.mytegroup.api.entity.communication.EmailTemplate setupEmailTemplate(
+            Organization organization, String name) {
+        return setupEmailTemplate(organization, name, "en");
+    }
 }
 

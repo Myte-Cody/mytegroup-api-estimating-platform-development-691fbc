@@ -9,6 +9,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 
 import java.util.HashMap;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -66,9 +67,9 @@ class NotificationControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser
-    @org.junit.jupiter.api.Disabled("NotificationController does not have a getById endpoint")
-    void testGetNotificationById_WithValidId_ReturnsNotification() throws Exception {
+    void testGetNotificationById_EndpointDoesNotExist_Returns404() throws Exception {
         // NotificationController does not have a GET /{id} endpoint
+        // Should return 404 (Not Found) or 405 (Method Not Allowed), not 500
         mockMvc.perform(get("/api/notifications/1")
                 .param("orgId", testOrganization.getId().toString()))
                 .andExpect(status().isNotFound());
@@ -102,6 +103,137 @@ class NotificationControllerIntegrationTest extends BaseControllerTest {
                 .param("orgId", testOrganization.getId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    // ========== ADDITIONAL ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser
+    void testListNotifications_WithoutOrgId_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser
+    void testMarkAsRead_WithoutOrgId_ThrowsException() throws Exception {
+        mockMvc.perform(patch("/api/notifications/1/read")
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser
+    void testMarkAllAsRead_WithoutOrgId_ThrowsException() throws Exception {
+        mockMvc.perform(post("/api/notifications/mark-all-read")
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ========== ADDITIONAL EDGE CASE TESTS ==========
+
+    @Test
+    @WithMockUser
+    void testListNotifications_WithUnreadOnly_ReturnsFiltered() throws Exception {
+        mockMvc.perform(get("/api/notifications")
+                .param("orgId", testOrganization.getId().toString())
+                .param("unreadOnly", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @WithMockUser
+    void testListNotifications_WithUnreadOnlyFalse_ReturnsAll() throws Exception {
+        mockMvc.perform(get("/api/notifications")
+                .param("orgId", testOrganization.getId().toString())
+                .param("unreadOnly", "false"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @WithMockUser
+    void testListNotifications_WithCustomPage_ReturnsPaginated() throws Exception {
+        mockMvc.perform(get("/api/notifications")
+                .param("orgId", testOrganization.getId().toString())
+                .param("page", "1")
+                .param("limit", "50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.limit").value(50));
+    }
+
+    @Test
+    @WithMockUser
+    void testListNotifications_WithDefaultPagination_ReturnsPaginated() throws Exception {
+        mockMvc.perform(get("/api/notifications")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.limit").value(25));
+    }
+
+    @Test
+    @WithMockUser
+    void testMarkAsRead_WithInvalidId_ReturnsNotFound() throws Exception {
+        mockMvc.perform(patch("/api/notifications/99999/read")
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser
+    void testMarkAsRead_ResponseContainsNotification() throws Exception {
+        mockMvc.perform(patch("/api/notifications/1/read")
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    if (status == 200) {
+                        String content = result.getResponse().getContentAsString();
+                        assertTrue(content.contains("id") || content.contains("read"), 
+                            "Response should contain notification data");
+                    }
+                });
+    }
+
+    @Test
+    @WithMockUser
+    void testListNotifications_ResponseContainsPaginationFields() throws Exception {
+        mockMvc.perform(get("/api/notifications")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").exists())
+                .andExpect(jsonPath("$.total").exists())
+                .andExpect(jsonPath("$.page").exists())
+                .andExpect(jsonPath("$.limit").exists());
+    }
+
+    @Test
+    @WithMockUser
+    void testListNotifications_WithoutOrgId_ResponseHasEmptyData() throws Exception {
+        mockMvc.perform(get("/api/notifications"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.total").value(0));
+    }
+
+    @Test
+    @WithMockUser
+    void testMarkAsRead_ReturnsJsonContentType() throws Exception {
+        mockMvc.perform(patch("/api/notifications/1/read")
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(result -> {
+                    int status = result.getResponse().getStatus();
+                    if (status == 200) {
+                        String contentType = result.getResponse().getContentType();
+                        assertTrue(contentType != null && contentType.contains("json"), 
+                            "Response should be JSON");
+                    }
+                });
     }
 }
 

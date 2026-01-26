@@ -5,13 +5,16 @@ import com.mytegroup.api.dto.persons.UpdatePersonDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.enums.people.PersonType;
 import com.mytegroup.api.entity.people.Person;
+import com.mytegroup.api.service.persons.PersonsService;
 import com.mytegroup.api.test.controller.BaseControllerTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import java.util.ArrayList;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -24,6 +27,9 @@ class PersonControllerIntegrationTest extends BaseControllerTest {
 
     private Organization testOrganization;
     private Person testPerson;
+
+    @Autowired
+    private PersonsService personsService;
 
     @BeforeEach
     @Override
@@ -293,13 +299,12 @@ class PersonControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    @org.junit.jupiter.api.Disabled("Service-level serialization issue with Map<String, Object>")
     void testArchivePerson_WithValidId_ReturnsOk() throws Exception {
-        // TODO: Fix service-level serialization issue
         mockMvc.perform(post("/api/persons/" + testPerson.getId() + "/archive")
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testPerson.getId()));
     }
 
     @Test
@@ -320,6 +325,70 @@ class PersonControllerIntegrationTest extends BaseControllerTest {
                 .param("orgId", testOrganization.getId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    // ========== ADDITIONAL ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListPersons_WithoutOrgId_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/persons"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testGetPersonById_WithoutOrgId_ThrowsException() throws Exception {
+        mockMvc.perform(get("/api/persons/" + testPerson.getId()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdatePerson_WithoutOrgId_ThrowsException() throws Exception {
+        UpdatePersonDto dto = new UpdatePersonDto(
+            PersonType.INTERNAL_STAFF, // personType
+            "Updated", // displayName
+            null, // firstName
+            null, // lastName
+            null, // dateOfBirth
+            null, // emails
+            null, // primaryEmail
+            null, // phones
+            null, // primaryPhone
+            null, // tagKeys
+            null, // skillKeys
+            null, // departmentKey
+            null, // orgLocationId
+            null, // reportsToPersonId
+            null, // ironworkerNumber
+            null, // unionLocal
+            null, // skillFreeText
+            null, // certifications
+            null, // rating
+            null, // notes
+            null, // companyId
+            null, // companyLocationId
+            null  // title
+        );
+        mockMvc.perform(patch("/api/persons/" + testPerson.getId())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUnarchivePerson_WithValidId_ReturnsOk() throws Exception {
+        // First archive the person so we can unarchive it
+        personsService.archive(testPerson.getId(), testOrganization.getId().toString());
+        
+        mockMvc.perform(post("/api/persons/" + testPerson.getId() + "/unarchive")
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testPerson.getId()));
     }
 }
 

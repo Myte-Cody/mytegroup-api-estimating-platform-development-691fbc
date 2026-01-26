@@ -110,7 +110,10 @@ public class WaitlistService {
         // Check if user already exists
         if (hasActiveUser(normalizedEmail)) {
             logEvent("waitlist_skip_active", Map.of("email", normalizedEmail));
-            return Map.of("status", "ok", "entry", null);
+            Map<String, Object> result = new HashMap<>();
+            result.put("status", "ok");
+            result.put("entry", null);
+            return result;
         }
         
         LocalDateTime now = LocalDateTime.now();

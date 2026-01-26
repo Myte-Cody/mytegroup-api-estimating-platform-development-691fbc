@@ -5,9 +5,12 @@ import com.mytegroup.api.dto.users.CreateUserDto;
 import com.mytegroup.api.dto.users.UpdateUserDto;
 import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.entity.core.User;
+import com.mytegroup.api.service.seats.SeatsService;
+import com.mytegroup.api.service.users.UsersService;
 import com.mytegroup.api.test.controller.BaseControllerTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.context.support.WithMockUser;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -22,6 +25,11 @@ class UserControllerIntegrationTest extends BaseControllerTest {
 
     private Organization testOrganization;
     private User testUser;
+
+    @Autowired
+    private UsersService usersService;
+    @Autowired
+    private SeatsService seatsService;
 
     @BeforeEach
     @Override
@@ -121,9 +129,7 @@ class UserControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_ADMIN)
-    @org.junit.jupiter.api.Disabled("ExceptionInInitializerError - static initialization issue in dependency")
     void testCreateUser_WithAdmin_ReturnsCreated() throws Exception {
-        // TODO: Fix ExceptionInInitializerError - likely static initialization in WaitlistService or related
         // Use unique email to avoid conflicts
         String uniqueEmail = "newuser" + System.currentTimeMillis() + "@test.com";
         CreateUserDto dto = new CreateUserDto();
@@ -141,10 +147,8 @@ class UserControllerIntegrationTest extends BaseControllerTest {
     }
 
     @Test
-    @WithMockUser(roles = ROLE_ORG_ADMIN)
-    @org.junit.jupiter.api.Disabled("ExceptionInInitializerError - static initialization issue in dependency")
-    void testCreateUser_WithOrgAdmin_IsForbidden() throws Exception {
-        // TODO: Fix ExceptionInInitializerError - likely static initialization in WaitlistService or related
+    @WithMockUser(roles = ROLE_USER)
+    void testCreateUser_WithUserRole_IsForbidden() throws Exception {
         // Use unique email to avoid conflicts
         String uniqueEmail = "unauthorized" + System.currentTimeMillis() + "@test.com";
         CreateUserDto dto = new CreateUserDto();
@@ -181,12 +185,11 @@ class UserControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_ADMIN)
-    @org.junit.jupiter.api.Disabled("Service-level serialization issue with Map<String, Object>")
     void testArchiveUser_WithValidId_ReturnsOk() throws Exception {
-        // TODO: Fix service-level serialization issue
         mockMvc.perform(post("/api/users/" + testUser.getId() + "/archive")
                 .with(csrf()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testUser.getId()));
     }
 
     @Test
@@ -205,6 +208,234 @@ class UserControllerIntegrationTest extends BaseControllerTest {
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    // ========== UPDATE ROLES ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testUpdateUserRoles_WithValidRoles_ReturnsUpdated() throws Exception {
+        com.mytegroup.api.dto.users.UpdateUserRolesDto dto = 
+            new com.mytegroup.api.dto.users.UpdateUserRolesDto(java.util.List.of(Role.ADMIN, Role.USER));
+        
+        mockMvc.perform(patch("/api/users/" + testUser.getId() + "/roles")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testUser.getId()));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testUpdateUserRoles_WithUserRole_IsForbidden() throws Exception {
+        com.mytegroup.api.dto.users.UpdateUserRolesDto dto = 
+            new com.mytegroup.api.dto.users.UpdateUserRolesDto(java.util.List.of(Role.ADMIN));
+        
+        mockMvc.perform(patch("/api/users/" + testUser.getId() + "/roles")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    // ========== GET ROLES ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testGetUserRoles_WithValidId_ReturnsRoles() throws Exception {
+        mockMvc.perform(get("/api/users/" + testUser.getId() + "/roles"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").exists());
+    }
+
+    // ========== UNARCHIVE ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testUnarchiveUser_WithValidId_ReturnsOk() throws Exception {
+        // First ensure seats exist and allocate one for the user
+        seatsService.ensureOrgSeats(testOrganization.getId().toString(), 10);
+        try {
+            seatsService.allocateSeat(testOrganization.getId().toString(), testUser.getId(), testUser.getRole().getValue(), null);
+        } catch (Exception e) {
+            // Seat might already be allocated, ignore
+        }
+        
+        // Archive the user
+        usersService.archive(testUser.getId());
+        
+        mockMvc.perform(post("/api/users/" + testUser.getId() + "/unarchive")
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testUser.getId()));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_USER)
+    void testUnarchiveUser_WithUserRole_IsForbidden() throws Exception {
+        mockMvc.perform(post("/api/users/" + testUser.getId() + "/unarchive")
+                .with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    // ========== ADDITIONAL EDGE CASE TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testListUsers_WithIncludeArchived_ReturnsAllUsers() throws Exception {
+        mockMvc.perform(get("/api/users")
+                .param("orgId", testOrganization.getId().toString())
+                .param("includeArchived", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testGetUserById_WithIncludeArchived_ReturnsUser() throws Exception {
+        mockMvc.perform(get("/api/users/" + testUser.getId())
+                .param("includeArchived", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testUser.getId()));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testCreateUser_WithoutOrgId_ReturnsBadRequest() throws Exception {
+        String uniqueEmail = "noorg" + System.currentTimeMillis() + "@test.com";
+        CreateUserDto dto = new CreateUserDto();
+        dto.setUsername(uniqueEmail);
+        dto.setEmail(uniqueEmail);
+        dto.setPassword("StrongPassword123!");
+        dto.setRole(Role.USER);
+        // Missing orgId
+        
+        mockMvc.perform(post("/api/users")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testCreateUser_WithInvalidPassword_ReturnsBadRequest() throws Exception {
+        String uniqueEmail = "weakpass" + System.currentTimeMillis() + "@test.com";
+        CreateUserDto dto = new CreateUserDto();
+        dto.setUsername(uniqueEmail);
+        dto.setEmail(uniqueEmail);
+        dto.setPassword("weak"); // Too weak
+        dto.setRole(Role.USER);
+        dto.setOrgId(testOrganization.getId().toString());
+        
+        mockMvc.perform(post("/api/users")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testUpdateUser_WithInvalidId_ReturnsNotFound() throws Exception {
+        UpdateUserDto dto = new UpdateUserDto();
+        dto.setFirstName("Updated");
+        
+        mockMvc.perform(patch("/api/users/99999")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testUpdateRoles_WithInvalidId_ReturnsNotFound() throws Exception {
+        com.mytegroup.api.dto.users.UpdateUserRolesDto dto = 
+            new com.mytegroup.api.dto.users.UpdateUserRolesDto(java.util.List.of(Role.USER));
+        
+        mockMvc.perform(patch("/api/users/99999/roles")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testArchiveUser_WithInvalidId_ReturnsNotFound() throws Exception {
+        mockMvc.perform(post("/api/users/99999/archive")
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testUnarchiveUser_WithInvalidId_ReturnsNotFound() throws Exception {
+        mockMvc.perform(post("/api/users/99999/unarchive")
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testGetUserRoles_WithInvalidId_ReturnsNotFound() throws Exception {
+        mockMvc.perform(get("/api/users/99999/roles"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_OWNER)
+    void testListUsers_WithOrgOwner_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/users")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_PLATFORM_ADMIN)
+    void testListUsers_WithPlatformAdmin_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/users"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testCreateUser_ResponseContainsUserFields() throws Exception {
+        String uniqueEmail = "response" + System.currentTimeMillis() + "@test.com";
+        CreateUserDto dto = new CreateUserDto();
+        dto.setUsername(uniqueEmail);
+        dto.setEmail(uniqueEmail);
+        dto.setPassword("StrongPassword123!");
+        dto.setRole(Role.USER);
+        dto.setOrgId(testOrganization.getId().toString());
+        
+        mockMvc.perform(post("/api/users")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").exists())
+                .andExpect(jsonPath("$.email").value(uniqueEmail))
+                .andExpect(jsonPath("$.username").value(uniqueEmail));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testUpdateUser_ResponseContainsUpdatedFields() throws Exception {
+        UpdateUserDto dto = new UpdateUserDto();
+        dto.setFirstName("UpdatedFirst");
+        dto.setLastName("UpdatedLast");
+        
+        mockMvc.perform(patch("/api/users/" + testUser.getId())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testUser.getId()));
     }
 }
 

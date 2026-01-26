@@ -90,16 +90,12 @@ class ContactControllerIntegrationTest extends BaseControllerTest {
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
     void testCreateContact_WithOrgAdmin_ReturnsNotFound() throws Exception {
-        // ContactController does not have a POST endpoint, so it should return an error status
+        // ContactController does not have a POST endpoint, so it should return 405 Method Not Allowed
         mockMvc.perform(post("/api/contacts")
                 .param("orgId", testOrganization.getId().toString())
                 .contentType(APPLICATION_JSON)
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // Accept any error status (4xx or 5xx) since the endpoint doesn't exist
-                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
-                });
+                .andExpect(status().isMethodNotAllowed());
     }
 
     // ========== UPDATE ENDPOINT TESTS ==========
@@ -107,16 +103,12 @@ class ContactControllerIntegrationTest extends BaseControllerTest {
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
     void testUpdateContact_WithValidId_ReturnsNotFound() throws Exception {
-        // ContactController does not have a PATCH endpoint, so it should return an error status
+        // ContactController does not have a PATCH endpoint, so it should return 405 Method Not Allowed
         mockMvc.perform(patch("/api/contacts/" + testContact.getId())
                 .param("orgId", testOrganization.getId().toString())
                 .contentType(APPLICATION_JSON)
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // Accept any error status (4xx or 5xx) since the endpoint doesn't exist
-                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
-                });
+                .andExpect(status().isMethodNotAllowed());
     }
 
     // ========== ARCHIVE ENDPOINT TESTS ==========
@@ -124,15 +116,11 @@ class ContactControllerIntegrationTest extends BaseControllerTest {
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
     void testArchiveContact_WithValidId_ReturnsNotFound() throws Exception {
-        // ContactController does not have an archive endpoint, so it should return an error status
+        // ContactController does not have an archive endpoint, so it should return 404 Not Found
         mockMvc.perform(post("/api/contacts/" + testContact.getId() + "/archive")
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(result -> {
-                    int status = result.getResponse().getStatus();
-                    // Accept any error status (4xx or 5xx) since the endpoint doesn't exist
-                    assertTrue(status >= 400, "Expected error status (4xx or 5xx) but got " + status);
-                });
+                .andExpect(status().isNotFound());
     }
 }
 

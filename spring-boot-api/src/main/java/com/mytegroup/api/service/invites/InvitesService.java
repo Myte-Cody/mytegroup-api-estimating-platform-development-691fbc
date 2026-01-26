@@ -24,6 +24,9 @@ import com.mytegroup.api.service.users.UsersService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -133,7 +136,33 @@ public class InvitesService {
         invite.setTokenHash(tokenData.hash());
         invite.setTokenExpires(tokenData.expires());
         invite.setStatus(InviteStatus.PENDING);
-        // createdByUser will be set when sessions are implemented
+        
+        // Get current user from security context
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            User currentUser = usersService.findByEmail(userDetails.getUsername());
+            if (currentUser != null) {
+                invite.setCreatedByUser(currentUser);
+            }
+        }
+        
+        // If no user found, create a system user or use a default
+        // For now, we'll try to find any admin user in the org as fallback
+        if (invite.getCreatedByUser() == null) {
+            List<User> orgUsers = userRepository.findByOrganization_Id(orgIdLong);
+            User fallbackUser = orgUsers.stream()
+                    .filter(u -> u.getArchivedAt() == null)
+                    .findFirst()
+                    .orElse(null);
+            if (fallbackUser != null) {
+                invite.setCreatedByUser(fallbackUser);
+            } else {
+                // Last resort: create a system user (shouldn't happen in normal operation)
+                throw new IllegalStateException("Cannot create invite: no authenticated user and no fallback user found");
+            }
+        }
+        
         invite.setPiiStripped(false);
         invite.setLegalHold(false);
         

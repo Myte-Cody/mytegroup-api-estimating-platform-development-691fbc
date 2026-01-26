@@ -90,7 +90,6 @@ class WaitlistServiceTest {
     }
 
     @Test
-    @org.junit.jupiter.api.Disabled("Service has bug: Map.of() doesn't allow null values at line 113")
     void testStart_WithActiveUser_ReturnsOk() {
         String email = "test@example.com";
         User activeUser = new User();

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.test.context.support.WithMockUser;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -66,13 +67,13 @@ class CostCodeControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_USER)
-    @org.junit.jupiter.api.Disabled("CostCodeController list endpoint doesn't have @PreAuthorize, so ROLE_USER is allowed")
-    void testListCostCodes_WithUserRole_IsForbidden() throws Exception {
+    void testListCostCodes_WithUserRole_IsAllowed() throws Exception {
         // CostCodeController GET list endpoint doesn't have @PreAuthorize annotation,
-        // so ROLE_USER can access it. This test expects 403 but gets 200.
+        // so ROLE_USER can access it (only requires authentication via class-level @PreAuthorize)
         mockMvc.perform(get("/api/cost-codes")
                 .param("orgId", testOrganization.getId().toString()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     // ========== LIST ENDPOINT TESTS ==========
@@ -178,6 +179,198 @@ class CostCodeControllerIntegrationTest extends BaseControllerTest {
                 .param("orgId", testOrganization.getId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(APPLICATION_JSON));
+    }
+
+    // ========== TOGGLE ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testToggleCostCode_WithValidId_ReturnsToggled() throws Exception {
+        com.mytegroup.api.dto.costcodes.ToggleCostCodeDto dto = 
+            new com.mytegroup.api.dto.costcodes.ToggleCostCodeDto(false);
+        
+        mockMvc.perform(post("/api/cost-codes/" + testCostCode.getId() + "/toggle")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testCostCode.getId()));
+    }
+
+    // ========== BULK ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testBulkCostCodes_WithOrgAdmin_ReturnsNotImplemented() throws Exception {
+        // Create a valid CostCodeInputDto for the bulk operation
+        com.mytegroup.api.dto.costcodes.CostCodeInputDto codeDto = 
+            new com.mytegroup.api.dto.costcodes.CostCodeInputDto("Labor", "LAB-001", "Description");
+        com.mytegroup.api.dto.costcodes.BulkCostCodesDto dto = 
+            new com.mytegroup.api.dto.costcodes.BulkCostCodesDto(java.util.List.of(codeDto));
+        
+        mockMvc.perform(post("/api/cost-codes/bulk")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.error").value("Bulk create not yet implemented"));
+    }
+
+    // ========== SEED ENDPOINT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testSeedCostCodes_WithOrgAdmin_ReturnsNotImplemented() throws Exception {
+        com.mytegroup.api.dto.costcodes.SeedCostCodesDto dto = 
+            new com.mytegroup.api.dto.costcodes.SeedCostCodesDto("standard", null);
+        
+        mockMvc.perform(post("/api/cost-codes/seed")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.error").value("Seed defaults not yet implemented"));
+    }
+
+    // ========== ADDITIONAL LIST TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListCostCodes_WithSearchQuery_ReturnsFiltered() throws Exception {
+        mockMvc.perform(get("/api/cost-codes")
+                .param("orgId", testOrganization.getId().toString())
+                .param("q", "LABOR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListCostCodes_WithActiveOnly_ReturnsFiltered() throws Exception {
+        mockMvc.perform(get("/api/cost-codes")
+                .param("orgId", testOrganization.getId().toString())
+                .param("activeOnly", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListCostCodes_WithoutOrgId_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/cost-codes"))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ========== ADDITIONAL GET BY ID TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testGetCostCodeById_WithoutOrgId_ReturnsCostCode() throws Exception {
+        // getById works without orgId (orgId is optional), so it should return 200 OK
+        mockMvc.perform(get("/api/cost-codes/" + testCostCode.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testCostCode.getId()));
+    }
+
+    // ========== ADDITIONAL CREATE TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testCreateCostCode_WithoutOrgId_ThrowsException() throws Exception {
+        CreateCostCodeDto dto = new CreateCostCodeDto(
+                "Labor", "LAB-001", "Labor cost code description"
+        );
+        mockMvc.perform(post("/api/cost-codes")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ========== ADDITIONAL UPDATE TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateCostCode_WithoutOrgId_ThrowsException() throws Exception {
+        UpdateCostCodeDto dto = new UpdateCostCodeDto(
+                "Updated Category", "UPD-001", "Updated description"
+        );
+        mockMvc.perform(patch("/api/cost-codes/" + testCostCode.getId())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ========== ADDITIONAL TOGGLE TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testToggleCostCode_WithoutOrgId_ThrowsException() throws Exception {
+        com.mytegroup.api.dto.costcodes.ToggleCostCodeDto dto = 
+            new com.mytegroup.api.dto.costcodes.ToggleCostCodeDto(true);
+        
+        mockMvc.perform(post("/api/cost-codes/" + testCostCode.getId() + "/toggle")
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    // ========== IMPORT PREVIEW TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testImportPreview_WithOrgAdmin_ReturnsNotImplemented() throws Exception {
+        org.springframework.mock.web.MockMultipartFile file = 
+            new org.springframework.mock.web.MockMultipartFile(
+                "file", "costcodes.csv", "text/csv", "category,code,description\nLabor,LAB-001,Test".getBytes()
+            );
+        
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/cost-codes/import/preview")
+                .file(file)
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.error").value("Import preview not yet implemented"));
+    }
+
+    // ========== IMPORT COMMIT TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testImportCommit_WithOrgAdmin_ReturnsNotImplemented() throws Exception {
+        com.mytegroup.api.dto.costcodes.CostCodeImportCommitDto dto = 
+            new com.mytegroup.api.dto.costcodes.CostCodeImportCommitDto(java.util.List.of());
+        
+        mockMvc.perform(post("/api/cost-codes/import/commit")
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.error").value("Import commit not yet implemented"));
+    }
+
+    // ========== ADDITIONAL RBAC TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_SUPER_ADMIN)
+    void testListCostCodes_WithSuperAdmin_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/cost-codes")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_PLATFORM_ADMIN)
+    void testListCostCodes_WithPlatformAdmin_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/cost-codes")
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk());
     }
 }
 

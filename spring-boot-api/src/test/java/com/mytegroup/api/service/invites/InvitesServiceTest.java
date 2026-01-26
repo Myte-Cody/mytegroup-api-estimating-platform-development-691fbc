@@ -111,6 +111,8 @@ class InvitesServiceTest {
         when(inviteRepository.countRecentInvites(eq(1L), eq("person@example.com"), any(java.time.LocalDateTime.class)))
             .thenReturn(0L);
         when(usersService.findAnyByEmail("person@example.com")).thenReturn(null);
+        // Mock fallback user lookup for createdByUser
+        when(userRepository.findByOrganization_Id(1L)).thenReturn(List.of(testUser));
         when(inviteRepository.save(any(Invite.class))).thenAnswer(invocation -> {
             Invite invite = invocation.getArgument(0);
             invite.setId(1L);

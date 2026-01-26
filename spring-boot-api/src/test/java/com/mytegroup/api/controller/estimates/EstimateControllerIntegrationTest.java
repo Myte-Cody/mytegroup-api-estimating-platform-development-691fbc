@@ -18,6 +18,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -153,13 +154,209 @@ class EstimateControllerIntegrationTest extends BaseControllerTest {
 
     @Test
     @WithMockUser(roles = ROLE_ORG_ADMIN)
-    @org.junit.jupiter.api.Disabled("Service-level serialization issue with Map<String, Object>")
     void testArchiveEstimate_WithValidId_ReturnsOk() throws Exception {
-        // TODO: Fix service-level serialization issue
         mockMvc.perform(post("/api/projects/{projectId}/estimates/{id}/archive", testProject.getId(), testEstimate.getId())
                 .param("orgId", testOrganization.getId().toString())
                 .with(csrf()))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testEstimate.getId()));
+    }
+
+    // ========== ADDITIONAL EDGE CASE TESTS ==========
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListEstimates_WithoutOrgId_ThrowsException() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates", testProject.getId()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListEstimates_WithIncludeArchived_ReturnsAll() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString())
+                .param("includeArchived", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testGetEstimateById_WithoutOrgId_ThrowsException() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates/{id}", testProject.getId(), testEstimate.getId()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testGetEstimateById_WithIncludeArchived_ReturnsEstimate() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates/{id}", testProject.getId(), testEstimate.getId())
+                .param("orgId", testOrganization.getId().toString())
+                .param("includeArchived", "true"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testEstimate.getId()));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testCreateEstimate_WithoutOrgId_ThrowsException() throws Exception {
+        CreateEstimateDto dto = new CreateEstimateDto(
+                "New Estimate", null, null, new ArrayList<>()
+        );
+        mockMvc.perform(post("/api/projects/{projectId}/estimates", testProject.getId())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testCreateEstimate_WithoutName_ReturnsBadRequest() throws Exception {
+        CreateEstimateDto dto = new CreateEstimateDto(
+                null, null, null, new ArrayList<>()
+        );
+        mockMvc.perform(post("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateEstimate_WithoutOrgId_ThrowsException() throws Exception {
+        UpdateEstimateDto dto = new UpdateEstimateDto(
+                "Updated Estimate", null, null, EstimateStatus.DRAFT, new ArrayList<>()
+        );
+        mockMvc.perform(patch("/api/projects/{projectId}/estimates/{id}", testProject.getId(), testEstimate.getId())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateEstimate_WithInvalidId_ReturnsNotFound() throws Exception {
+        UpdateEstimateDto dto = new UpdateEstimateDto(
+                "Updated Estimate", null, null, EstimateStatus.DRAFT, new ArrayList<>()
+        );
+        mockMvc.perform(patch("/api/projects/{projectId}/estimates/{id}", testProject.getId(), 99999L)
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testArchiveEstimate_WithoutOrgId_ThrowsException() throws Exception {
+        mockMvc.perform(post("/api/projects/{projectId}/estimates/{id}/archive", testProject.getId(), testEstimate.getId())
+                .with(csrf()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testArchiveEstimate_WithInvalidId_ReturnsNotFound() throws Exception {
+        mockMvc.perform(post("/api/projects/{projectId}/estimates/{id}/archive", testProject.getId(), 99999L)
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUnarchiveEstimate_ReturnsServiceUnavailable() throws Exception {
+        // Unarchive is not yet implemented
+        mockMvc.perform(post("/api/projects/{projectId}/estimates/{id}/unarchive", testProject.getId(), testEstimate.getId())
+                .param("orgId", testOrganization.getId().toString())
+                .with(csrf()))
+                .andExpect(status().isServiceUnavailable());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ADMIN)
+    void testListEstimates_WithAdmin_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = "MANAGER")
+    void testListEstimates_WithManager_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = "PM")
+    void testListEstimates_WithPM_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = "VIEWER")
+    void testListEstimates_WithViewer_IsAllowed() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testCreateEstimate_ResponseContainsId() throws Exception {
+        String uniqueName = "New Estimate " + System.currentTimeMillis();
+        CreateEstimateDto dto = new CreateEstimateDto(
+                uniqueName, null, null, new ArrayList<>()
+        );
+        mockMvc.perform(post("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(result -> {
+                    String content = result.getResponse().getContentAsString();
+                    assertTrue(content.contains("id") || content.contains("\"id\""), 
+                        "Response should contain id field");
+                });
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testUpdateEstimate_ResponseContainsUpdatedFields() throws Exception {
+        UpdateEstimateDto dto = new UpdateEstimateDto(
+                "Updated Estimate Name", "Updated description", null, EstimateStatus.DRAFT, new ArrayList<>()
+        );
+        mockMvc.perform(patch("/api/projects/{projectId}/estimates/{id}", testProject.getId(), testEstimate.getId())
+                .param("orgId", testOrganization.getId().toString())
+                .contentType(APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(dto))
+                .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testEstimate.getId()));
+    }
+
+    @Test
+    @WithMockUser(roles = ROLE_ORG_ADMIN)
+    void testListEstimates_ReturnsJsonContentType() throws Exception {
+        mockMvc.perform(get("/api/projects/{projectId}/estimates", testProject.getId())
+                .param("orgId", testOrganization.getId().toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(APPLICATION_JSON));
     }
 }
 

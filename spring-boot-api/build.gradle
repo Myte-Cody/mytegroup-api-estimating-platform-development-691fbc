@@ -28,6 +28,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-mail'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     // PostgreSQL Driver
@@ -53,9 +54,9 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
     testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'org.testcontainers:testcontainers:1.19.8'
-    testImplementation 'org.testcontainers:postgresql:1.19.8'
-    testImplementation 'org.testcontainers:junit-jupiter:1.19.8'
+    testImplementation 'org.testcontainers:testcontainers:1.21.4'
+    testImplementation 'org.testcontainers:postgresql:1.21.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.4'
     
     // GreenMail for email testing
     testImplementation 'com.icegreen:greenmail-junit5:2.0.1'
@@ -66,6 +67,14 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    environment "DOCKER_HOST", "unix:///var/run/docker.sock"
+    environment "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock"
+    environment "TESTCONTAINERS_HOST_OVERRIDE", "localhost"
+    environment "TESTCONTAINERS_CONFIG_FILE", "${projectDir}/testcontainers.properties"
+    environment "DOCKER_CONTEXT", "default"
+    environment "DOCKER_CONFIG", "${projectDir}/docker-config"
+    systemProperty "docker.host", "unix:///var/run/docker.sock"
+    systemProperty "docker.client.strategy", "org.testcontainers.dockerclient.UnixSocketClientProviderStrategy"
 }
 
 tasks.named('bootJar') {

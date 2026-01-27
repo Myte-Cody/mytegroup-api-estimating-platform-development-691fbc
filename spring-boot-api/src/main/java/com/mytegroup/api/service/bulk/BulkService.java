@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Service for bulk import/export operations.
@@ -33,6 +34,7 @@ public class BulkService {
         if (orgId == null) {
             throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
         }
+        validateEntityType(entityType);
         authHelper.validateOrg(orgId);
         boolean dryRun = false; // TODO: Add as parameter if needed
         
@@ -71,6 +73,7 @@ public class BulkService {
         if (orgId == null) {
             throw new com.mytegroup.api.exception.BadRequestException("orgId is required");
         }
+        validateEntityType(entityType);
         authHelper.validateOrg(orgId);
         boolean includeArchived = false; // TODO: Add as parameter if needed
         
@@ -91,6 +94,23 @@ public class BulkService {
         );
         
         return new byte[0]; // Placeholder
+    }
+    private void validateEntityType(String entityType) {
+        if (entityType == null || entityType.isBlank()) {
+            throw new BadRequestException("entityType is required");
+        }
+        Set<String> allowed = Set.of(
+            "users",
+            "contacts",
+            "projects",
+            "offices",
+            "timesheets",
+            "crew-assignments",
+            "crew-swaps"
+        );
+        if (!allowed.contains(entityType)) {
+            throw new BadRequestException("Unsupported entityType: " + entityType);
+        }
     }
 }
 

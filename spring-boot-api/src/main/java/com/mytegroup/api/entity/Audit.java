@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 @Table(name = "audit_logs", indexes = {
     @Index(name = "idx_audit_timestamp", columnList = "timestamp"),
     @Index(name = "idx_audit_method_uri", columnList = "method, request_uri"),
-    @Index(name = "idx_audit_status", columnList = "status"),
+    @Index(name = "idx_audit_status", columnList = "status_code"),
     @Index(name = "idx_audit_user", columnList = "username")
 })
 @Audited

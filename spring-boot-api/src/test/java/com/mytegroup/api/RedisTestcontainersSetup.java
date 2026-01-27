@@ -28,6 +28,7 @@ public class RedisTestcontainersSetup {
         initialized = true;
 
         try {
+            setDockerSystemProperties();
             // Check if Docker is available by trying to create a Redis container
             redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
                     .withExposedPorts(6379)
@@ -70,6 +71,12 @@ public class RedisTestcontainersSetup {
         if (System.getProperty(key) == null) {
             System.setProperty(key, value);
         }
+    }
+
+    private static void setDockerSystemProperties() {
+        setDefaultIfNotSet("docker.host", "unix:///var/run/docker.sock");
+        setDefaultIfNotSet("docker.client.strategy", "org.testcontainers.dockerclient.UnixSocketClientProviderStrategy");
+        setDefaultIfNotSet("testcontainers.docker.socket.override", "/var/run/docker.sock");
     }
 
     /**

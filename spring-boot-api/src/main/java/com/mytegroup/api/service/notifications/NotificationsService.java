@@ -1,11 +1,13 @@
 package com.mytegroup.api.service.notifications;
 
 import com.mytegroup.api.entity.communication.Notification;
-import com.mytegroup.api.entity.core.Organization;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ForbiddenException;
+import com.mytegroup.api.exception.ResourceNotFoundException;
+import com.mytegroup.api.repository.core.UserRepository;
 import com.mytegroup.api.repository.communication.NotificationRepository;
 import com.mytegroup.api.service.common.AuditLogService;
+import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,6 +31,8 @@ public class NotificationsService {
     
     private final NotificationRepository notificationRepository;
     private final AuditLogService auditLogService;
+    private final ServiceAuthorizationHelper authHelper;
+    private final UserRepository userRepository;
     
     /**
      * Creates a notification
@@ -41,14 +45,11 @@ public class NotificationsService {
         }
         
         Notification notification = new Notification();
-        // TODO: Set organization from orgId
-        // Organization org = authHelper.validateOrg(orgId);
-        // notification.setOrganization(org);
-        // TODO: Set user from userId
-        // User user = userRepository.findById(userId).orElseThrow(...);
-        // notification.setUser(user);
+        notification.setOrganization(authHelper.validateOrg(orgId));
+        notification.setUser(userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found")));
         notification.setType(type);
-        // TODO: Set payload as JSON
+        notification.setPayload(payload);
         notification.setRead(false);
         
         Notification savedNotification = notificationRepository.save(notification);

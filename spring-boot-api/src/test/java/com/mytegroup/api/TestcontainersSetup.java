@@ -28,6 +28,7 @@ public class TestcontainersSetup {
         initialized = true;
 
         try {
+            setDockerSystemProperties();
             // Check if Docker is available by trying to create a container
             postgres = new PostgreSQLContainer<>(DockerImageName.parse("postgres:18"))
                     .withDatabaseName("mytegroup_test")
@@ -72,6 +73,12 @@ public class TestcontainersSetup {
         if (System.getProperty(key) == null) {
             System.setProperty(key, value);
         }
+    }
+
+    private static void setDockerSystemProperties() {
+        setDefaultIfNotSet("docker.host", "unix:///var/run/docker.sock");
+        setDefaultIfNotSet("docker.client.strategy", "org.testcontainers.dockerclient.UnixSocketClientProviderStrategy");
+        setDefaultIfNotSet("testcontainers.docker.socket.override", "/var/run/docker.sock");
     }
 
     /**

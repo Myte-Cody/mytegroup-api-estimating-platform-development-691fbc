@@ -1,11 +1,15 @@
 package com.mytegroup.api.service.notifications;
 
 import com.mytegroup.api.entity.communication.Notification;
+import com.mytegroup.api.entity.core.Organization;
+import com.mytegroup.api.entity.core.User;
 import com.mytegroup.api.exception.BadRequestException;
 import com.mytegroup.api.exception.ForbiddenException;
 import com.mytegroup.api.exception.ResourceNotFoundException;
 import com.mytegroup.api.repository.communication.NotificationRepository;
+import com.mytegroup.api.repository.core.UserRepository;
 import com.mytegroup.api.service.common.AuditLogService;
+import com.mytegroup.api.service.common.ServiceAuthorizationHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,6 +37,12 @@ class NotificationsServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private ServiceAuthorizationHelper authHelper;
+
+    @Mock
+    private UserRepository userRepository;
+
     @InjectMocks
     private NotificationsService notificationsService;
 
@@ -54,6 +64,14 @@ class NotificationsServiceTest {
         Map<String, Object> payload = new HashMap<>();
         payload.put("message", "Test notification");
 
+        Organization org = new Organization();
+        org.setId(1L);
+        User user = new User();
+        user.setId(1L);
+
+        when(authHelper.validateOrg(orgId)).thenReturn(org);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
         when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> {
             Notification notification = invocation.getArgument(0);
             notification.setId(1L);
@@ -64,6 +82,8 @@ class NotificationsServiceTest {
 
         assertNotNull(result);
         assertEquals(type, result.getType());
+        assertEquals(org, result.getOrganization());
+        assertEquals(user, result.getUser());
         verify(notificationRepository, times(1)).save(any(Notification.class));
         verify(auditLogService, times(1)).log(anyString(), eq(orgId), eq(userId.toString()), anyString(), anyString(), eq(payload));
     }

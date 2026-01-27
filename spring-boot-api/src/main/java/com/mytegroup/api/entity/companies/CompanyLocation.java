@@ -16,7 +16,6 @@ import java.util.List;
     @Index(name = "idx_company_location_org_company_normalized", columnList = "org_id, company_id, normalized_name"),
     @Index(name = "idx_company_location_org_company_external", columnList = "org_id, company_id, external_id"),
     @Index(name = "idx_company_location_org_company", columnList = "org_id, company_id"),
-    @Index(name = "idx_company_location_org_tag_keys", columnList = "org_id, tag_keys"),
     @Index(name = "idx_company_location_org_archived", columnList = "org_id, archived_at")
 })
 @Audited

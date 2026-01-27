@@ -1,5 +1,6 @@
 package com.mytegroup.api;
 
+import com.mytegroup.api.config.TestFlywayConfig;
 import com.mytegroup.api.config.TestRedisConfig;
 import com.mytegroup.api.entity.companies.Company;
 import com.mytegroup.api.entity.companies.CompanyLocation;
@@ -47,6 +48,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -65,15 +68,21 @@ import org.springframework.transaction.annotation.Transactional;
         "org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration",
     "spring.data.redis.repositories.enabled=false"
 })
-@Import(TestRedisConfig.class)
+@Import({TestRedisConfig.class, TestFlywayConfig.class})
 @ActiveProfiles("test")
 @Transactional
 public abstract class BaseIntegrationTest {
 
-    // Ensure Testcontainers are initialized before any tests run
-    static {
-        TestcontainersSetup.isRunning();       // Forces initialization of PostgreSQL Testcontainer
-        RedisTestcontainersSetup.isRunning();  // Forces initialization of Redis Testcontainer
+    // Ensure Testcontainers are initialized and properties are set before context refresh
+    @DynamicPropertySource
+    static void registerTestcontainersProperties(DynamicPropertyRegistry registry) {
+        TestcontainersSetup.isRunning();
+        RedisTestcontainersSetup.isRunning();
+        registry.add("spring.datasource.url", TestcontainersSetup::getJdbcUrl);
+        registry.add("spring.datasource.username", TestcontainersSetup::getUsername);
+        registry.add("spring.datasource.password", TestcontainersSetup::getPassword);
+        registry.add("spring.redis.host", RedisTestcontainersSetup::getHost);
+        registry.add("spring.redis.port", () -> RedisTestcontainersSetup.getPort().toString());
     }
 
     // Repositories for cleanup - ordered by dependency (child to parent)

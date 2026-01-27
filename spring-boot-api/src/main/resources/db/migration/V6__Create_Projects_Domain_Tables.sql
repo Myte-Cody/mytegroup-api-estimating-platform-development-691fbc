@@ -20,10 +20,21 @@ CREATE TABLE IF NOT EXISTS projects (
     erection_start_date DATE,
     erection_end_date DATE,
     completion_date DATE,
-    -- Embedded objects stored as JSONB
-    budget JSONB,
-    quantities JSONB,
-    staffing JSONB,
+    -- ProjectBudget embedded fields
+    hours DOUBLE PRECISION,
+    labour_rate DOUBLE PRECISION,
+    currency VARCHAR(50),
+    amount DOUBLE PRECISION,
+    -- ProjectQuantities embedded fields (JSONB)
+    structural JSONB,
+    misc_metals JSONB,
+    metal_deck JSONB,
+    clt_panels JSONB,
+    glulam JSONB,
+    -- ProjectStaffing embedded fields
+    project_manager_person_id BIGINT,
+    foreman_person_ids JSONB,
+    superintendent_person_id BIGINT,
     archived_at TIMESTAMP,
     pii_stripped BOOLEAN NOT NULL DEFAULT FALSE,
     legal_hold BOOLEAN NOT NULL DEFAULT FALSE,

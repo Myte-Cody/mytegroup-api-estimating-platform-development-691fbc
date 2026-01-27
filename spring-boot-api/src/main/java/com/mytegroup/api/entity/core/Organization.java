@@ -46,7 +46,6 @@ public class Organization extends BaseEntity {
     @Column(name = "use_dedicated_db", nullable = false)
     private Boolean useDedicatedDb = false;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "datastore_type", nullable = false)
     private DatastoreType datastoreType = DatastoreType.SHARED;
 
@@ -56,7 +55,6 @@ public class Organization extends BaseEntity {
     @Column(name = "database_name")
     private String databaseName;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "data_residency", nullable = false)
     private DataResidency dataResidency = DataResidency.SHARED;
 

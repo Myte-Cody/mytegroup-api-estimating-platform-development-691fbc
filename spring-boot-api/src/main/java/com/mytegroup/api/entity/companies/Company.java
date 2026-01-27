@@ -15,9 +15,7 @@ import java.util.List;
 @Table(name = "companies", indexes = {
     @Index(name = "idx_company_org_normalized_name", columnList = "org_id, normalized_name"),
     @Index(name = "idx_company_org_external_id", columnList = "org_id, external_id"),
-    @Index(name = "idx_company_org_archived", columnList = "org_id, archived_at"),
-    @Index(name = "idx_company_org_type_keys", columnList = "org_id, company_type_keys"),
-    @Index(name = "idx_company_org_tag_keys", columnList = "org_id, tag_keys")
+    @Index(name = "idx_company_org_archived", columnList = "org_id, archived_at")
 })
 @Audited
 @Getter

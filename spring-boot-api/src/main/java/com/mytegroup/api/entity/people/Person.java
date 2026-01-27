@@ -44,7 +44,6 @@ public class Person extends BaseEntity {
     @Column(name = "external_id")
     private String externalId;
 
-    @Enumerated(EnumType.STRING)
     @Column(name = "person_type", nullable = false)
     private PersonType personType;
 
